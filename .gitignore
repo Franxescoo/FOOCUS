@@ -223,3 +223,6 @@ __marimo__/
 focusflow.db
 focusflow.db-shm
 focusflow.db-wal
+
+# Generated only by the Windows installer workflow
+focusflow_build.py
