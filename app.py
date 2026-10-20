@@ -444,14 +444,15 @@ def edit_task(task_id):
         return jsonify({"ok": False, "message": "Selecciona una estimación válida."}), 400
 
     with get_db() as db:
+        exists = db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if not exists:
+            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
         subject_id = get_or_create_subject(db, subject_name)
-        cursor = db.execute(
+        db.execute(
             """UPDATE tasks SET title = ?, priority = ?, due_date = ?, subject_id = ?,
                estimated_minutes = ? WHERE id = ?""",
             (title, priority, due_date, subject_id, estimated_minutes, task_id),
         )
-        if cursor.rowcount == 0:
-            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
         subject = db.execute(
             "SELECT name FROM subjects WHERE id = ?", (subject_id,)
         ).fetchone() if subject_id else None
