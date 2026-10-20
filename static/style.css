@@ -852,3 +852,37 @@ html[data-theme="dark"] .study-goal-foot #study-goal-percent {
     transition: none;
   }
 }
+
+
+.error-layout {
+  max-width: 920px;
+}
+.error-card {
+  max-width: 660px;
+  margin: clamp(42px, 9vh, 100px) auto;
+  padding: clamp(24px, 5vw, 44px);
+  text-align: left;
+}
+.error-card .eyebrow {
+  margin: 0 0 12px;
+}
+.error-card h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.16;
+  letter-spacing: -1.1px;
+}
+.error-card > p:not(.eyebrow) {
+  max-width: 520px;
+  margin: 16px 0 24px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.error-home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  text-decoration: none;
+}
