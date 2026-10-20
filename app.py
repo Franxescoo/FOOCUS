@@ -12,6 +12,7 @@ DATABASE = Path(__file__).with_name("focusflow.db")
 
 def get_db():
     connection = sqlite3.connect(DATABASE)
+    connection.execute("PRAGMA foreign_keys = ON")
     connection.row_factory = sqlite3.Row
     return connection
 
