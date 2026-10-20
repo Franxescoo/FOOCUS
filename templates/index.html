@@ -15,7 +15,7 @@
       <a class="brand" href="{{ url_for('index') }}" aria-label="FocusFlow, inicio">
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 32"><defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M16 6C7 6 3 13 8 21c5 8 12 6 24-5 12-11 19-13 24-5s1 15-8 15c-7 0-12-7-16-11C28 11 23 6 16 6Z" fill="none" stroke="url(#brand-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> FocusFlow
       </a>
-      <span class="today">HOY · {{ today }}</span>
+      <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo oscuro</span></button></div>
     </header>
 
     <section class="welcome">
@@ -137,6 +137,20 @@
           <div class="notes-footer"><span id="notes-status" role="status">Tus notas se guardan automáticamente.</span><button type="button" class="focus-reset" id="clear-notes">Borrar notas</button></div>
         </section>
 
+        <section class="anti-procrastination panel" id="start-small" aria-labelledby="start-small-title">
+          <div class="section-heading"><div><p class="eyebrow">SISTEMA ANTI-PROCRASTINACIÓN</p><h2 id="start-small-title">Hazlo tan pequeño que puedas empezar.</h2><p class="notes-hint">No necesitas terminarlo ahora. Solo romper la barrera de los primeros cinco minutos.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
+          <div class="starter-grid">
+            <label class="field" for="starter-task">¿Qué tarea vas a destrabar?
+              <select id="starter-task"><option value="">Elige una tarea pendiente…</option>{% for task in tasks if not task.completed %}<option value="{{ task.id }}" data-title="{{ task.title }}">{{ task.title }}</option>{% endfor %}</select>
+            </label>
+            <label class="field" for="starter-step">Tu primer paso (algo que puedas hacer en 5 minutos)
+              <input id="starter-step" type="text" maxlength="180" placeholder="Ej. abrir el proyecto y revisar un archivo">
+            </label>
+          </div>
+          <div class="starter-guidance" id="starter-guidance" role="status">Elige una tarea y define una acción concreta, pequeña y fácil de comenzar.</div>
+          <div class="starter-actions"><button type="button" class="primary-button" id="starter-begin">Empezar 5 minutos</button><button type="button" class="focus-reset" id="starter-suggest">Elegir por mí</button></div>
+          <p class="starter-footnote">Regla: si después de cinco minutos quieres parar, puedes parar. El objetivo es empezar, no hacerlo perfecto.</p>
+        </section>
         <section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
           <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
           <div class="focus-controls">
@@ -336,6 +350,124 @@
       }));
       draw();
     })();
+    (() => {
+      const themeButton = document.getElementById("theme-toggle");
+      const themeKey = "focusflow_theme_v1";
+      function applyTheme(theme) {
+        const dark = theme === "dark";
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        themeButton.setAttribute("aria-pressed", String(dark));
+        themeButton.setAttribute("aria-label", dark ? "Activar modo claro" : "Activar modo oscuro");
+        themeButton.querySelector(".theme-icon").textContent = dark ? "☀" : "☾";
+        themeButton.querySelector(".theme-label").textContent = dark ? "Modo claro" : "Modo oscuro";
+      }
+      let theme = "light";
+      try {
+        const saved = localStorage.getItem(themeKey);
+        if (saved === "dark" || saved === "light") theme = saved;
+      } catch (error) {}
+      applyTheme(theme);
+      themeButton.addEventListener("click", () => {
+        theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        applyTheme(theme);
+        try { localStorage.setItem(themeKey, theme); } catch (error) {}
+      });
+    })();
+
+    (() => {
+      const taskSelect = document.getElementById("starter-task");
+      const stepInput = document.getElementById("starter-step");
+      const guidance = document.getElementById("starter-guidance");
+      const beginButton = document.getElementById("starter-begin");
+      const suggestButton = document.getElementById("starter-suggest");
+      const stepKey = "focusflow_first_step_v1";
+      const tasks = Array.from(document.querySelectorAll(".task-item[data-state='pending']")).map(card => ({
+        id: card.dataset.taskId,
+        title: card.querySelector(".task-info h3")?.textContent.trim() || "",
+        priority: card.querySelector(".priority")?.textContent.trim() || "Media",
+        due: card.querySelector(".due-date[data-due-date]")?.dataset.dueDate || ""
+      }));
+      try {
+        const saved = JSON.parse(localStorage.getItem(stepKey) || "{}");
+        if (saved.taskId && taskSelect.querySelector('option[value="' + CSS.escape(saved.taskId) + '"]')) taskSelect.value = saved.taskId;
+        stepInput.value = saved.step || "";
+      } catch (error) {}
+      function saveStep() {
+        try { localStorage.setItem(stepKey, JSON.stringify({taskId: taskSelect.value, step: stepInput.value})); } catch (error) {}
+      }
+      function refreshGuidance() {
+        const task = tasks.find(item => item.id === taskSelect.value);
+        guidance.textContent = task
+          ? (stepInput.value.trim() ? "Tu misión: " + stepInput.value.trim() + ". Solo trabaja en eso durante cinco minutos." : "Escribe un primer paso pequeño para «" + task.title + "»; evita intentar resolverlo todo de una vez.")
+          : "Elige una tarea y define una acción concreta, pequeña y fácil de comenzar.";
+        beginButton.disabled = !task;
+        saveStep();
+      }
+      taskSelect.addEventListener("change", refreshGuidance);
+      stepInput.addEventListener("input", refreshGuidance);
+      suggestButton.addEventListener("click", () => {
+        if (!tasks.length) {
+          guidance.textContent = "No tienes tareas pendientes. Añade una tarea pequeña para empezar.";
+          return;
+        }
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const score = task => {
+          let value = task.priority === "Alta" ? 3 : task.priority === "Media" ? 2 : 1;
+          if (task.due) {
+            const due = new Date(task.due + "T00:00:00");
+            if (!Number.isNaN(due.getTime())) {
+              if (due < today) value += 5;
+              else if (due.getTime() === today.getTime()) value += 4;
+              else if (due - today <= 3 * 86400000) value += 2;
+            }
+          }
+          return value;
+        };
+        const chosen = [...tasks].sort((a,b) => score(b)-score(a))[0];
+        taskSelect.value = chosen.id;
+        if (!stepInput.value.trim()) stepInput.value = "Abrir lo necesario y avanzar en la primera parte durante 5 minutos";
+        refreshGuidance();
+        guidance.textContent = "Te propongo empezar por «" + chosen.title + "», según su prioridad y fecha límite. " + stepInput.value.trim() + ".";
+      });
+      beginButton.addEventListener("click", async () => {
+        const task = tasks.find(item => item.id === taskSelect.value);
+        if (!task) return;
+        const step = stepInput.value.trim();
+        if (!step) {
+          guidance.textContent = "Escribe un primer paso concreto antes de comenzar; puede ser algo muy pequeño.";
+          stepInput.focus();
+          return;
+        }
+        saveStep();
+        beginButton.disabled = true;
+        beginButton.textContent = "Preparando…";
+        try {
+          const response = await fetch("/api/work/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({task_id:Number(task.id)})});
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar el registro de trabajo.");
+          const preset = document.querySelector('[data-minutes="5"]');
+          if (preset) preset.click();
+          const startTimer = document.getElementById("focus-start");
+          if (startTimer && startTimer.textContent !== "Pausar") startTimer.click();
+          document.getElementById("focus-area").scrollIntoView({behavior:"smooth", block:"center"});
+          document.getElementById("active-work-panel").hidden = false;
+          document.getElementById("active-work-title").textContent = task.title;
+          document.getElementById("active-work-subtitle").textContent = "Primer paso: " + step;
+          document.getElementById("active-work-clock").dataset.startedAt = data.started_at;
+          document.getElementById("work-session-status").textContent = "Tu sesión quedó registrada. Al terminar, guarda lo que avanzaste.";
+          document.getElementById("work-comment").value = step;
+          guidance.textContent = "¡Ya empezaste! Durante cinco minutos, céntrate solo en: " + step + ".";
+          beginButton.textContent = "Bloque iniciado";
+        } catch (error) {
+          guidance.textContent = error.message || "No se pudo iniciar. Prueba desde la tarjeta de la tarea.";
+          beginButton.disabled = false;
+          beginButton.textContent = "Intentar de nuevo";
+        }
+      });
+      refreshGuidance();
+    })();
+
     const taskSearch = document.getElementById("task-search");
     let activeTaskFilter = "all";
     function updateTaskVisibility() {
