@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{ status_code }} · FocusFlow</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="layout error-layout">
+    <header class="topbar">
+      <a class="brand" href="{{ url_for('index') }}" aria-label="FocusFlow, inicio">
+        <span class="brand-mark" aria-hidden="true">↗</span> FocusFlow
+      </a>
+    </header>
+    <section class="error-card panel" aria-labelledby="error-title">
+      <p class="eyebrow">ERROR {{ status_code }}</p>
+      <h1 id="error-title">{{ title }}</h1>
+      <p>{{ message }}</p>
+      <a class="primary-button error-home" href="{{ url_for('index') }}">Volver a FocusFlow</a>
+    </section>
+  </main>
+</body>
+</html>
