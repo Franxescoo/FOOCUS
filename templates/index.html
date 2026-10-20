@@ -322,49 +322,122 @@
       const display = document.getElementById("focus-time");
       const start = document.getElementById("focus-start");
       const reset = document.getElementById("focus-reset");
-      const presets = document.querySelectorAll("[data-minutes]");
-      let totalSeconds = 25 * 60;
-      let remaining = totalSeconds;
-      let interval = null;
+      const presets = Array.from(document.querySelectorAll("[data-minutes]"));
       const sessionDisplay = document.getElementById("sessions-today");
+      const timerKey = "focusflow_timer_state_v1";
       const localDate = new Date();
       const sessionDate = localDate.getFullYear() + "-" + String(localDate.getMonth() + 1).padStart(2, "0") + "-" + String(localDate.getDate()).padStart(2, "0");
       const sessionKey = "focusflow_sessions_" + sessionDate;
+      const allowedMinutes = [5, 15, 25];
+      let totalSeconds = 25 * 60;
+      let remaining = totalSeconds;
+      let interval = null;
+      let endsAt = null;
       let sessions = 0;
-      try { sessions = Number(localStorage.getItem(sessionKey) || 0); } catch (error) {}
+
+      try { sessions = Math.max(0, Number(localStorage.getItem(sessionKey) || 0)); } catch (error) {}
       sessionDisplay.textContent = String(sessions);
+
+      function saveTimerState() {
+        const currentRemaining = interval && endsAt
+          ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+          : remaining;
+        try {
+          localStorage.setItem(timerKey, JSON.stringify({
+            totalSeconds,
+            remaining: currentRemaining,
+            running: Boolean(interval && endsAt),
+            endsAt: interval && endsAt ? endsAt : null
+          }));
+        } catch (error) {}
+      }
+
       function draw() {
         display.textContent = String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0");
       }
-      function stop() {
+
+      function stopInterval() {
         if (interval) clearInterval(interval);
         interval = null;
-        start.textContent = "Continuar";
+        endsAt = null;
       }
-      function begin() {
-        if (interval) { stop(); return; }
-        if (remaining <= 0) remaining = totalSeconds;
-        start.textContent = "Pausar";
-        interval = setInterval(() => {
-          remaining -= 1;
-          draw();
-          if (remaining <= 0) {
-            stop();
-            remaining = 0;
-            draw();
-            start.textContent = "Terminado";
-            sessions += 1;
-            sessionDisplay.textContent = String(sessions);
-            try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
-            statusNotice();
-          }
-        }, 1000);
-      }
-      function statusNotice() {
+
+      function completeBlock() {
+        stopInterval();
+        remaining = 0;
+        draw();
         display.classList.add("is-finished");
-        if ("Notification" in window && Notification.permission === "granted") new Notification("FocusFlow", {body:"¡Terminó tu bloque de concentración! Tómate un descanso."});
+        start.textContent = "Terminado";
+        sessions += 1;
+        sessionDisplay.textContent = String(sessions);
+        try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
+        saveTimerState();
+        if ("Notification" in window && Notification.permission === "granted") {
+          try { new Notification("FocusFlow", {body: "Terminó tu bloque de concentración. Tómate un descanso."}); } catch (error) {}
+        }
       }
+
+      function tick() {
+        if (!endsAt) return;
+        remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+        draw();
+        if (remaining <= 0) {
+          completeBlock();
+        } else if (remaining % 2 === 0) {
+          saveTimerState();
+        }
+      }
+
+      function pause() {
+        if (interval && endsAt) remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+        stopInterval();
+        start.textContent = "Continuar";
+        draw();
+        saveTimerState();
+      }
+
+      function begin() {
+        if (interval) {
+          pause();
+          return;
+        }
+        if (remaining <= 0) remaining = totalSeconds;
+        endsAt = Date.now() + remaining * 1000;
+        start.textContent = "Pausar";
+        interval = setInterval(tick, 250);
+        saveTimerState();
+        tick();
+      }
+
+      let restoredExpiredBlock = false;
+      try {
+        const saved = JSON.parse(localStorage.getItem(timerKey) || "null");
+        if (saved && allowedMinutes.includes(Number(saved.totalSeconds) / 60)) {
+          totalSeconds = Number(saved.totalSeconds);
+          if (saved.running && Number.isFinite(Number(saved.endsAt))) {
+            endsAt = Number(saved.endsAt);
+            remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+            if (remaining > 0) {
+              interval = setInterval(tick, 250);
+              start.textContent = "Pausar";
+            } else {
+              endsAt = null;
+              restoredExpiredBlock = true;
+            }
+          } else {
+            remaining = Math.max(0, Math.min(totalSeconds, Number(saved.remaining) || 0));
+          }
+        }
+      } catch (error) {}
+
+      presets.forEach(button => {
+        button.classList.toggle("active", Number(button.dataset.minutes) * 60 === totalSeconds);
+      });
       start.addEventListener("click", () => {
+        if (interval) {
+          pause();
+          return;
+        }
         if (remaining <= 0) {
           remaining = totalSeconds;
           display.classList.remove("is-finished");
@@ -373,23 +446,29 @@
         begin();
       });
       reset.addEventListener("click", () => {
-        stop();
+        pause();
         remaining = totalSeconds;
         display.classList.remove("is-finished");
         start.textContent = "Comenzar";
         draw();
+        saveTimerState();
       });
       presets.forEach(button => button.addEventListener("click", () => {
-        stop();
+        pause();
         totalSeconds = Number(button.dataset.minutes) * 60;
         remaining = totalSeconds;
         presets.forEach(item => item.classList.toggle("active", item === button));
         display.classList.remove("is-finished");
         start.textContent = "Comenzar";
         draw();
+        saveTimerState();
       }));
       draw();
+      if (restoredExpiredBlock) completeBlock();
+      else if (interval) tick();
+      else saveTimerState();
     })();
+
     (() => {
       const themeButton = document.getElementById("theme-toggle");
       const themeKey = "focusflow_theme_v1";
