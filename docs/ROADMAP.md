@@ -25,12 +25,12 @@ FocusFlow es una aplicación **local y de un solo usuario** construida con Flask
 
 ### 2. Evolucionar el modelo académico
 
-**Ya implementado:** tabla normalizada de asignaturas, tareas vinculadas mediante `subject_id`, tiempo estimado por tarea, comparación con tiempo real, filtro por asignatura y resumen de carga pendiente. `init_db()` detecta columnas ausentes y las añade sin recrear la tabla ni borrar tareas existentes.
+**Ya implementado:** tabla normalizada de asignaturas, tareas vinculadas mediante `subject_id`, tiempo estimado por tarea, comparación con tiempo real, filtro por asignatura y resumen de carga pendiente. También existe una fecha planificada independiente de la fecha límite y un panel plegable que agrupa las tareas pendientes de los próximos siete días. `init_db()` detecta columnas ausentes y las añade sin recrear la tabla ni borrar tareas existentes.
 
 Siguientes mejoras recomendadas:
 - Introducir migraciones versionadas para que futuras modificaciones se puedan auditar, probar y revertir con seguridad.
 - Añadir semestres o periodos académicos y permitir archivar asignaturas antiguas.
-- Desarrollar una planificación semanal con bloques de estudio y fecha objetivo, basada en la estimación pendiente.
+- Permitir bloques horarios opcionales sin obligar a todos a seguir una agenda estricta.
 - Registrar una breve revisión al cerrar una sesión: qué se avanzó y cuál es el siguiente paso.
 - Comparar estimaciones y tiempos reales en un informe semanal para ajustar futuras estimaciones.
 

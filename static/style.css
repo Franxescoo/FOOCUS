@@ -1104,3 +1104,288 @@ html[data-theme="dark"] .subject-overview-actual {
 @media (prefers-reduced-motion: reduce) {
   .task-estimate-fill { transition: none; }
 }
+
+
+/* Weekly study planner */
+.task-study-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.field-hint {
+  margin: -5px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.planned-date {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8f3ff;
+  color: #255c91;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.planned-date.planned-today {
+  background: #e4f7ed;
+  color: #246745;
+}
+.planned-date.planned-overdue {
+  background: #fff0dc;
+  color: #8a4c13;
+}
+.weekly-planner {
+  margin: 0 0 20px;
+  padding: 0;
+  overflow: clip;
+}
+.weekly-planner-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 19px;
+  cursor: pointer;
+  list-style: none;
+}
+.weekly-planner-summary::-webkit-details-marker { display: none; }
+.weekly-planner-summary:hover {
+  background: var(--bg);
+}
+.weekly-planner-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--soft-purple);
+  color: var(--purple-dark);
+  font-size: 21px;
+}
+.weekly-planner-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.weekly-planner-copy strong {
+  color: var(--ink);
+  font: 750 14px/1.4 'Manrope', sans-serif;
+}
+.weekly-planner-copy small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.weekly-planner-count {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  text-align: center;
+}
+.weekly-planner > summary > .utility-chevron {
+  flex: 0 0 auto;
+}
+.weekly-planner[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+.weekly-planner[open] > summary > .utility-chevron {
+  transform: rotate(180deg);
+}
+.weekly-planner-content {
+  padding: 16px;
+}
+.weekly-planner-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 10px;
+}
+.weekly-plan-day {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.weekly-plan-day.is-today {
+  border-color: #b9afea;
+  background: linear-gradient(145deg, var(--surface), var(--soft-purple));
+}
+.weekly-plan-day-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.weekly-plan-day-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font: 750 12px 'Manrope', sans-serif;
+}
+.weekly-plan-day-heading > span {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+.weekly-plan-day-list {
+  display: grid;
+  gap: 8px;
+}
+.weekly-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.weekly-plan-item-copy {
+  display: grid;
+  flex: 1;
+  gap: 7px;
+  min-width: 0;
+}
+.weekly-plan-item-copy > strong {
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.weekly-plan-item-copy > small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.weekly-plan-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.weekly-plan-item-meta .subject-chip,
+.weekly-plan-item-meta .estimated-time,
+.weekly-plan-item-meta .priority {
+  font-size: 9px;
+}
+.weekly-plan-start {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.weekly-plan-empty {
+  margin: 0;
+  padding: 8px 0 3px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.weekly-planner-note {
+  margin: 13px 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+html[data-theme="dark"] .planned-date {
+  background: #263a51;
+  color: #b7d8ff;
+}
+html[data-theme="dark"] .planned-date.planned-today {
+  background: #203c35;
+  color: #9fe0bf;
+}
+html[data-theme="dark"] .planned-date.planned-overdue {
+  background: #443425;
+  color: #ffd2a1;
+}
+html[data-theme="dark"] .weekly-planner-summary:hover {
+  background: #191b2b;
+}
+html[data-theme="dark"] .weekly-planner-icon {
+  background: #34304f;
+  color: #d0caff;
+}
+html[data-theme="dark"] .weekly-planner-count,
+html[data-theme="dark"] .weekly-plan-day-heading > span {
+  border-color: var(--line);
+  background: #191b2b;
+}
+html[data-theme="dark"] .weekly-plan-day {
+  background: #191b2b;
+  border-color: var(--line);
+}
+html[data-theme="dark"] .weekly-plan-day.is-today {
+  border-color: #49436d;
+  background: linear-gradient(145deg, var(--surface), #292640);
+}
+html[data-theme="dark"] .weekly-plan-item {
+  border-color: var(--line);
+  background: var(--surface);
+}
+@media (max-width: 980px) {
+  .task-study-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .weekly-planner-days {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .weekly-planner-summary {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+  .weekly-planner-icon {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+  .weekly-planner-copy strong {
+    font-size: 12px;
+  }
+  .weekly-planner-copy small {
+    font-size: 10px;
+  }
+  .weekly-planner-count {
+    max-width: 92px;
+    padding: 6px 7px;
+    line-height: 1.35;
+  }
+  .weekly-planner-content {
+    padding: 10px;
+  }
+  .weekly-planner-days {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .task-study-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .weekly-planner-summary > .utility-chevron {
+    display: none;
+  }
+  .weekly-planner-count {
+    display: none;
+  }
+}

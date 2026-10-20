@@ -117,7 +117,44 @@
           <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FocusFlow.</p>
         </section>
 
-
+        <details class="weekly-planner panel" id="weekly-planner">
+          <summary class="weekly-planner-summary">
+            <span class="weekly-planner-icon" aria-hidden="true">▦</span>
+            <span class="weekly-planner-copy"><strong>Plan de estudio · próximos 7 días</strong><small>Separa el día en que estudiarás de la fecha límite de entrega.</small></span>
+            <span class="weekly-planner-count">{{ week_plan_count }} tarea{% if week_plan_count != 1 %}s{% endif %} planificada{% if week_plan_count != 1 %}s{% endif %}</span>
+            <span class="utility-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="weekly-planner-content">
+            <div class="weekly-planner-days">
+              {% for day in week_plan_days %}
+              <section class="weekly-plan-day {% if day.is_today %}is-today{% endif %}">
+                <div class="weekly-plan-day-heading"><h3>{{ day.label }}</h3><span>{{ day.tasks|length }}</span></div>
+                {% if day.tasks %}
+                <div class="weekly-plan-day-list">
+                  {% for task in day.tasks %}
+                  <article class="weekly-plan-item" data-planned-task="{{ task.id }}">
+                    <div class="weekly-plan-item-copy">
+                      <strong>{{ task.title }}</strong>
+                      <div class="weekly-plan-item-meta">
+                        <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
+                        {% if task.subject_name %}<span class="subject-chip">{{ task.subject_name }}</span>{% endif %}
+                        <span class="estimated-time">{{ task.estimated_minutes }} min</span>
+                      </div>
+                      {% if task.due_date %}<small>Entrega: {{ task.due_date }}</small>{% endif %}
+                    </div>
+                    <button class="start-task-work weekly-plan-start" type="button" data-start-task="{{ task.id }}" data-task-title="{{ task.title }}">▶ Empezar</button>
+                  </article>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <p class="weekly-plan-empty">Sin tareas planificadas.</p>
+                {% endif %}
+              </section>
+              {% endfor %}
+            </div>
+            <p class="weekly-planner-note">Para programar una tarea, asigna su día en el formulario o desde «Editar». Puedes cambiarlo cuando se mueva tu semana.</p>
+          </div>
+        </details>
 <section class="panel">
           <div class="section-heading"><div><p class="eyebrow">PLANIFICA TU DÍA</p><h2>Agregar una tarea</h2></div><span class="section-icon">＋</span></div>
           <form class="task-form" action="{{ url_for('add_task') }}" method="post">
@@ -133,7 +170,11 @@
               <label class="field">Tiempo estimado
                 <select name="estimated_minutes"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 h</option><option value="90">1 h 30 min</option><option value="120">2 h</option><option value="180">3 h</option><option value="240">4 h</option><option value="300">5 h</option><option value="360">6 h</option><option value="480">8 h</option><option value="600">10 h</option></select>
               </label>
+              <label class="field">Día para estudiar
+                <input type="date" name="planned_date" aria-describedby="planned-date-help">
+              </label>
             </div>
+            <p class="field-hint" id="planned-date-help">Organiza tu semana. La fecha límite sigue siendo independiente.</p>
             <div class="form-row">
               <label class="field">Prioridad
                 <select name="priority"><option>Media</option><option>Alta</option><option>Baja</option></select>
@@ -193,6 +234,7 @@
                   <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
                   {% if task.subject_name %}<span class="subject-chip">{{ task.subject_name }}</span>{% endif %}
                   <span class="estimated-time">Estimado: {{ task.estimated_minutes }} min</span>
+                  {% if task.planned_date %}<span class="planned-date" data-planned-date="{{ task.planned_date }}">Plan: {{ task.planned_date }}</span>{% endif %}
                   {% if task.due_date %}<span class="due-date" data-due-date="{{ task.due_date }}">Fecha límite: {{ task.due_date }}</span>{% else %}<span class="due-date">Sin fecha límite</span>{% endif %}
                 </div>
               </div>
@@ -228,6 +270,9 @@
                   </label>
                   <label class="field">Tiempo estimado
                     <select class="edit-estimated-minutes">{% for minutes in [15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600] %}<option value="{{ minutes }}" {% if task.estimated_minutes == minutes %}selected{% endif %}>{% if minutes < 60 %}{{ minutes }} min{% elif minutes % 60 %}{{ minutes // 60 }} h {{ minutes % 60 }} min{% else %}{{ minutes // 60 }} h{% endif %}</option>{% endfor %}</select>
+                  </label>
+                  <label class="field">Día para estudiar
+                    <input class="edit-planned-date" type="date" value="{{ task.planned_date or '' }}">
                   </label>
                 </div>
                 <div class="editor-actions"><button class="primary-button" type="submit">Guardar</button><button class="focus-reset editor-cancel" type="button">Cancelar</button><span class="editor-status" role="status"></span></div>
@@ -709,6 +754,7 @@
         const dateInput = editor.querySelector(".edit-due-date");
         const subjectInput = editor.querySelector(".edit-subject");
         const estimatedInput = editor.querySelector(".edit-estimated-minutes");
+        const plannedDateInput = editor.querySelector(".edit-planned-date");
         const status = editor.querySelector(".editor-status");
         editButton.addEventListener("click", () => {
           const opening = editor.hidden;
@@ -729,7 +775,7 @@
           save.disabled = true;
           status.textContent = "Guardando...";
           try {
-            const response = await fetch("/api/tasks/" + encodeURIComponent(card.dataset.taskId), {method:"PATCH", headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken}, body:JSON.stringify({title:titleInput.value, priority:priorityInput.value, due_date:dateInput.value, subject:subjectInput.value, estimated_minutes:Number(estimatedInput.value)})});
+            const response = await fetch("/api/tasks/" + encodeURIComponent(card.dataset.taskId), {method:"PATCH", headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken}, body:JSON.stringify({title:titleInput.value, priority:priorityInput.value, due_date:dateInput.value, planned_date:plannedDateInput.value, subject:subjectInput.value, estimated_minutes:Number(estimatedInput.value)})});
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar.");
             window.location.reload();
@@ -753,6 +799,23 @@
         } else if (card && card.dataset.state !== "completed" && deadline.getTime() === today.getTime()) {
           label.classList.add("due-today");
           label.textContent = "Vence hoy · " + due;
+        }
+      });
+      document.querySelectorAll(".planned-date[data-planned-date]").forEach(label => {
+        const planned = new Date(label.dataset.plannedDate + "T00:00:00");
+        if (Number.isNaN(planned.getTime())) return;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const card = label.closest(".task-item");
+        if (!card || card.dataset.state === "completed") return;
+        if (planned.getTime() === today.getTime()) {
+          label.classList.add("planned-today");
+          label.textContent = "Estudiar hoy";
+        } else if (planned < today) {
+          label.classList.add("planned-overdue");
+          label.textContent = "Plan pendiente · " + label.dataset.plannedDate;
+        } else {
+          label.textContent = "Plan: " + label.dataset.plannedDate;
         }
       });
     })();
