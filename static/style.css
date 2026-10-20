@@ -90,6 +90,36 @@ input:focus, select:focus, textarea:focus { border-color: var(--purple); box-sha
 .task-search-label { display: block; margin: 0 0 7px; color: var(--muted); font-size: 11px; font-weight: 700; }
 .task-search { margin-bottom: 12px; }
 .task-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.task-filter-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.task-filter-feedback span { min-width: 0; }
+.task-filter-clear {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #dcd6ff;
+  border-radius: 9px;
+  background: var(--soft-purple);
+  color: var(--purple-dark);
+  font-size: 10px;
+  font-weight: 750;
+  transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+.task-filter-clear:hover { border-color: #c9c2f6; background: #e8e3ff; }
+.task-filter-clear:active { transform: scale(.98); }
+.task-no-results { margin-top: 0; border-style: dashed; }
+.task-no-results .empty-icon { font-size: 24px; }
 .filter-button, .music-chip { padding: 8px 12px; border: 1px solid var(--line); border-radius: 20px; background: #fff; color: var(--muted); font-size: 10px; font-weight: 600; }
 .filter-button:hover, .music-chip:hover { background: var(--soft-purple); }
 .filter-button.active { border-color: #dcd6ff; background: #eeecff; color: var(--purple-dark); }
@@ -423,6 +453,20 @@ html[data-theme="dark"] .task-edit-button,
 html[data-theme="dark"] .task-history-button,
 html[data-theme="dark"] .focus-reset { border-color: var(--line); background: #25273a; color: #c9cbe0; }
 html[data-theme="dark"] .filter-button.active { border-color: #4b456f; background: #34304f; color: #d0caff; }
+html[data-theme="dark"] .task-filter-feedback {
+  border-color: var(--line);
+  background: #1b1d2e;
+  color: var(--muted);
+}
+html[data-theme="dark"] .task-filter-clear {
+  border-color: #4b456f;
+  background: #34304f;
+  color: #d0caff;
+}
+html[data-theme="dark"] .task-filter-clear:hover {
+  border-color: #6256a2;
+  background: #403960;
+}
 html[data-theme="dark"] .priority { background: #34364b; color: #d0d2e3; }
 html[data-theme="dark"] .priority-alta { background: #482d35; color: #ffb4a9; }
 html[data-theme="dark"] .priority-baja { background: #203c35; color: #9fe0bf; }

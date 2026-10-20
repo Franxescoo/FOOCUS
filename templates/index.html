@@ -193,12 +193,13 @@
             <div class="progress-copy"><span>Progreso general</span><strong>{{ ((completed / total * 100)|round|int) if total else 0 }}%</strong></div>
             <div class="progress-track"><div class="progress-fill" style="width: {{ ((completed / total * 100)|round|int) if total else 0 }}%"></div></div>
           </div>
+          {% if tasks %}
           <label class="task-search-label" for="task-search">Buscar en mis tareas</label>
           <input id="task-search" class="task-search" type="search" placeholder="Escribe el nombre de una tarea..." autocomplete="off">
           <div class="task-filters" role="group" aria-label="Filtrar tareas por estado">
-            <button type="button" class="filter-button active" data-filter="all">Todas</button>
-            <button type="button" class="filter-button" data-filter="pending">Pendientes</button>
-            <button type="button" class="filter-button" data-filter="completed">Completadas</button>
+            <button type="button" class="filter-button active" data-filter="all" aria-pressed="true">Todas</button>
+            <button type="button" class="filter-button" data-filter="pending" aria-pressed="false">Pendientes</button>
+            <button type="button" class="filter-button" data-filter="completed" aria-pressed="false">Completadas</button>
             <label class="subject-filter-field" for="subject-filter">Asignatura
               <select id="subject-filter">
                 <option value="all">Todas las asignaturas</option>
@@ -220,7 +221,15 @@
             </div>
           </details>
           {% endif %}
-          {% if tasks %}
+          <div class="task-filter-feedback" id="task-filter-feedback">
+            <span id="task-visible-count" role="status" aria-live="polite">{{ tasks|length }} tarea{% if tasks|length != 1 %}s{% endif %} en tu lista</span>
+            <button class="task-filter-clear" id="task-filter-clear" type="button" hidden>Limpiar filtros</button>
+          </div>
+          <div class="empty-state task-no-results" id="task-no-results" hidden>
+            <div class="empty-icon" aria-hidden="true">⌕</div>
+            <h3>No encontramos tareas</h3>
+            <p id="task-no-results-message">Prueba con otra búsqueda o cambia los filtros para ver más resultados.</p>
+          </div>
           <div class="task-list" id="task-list">
             {% for task in tasks %}
             <article class="task-item {% if task.completed %}is-complete{% endif %}" data-state="{% if task.completed %}completed{% else %}pending{% endif %}" data-task-id="{{ task.id }}" data-subject-id="{{ task.subject_id or '' }}">
@@ -743,18 +752,60 @@
 
     const taskSearch = document.getElementById("task-search");
     const subjectFilter = document.getElementById("subject-filter");
+    const taskItems = Array.from(document.querySelectorAll(".task-item"));
+    const taskList = document.getElementById("task-list");
+    const taskVisibleCount = document.getElementById("task-visible-count");
+    const taskFilterClear = document.getElementById("task-filter-clear");
+    const taskNoResults = document.getElementById("task-no-results");
+    const taskNoResultsMessage = document.getElementById("task-no-results-message");
+    const taskFilterButtons = Array.from(document.querySelectorAll("[data-filter]"));
     let activeTaskFilter = "all";
+
     function updateTaskVisibility() {
-      const query = taskSearch ? taskSearch.value.trim().toLocaleLowerCase() : "";
-      document.querySelectorAll(".task-item").forEach(task => {
+      const rawQuery = taskSearch ? taskSearch.value.trim() : "";
+      const query = rawQuery.toLocaleLowerCase();
+      let visibleCount = 0;
+      taskItems.forEach(task => {
         const matchesText = task.textContent.toLocaleLowerCase().includes(query);
         const matchesFilter = activeTaskFilter === "all" || task.dataset.state === activeTaskFilter;
         const matchesSubject = !subjectFilter || subjectFilter.value === "all" || task.dataset.subjectId === subjectFilter.value;
-        task.hidden = !(matchesText && matchesFilter && matchesSubject);
+        const visible = matchesText && matchesFilter && matchesSubject;
+        task.hidden = !visible;
+        if (visible) visibleCount += 1;
       });
+
+      const isFiltered = Boolean(query) || activeTaskFilter !== "all" || Boolean(subjectFilter && subjectFilter.value !== "all");
+      taskFilterButtons.forEach(button => {
+        const active = button.dataset.filter === activeTaskFilter;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      if (taskVisibleCount) {
+        taskVisibleCount.textContent = isFiltered
+          ? visibleCount + " de " + taskItems.length + " tarea" + (taskItems.length === 1 ? "" : "s")
+          : taskItems.length + " tarea" + (taskItems.length === 1 ? "" : "s") + " en tu lista";
+      }
+      if (taskFilterClear) taskFilterClear.hidden = !isFiltered;
+      if (taskList) taskList.hidden = taskItems.length > 0 && visibleCount === 0;
+      if (taskNoResults) taskNoResults.hidden = taskItems.length === 0 || visibleCount > 0;
+      if (taskNoResultsMessage && visibleCount === 0 && taskItems.length > 0) {
+        taskNoResultsMessage.textContent = rawQuery
+          ? "No hay tareas que coincidan con «" + rawQuery + "». Prueba con otra palabra o limpia los filtros."
+          : "No hay tareas que coincidan con los filtros seleccionados. Límpialos para volver a ver todas tus tareas.";
+      }
+    }
+
+    function clearTaskFilters() {
+      if (taskSearch) taskSearch.value = "";
+      if (subjectFilter) subjectFilter.value = "all";
+      activeTaskFilter = "all";
+      updateTaskVisibility();
+      if (taskSearch) taskSearch.focus();
     }
     if (taskSearch) taskSearch.addEventListener("input", updateTaskVisibility);
     if (subjectFilter) subjectFilter.addEventListener("change", updateTaskVisibility);
+    if (taskFilterClear) taskFilterClear.addEventListener("click", clearTaskFilters);
+    updateTaskVisibility();
   </script>
   <script>
     (() => {
@@ -836,7 +887,6 @@
   <script>
     document.querySelectorAll("[data-filter]").forEach(button => {
       button.addEventListener("click", () => {
-        document.querySelectorAll("[data-filter]").forEach(item => item.classList.toggle("active", item === button));
         activeTaskFilter = button.dataset.filter;
         updateTaskVisibility();
       });
