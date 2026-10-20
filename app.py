@@ -475,7 +475,7 @@ def check_for_updates():
             ),
         }), 503
 
-    api_url = "https://api.github.com/repos/Franxescoo/FocusFlow/releases/latest"
+    api_url = "https://api.github.com/repos/Franxescoo/FocusFlow/releases?per_page=30"
     github_request = urllib.request.Request(
         api_url,
         headers={
@@ -487,7 +487,7 @@ def check_for_updates():
     )
     try:
         with urllib.request.urlopen(github_request, timeout=5) as response:
-            release = json.loads(response.read().decode("utf-8"))
+            releases = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         app.logger.warning("GitHub release check returned HTTP %s", error.code)
         return jsonify({
@@ -509,19 +509,63 @@ def check_for_updates():
             "message": "No se pudo consultar GitHub. Revisa la conexión e inténtalo de nuevo.",
         }), 502
 
-    latest_version = str(release.get("tag_name") or "").strip().lstrip("vV")
-    current_semver = parse_semantic_version(APP_VERSION)
-    latest_semver = parse_semantic_version(latest_version)
-    if latest_semver is None:
+    if not isinstance(releases, list):
         return jsonify({
             "ok": False,
             "checkable": False,
             "available": False,
             "current_version": APP_VERSION,
-            "message": "La última publicación de GitHub no tiene una versión semántica válida.",
+            "message": "GitHub devolvió una respuesta de versiones que no se pudo interpretar.",
         }), 502
 
-    # Legacy builds such as "build-20" are considered older than the first semantic release.
+    # Ignore legacy build-N releases, drafts, and prereleases. Compare numeric
+    # semantic-version tuples so v1.0.10 is correctly newer than v1.0.9.
+    semantic_releases = []
+    for candidate in releases:
+        if not isinstance(candidate, dict) or candidate.get("draft") or candidate.get("prerelease"):
+            continue
+        version_tuple = parse_semantic_version(candidate.get("tag_name"))
+        if version_tuple is not None:
+            semantic_releases.append((version_tuple, candidate))
+
+    if not semantic_releases:
+        return jsonify({
+            "ok": False,
+            "checkable": False,
+            "available": False,
+            "current_version": APP_VERSION,
+            "message": "No hay una versión estable con numeración válida publicada en GitHub.",
+        }), 502
+
+    latest_semver, release = max(semantic_releases, key=lambda item: item[0])
+    latest_tag = str(release.get("tag_name") or "").strip()
+    latest_version = latest_tag.lstrip("vV")
+    release_url = release.get("html_url") or (
+        "https://github.com/Franxescoo/FocusFlow/releases/tag/" + latest_tag
+    )
+    assets = release.get("assets") if isinstance(release.get("assets"), list) else []
+    installer = next(
+        (
+            asset for asset in assets
+            if isinstance(asset, dict)
+            and asset.get("name") == "FocusFlow-Setup.exe"
+            and asset.get("browser_download_url")
+        ),
+        None,
+    )
+    if installer is None:
+        return jsonify({
+            "ok": False,
+            "checkable": False,
+            "available": False,
+            "current_version": APP_VERSION,
+            "message": (
+                "La versión " + latest_tag
+                + " todavía no tiene publicado el instalador de Windows."
+            ),
+        }), 502
+
+    current_semver = parse_semantic_version(APP_VERSION)
     available = latest_semver > current_semver if current_semver is not None else True
     return jsonify({
         "ok": True,
@@ -532,8 +576,8 @@ def check_for_updates():
         "release_name": release.get("name") or ("FocusFlow V" + latest_version),
         "published_at": release.get("published_at"),
         "changes": release_change_items(release.get("body", "")),
-        "release_url": "https://github.com/Franxescoo/FocusFlow/releases/latest",
-        "download_url": "https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe",
+        "release_url": release_url,
+        "download_url": installer["browser_download_url"],
     })
 
 
