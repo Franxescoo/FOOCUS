@@ -58,6 +58,12 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertLess(stats_position, dashboard_position)
         self.assertLess(dashboard_position, add_task_position)
 
+    def test_security_headers_are_present(self):
+        response = self.client.get("/")
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
+
     def test_create_task(self):
         response = self.create_task()
         self.assertEqual(response.status_code, 200)
