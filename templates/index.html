@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
   <button class="music-launcher" id="music-launcher" type="button" aria-controls="music-sidebar" aria-expanded="false"><span class="launcher-icon">♫</span><span class="launcher-label">Música</span></button>
   <div class="music-backdrop" id="music-backdrop" hidden></div>
   <main class="layout">
@@ -1057,6 +1058,66 @@
           history.dataset.loaded = "true";
         } catch(error) { history.textContent = error.message; }
       }));
+    })();
+  </script>
+  <script>
+    (() => {
+      const aura = document.getElementById("cursor-aura");
+      if (!aura) return;
+
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+      if (reducedMotion.matches || !finePointer.matches) return;
+
+      let targetX = window.innerWidth / 2;
+      let targetY = window.innerHeight / 2;
+      let currentX = targetX;
+      let currentY = targetY;
+      let frame = 0;
+
+      function animateAura() {
+        const deltaX = targetX - currentX;
+        const deltaY = targetY - currentY;
+        currentX += deltaX * 0.13;
+        currentY += deltaY * 0.13;
+        aura.style.transform = "translate3d(" + currentX + "px, " + currentY + "px, 0) translate(-50%, -50%)";
+
+        if (Math.abs(deltaX) > 0.4 || Math.abs(deltaY) > 0.4) {
+          frame = window.requestAnimationFrame(animateAura);
+        } else {
+          currentX = targetX;
+          currentY = targetY;
+          aura.style.transform = "translate3d(" + currentX + "px, " + currentY + "px, 0) translate(-50%, -50%)";
+          frame = 0;
+        }
+      }
+
+      window.addEventListener("pointermove", event => {
+        if (event.pointerType !== "mouse") return;
+        targetX = event.clientX;
+        targetY = event.clientY;
+        aura.classList.add("is-visible");
+        if (!frame) frame = window.requestAnimationFrame(animateAura);
+      }, {passive: true});
+
+      document.documentElement.addEventListener("pointerleave", () => {
+        aura.classList.remove("is-visible");
+      });
+      window.addEventListener("blur", () => {
+        aura.classList.remove("is-visible");
+      });
+      window.addEventListener("focus", () => {
+        if (frame) window.cancelAnimationFrame(frame);
+        frame = 0;
+        aura.classList.remove("is-visible");
+      });
+      reducedMotion.addEventListener?.("change", event => {
+        if (event.matches) {
+          aura.classList.remove("is-visible");
+          if (frame) window.cancelAnimationFrame(frame);
+          frame = 0;
+        }
+      });
     })();
   </script>
 </body>
