@@ -69,13 +69,20 @@ FocusFlow se puede instalar como una aplicación de escritorio con su propia ven
 3. Pulsa **Descargar instalador** y, cuando termine la descarga de `FocusFlow-Setup.exe`, ábrelo para instalar o actualizar FocusFlow.
 4. Cierra FocusFlow antes de actualizar. El instalador utiliza el mismo identificador de aplicación para actualizar la carpeta del programa.
 
-El botón apunta al instalador de la publicación más reciente, por lo que no hay que cambiar el enlace de la página para cada versión. Como el repositorio es privado, debes iniciar sesión en GitHub con una cuenta que tenga acceso a FocusFlow para descargar el archivo. La publicación enlazada permite revisar la versión y sus notas. La página no consulta la API privada ni compara automáticamente las versiones porque eso requeriría credenciales autorizadas; no se incluye ningún token dentro de la aplicación.
+El botón apunta al instalador de la publicación más reciente, por lo que no hay que cambiar el enlace de la página para cada versión. Como el repositorio es privado, debes iniciar sesión en GitHub con una cuenta que tenga acceso a FocusFlow para descargar el archivo. El panel de actualización consulta la versión publicada y muestra el número de versión y los cambios detectados.
 
 ### Publicación automática
 
-Cada compilación correcta que se ejecuta al subir cambios a `main` publica una nueva versión de Windows en **GitHub Releases**, además de mantener el artefacto temporal de Actions por 30 días. La versión de compilación se incorpora al programa para que la página pueda comprobar si existe una compilación más reciente. Las compilaciones de ramas de desarrollo y pull requests no se publican como versiones estables.
+Cada compilación correcta provocada por un cambio en `main` publica una nueva versión de Windows en **GitHub Releases**, además de mantener el artefacto temporal de Actions por 30 días. El primer lanzamiento semántico será `V1.0.0`; cada actualización posterior incrementa el parche (`V1.0.1`, `V1.0.2`, etc.). Las compilaciones de ramas de desarrollo y pull requests no se publican como versiones estables. La página revisa si hay una nueva versión al abrirse y vuelve a comprobar cada 30 minutos; cuando detecta una versión superior, muestra **Actualización detectada**, el número de versión y hasta ocho entradas del registro de cambios de GitHub.
 
 El instalador instala el componente Microsoft Edge WebView2 necesario para la ventana de escritorio. FocusFlow guarda sus datos en `%LOCALAPPDATA%\FocusFlow`; la base de datos y la clave de sesión quedan fuera de la carpeta de instalación, por lo que actualizar el programa no debería borrar el historial. La música requiere conexión a internet.
+
+
+### Configurar la comprobación de actualizaciones del repositorio privado
+
+Como GitHub no permite consultar las publicaciones de un repositorio privado de forma anónima, la API local `/api/updates` necesita la variable de entorno `FOCUSFLOW_GITHUB_TOKEN`. Crea un token de acceso personal de tipo *fine-grained* limitado al repositorio `Franxescoo/FocusFlow`, con permiso **Contents: Read-only**. Configura el token como secreto/variable de entorno en el servidor donde se ejecuta FocusFlow o en el equipo donde se ejecuta la app de escritorio.
+
+No pegues el token en el código, HTML, archivos versionados, ni en el workflow de publicación. No lo incluyas dentro del instalador: cualquier secreto empaquetado en una app distribuida puede extraerse. Si el token falta o no tiene permiso, la aplicación mostrará un aviso y continuará funcionando, pero no podrá detectar nuevas versiones. La descarga del instalador seguirá requiriendo iniciar sesión en GitHub con una cuenta autorizada para el repositorio privado.
 
 **Importante si ya usas la versión de desarrollo:** la base `focusflow.db` ubicada junto al repositorio no se copia automáticamente. Para conservar esos datos en la versión de escritorio, cierra FocusFlow, crea la carpeta `%LOCALAPPDATA%\FocusFlow` si no existe y copia allí tu `focusflow.db` antes de iniciar la aplicación instalada por primera vez. Haz primero una copia de seguridad.
 
