@@ -783,6 +783,15 @@ def task_work_log(task_id):
     return jsonify({"ok": True, "sessions": [dict(row) for row in logs]})
 
 
+def spreadsheet_safe(value):
+    """Prevent user-controlled text from being interpreted as a spreadsheet formula."""
+    text = "" if value is None else str(value)
+    # Excel and similar spreadsheet apps can execute formulas after common whitespace.
+    if text.lstrip(" \t\r\n").startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r", "\n")):
+        return "'" + text
+    return text
+
+
 @app.route("/export.csv")
 def export_csv():
     """Download tasks and their saved work sessions as a spreadsheet-friendly CSV."""
