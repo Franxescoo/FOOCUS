@@ -10,15 +10,24 @@
   <main class="layout">
     <header class="topbar">
       <a class="brand" href="{{ url_for('index') }}" aria-label="FocusFlow, inicio">
-        <span class="brand-mark" aria-hidden="true">∞</span> FocusFlow
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 32"><defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M16 6C7 6 3 13 8 21c5 8 12 6 24-5 12-11 19-13 24-5s1 15-8 15c-7 0-12-7-16-11C28 11 23 6 16 6Z" fill="none" stroke="url(#brand-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> FocusFlow
       </a>
       <span class="today">HOY · {{ today }}</span>
     </header>
 
     <section class="welcome">
-      <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
-      <h1>Haz espacio para <span>lo importante.</span></h1>
-      <p class="subtitle">Organiza tus tareas, avanza a tu ritmo y mantén el foco.</p>
+      <div class="welcome-copy">
+        <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
+        <h1>Haz espacio para<br><span>lo importante.</span></h1>
+        <p class="subtitle">Organiza tus tareas, avanza a tu ritmo y mantén el foco.</p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
+        <div class="hero-sun"></div>
+        <div class="hero-card card-back"><span></span><span></span><span></span></div>
+        <div class="hero-card card-front"><div class="hero-check">✓</div><div class="hero-line long"></div><div class="hero-line"></div><div class="hero-progress"><i></i></div></div>
+        <div class="hero-spark spark-one">✦</div><div class="hero-spark spark-two">✧</div>
+      </div>
     </section>
 
     <div class="workspace-grid">
@@ -39,12 +48,12 @@
             <button type="button" class="music-chip" data-query="ambient music coding">Ambient</button>
             <button type="button" class="music-chip" data-query="piano relaxing music">Piano</button>
           </div>
-          <p class="music-status" id="music-status" role="status">Busca música y selecciona un resultado para intentar reproducirlo aquí.</p>
+          <p class="music-status" id="music-status" role="status">Busca música y selecciona una canción para escucharla.</p>
           <div class="music-results" id="music-results" aria-live="polite"></div>
           <div class="music-player-wrap" id="music-player-wrap" hidden>
             <div class="player-topline"><span>REPRODUCTOR</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
             <div id="youtube-player"></div>
-            <p class="player-note">Algunos videos no admiten reproducción incrustada; en ese caso puedes abrirlos en YouTube.</p>
+            <p class="player-note">Si YouTube bloquea una pista, prueba otra canción disponible para reproducción integrada.</p>
           </div>
           <div class="music-footer"><a id="youtube-search-link" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
         </section>
