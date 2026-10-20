@@ -89,19 +89,46 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn("FOCUSFLOW_GITHUB_TOKEN", payload["message"])
 
     def test_update_check_detects_new_semantic_version_and_extracts_changes(self):
-        release = {
-            "tag_name": "v1.0.1",
-            "name": "FocusFlow V1.0.1",
-            "published_at": "2026-10-20T12:00:00Z",
-            "html_url": "https://github.com/Franxescoo/FocusFlow/releases/tag/v1.0.1",
-            "body": (
-                "## What's Changed\n"
-                "* Add update notifications [#13](https://github.com/Franxescoo/FocusFlow/pull/13) "
-                "by @Franxescoo in https://github.com/Franxescoo/FocusFlow/pull/13\n"
-                "* Show semantic version in the installer\n"
-                "## New Contributors\n* Nobody\n"
-            ),
-        }
+        release = [
+            {
+                "tag_name": "build-99",
+                "name": "Legacy build 99",
+                "draft": False,
+                "prerelease": False,
+                "assets": [],
+                "body": "Legacy builds must not override semantic versions.",
+            },
+            {
+                "tag_name": "v1.0.0",
+                "name": "FocusFlow V1.0.0",
+                "draft": False,
+                "prerelease": False,
+                "assets": [{
+                    "name": "FocusFlow-Setup.exe",
+                    "browser_download_url": "https://github.com/Franxescoo/FocusFlow/releases/download/v1.0.0/FocusFlow-Setup.exe",
+                }],
+                "body": "## What's Changed\n* Initial release\n",
+            },
+            {
+                "tag_name": "v1.0.1",
+                "name": "FocusFlow V1.0.1",
+                "published_at": "2026-10-20T12:00:00Z",
+                "html_url": "https://github.com/Franxescoo/FocusFlow/releases/tag/v1.0.1",
+                "draft": False,
+                "prerelease": False,
+                "assets": [{
+                    "name": "FocusFlow-Setup.exe",
+                    "browser_download_url": "https://github.com/Franxescoo/FocusFlow/releases/download/v1.0.1/FocusFlow-Setup.exe",
+                }],
+                "body": (
+                    "## What's Changed\n"
+                    "* Add update notifications [#13](https://github.com/Franxescoo/FocusFlow/pull/13) "
+                    "by @Franxescoo in https://github.com/Franxescoo/FocusFlow/pull/13\n"
+                    "* Show semantic version in the installer\n"
+                    "## New Contributors\n* Nobody\n"
+                ),
+            },
+        ]
         fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
         with (
             patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": "test-read-only-token"}),
@@ -119,16 +146,31 @@ class FocusFlowTaskTests(unittest.TestCase):
             payload["changes"],
             ["Add update notifications #13", "Show semantic version in the installer"],
         )
+        self.assertEqual(
+            payload["download_url"],
+            "https://github.com/Franxescoo/FocusFlow/releases/download/v1.0.1/FocusFlow-Setup.exe",
+        )
+        self.assertEqual(
+            payload["release_url"],
+            "https://github.com/Franxescoo/FocusFlow/releases/tag/v1.0.1",
+        )
         request = github_request.call_args.args[0]
         self.assertEqual(request.get_header("Authorization"), "Bearer test-read-only-token")
+        self.assertIn("/releases?per_page=30", request.full_url)
 
     def test_update_check_reports_current_semantic_version_as_up_to_date(self):
-        release = {
+        release = [{
             "tag_name": "v1.0.0",
             "name": "FocusFlow V1.0.0",
             "published_at": "2026-10-20T12:00:00Z",
+            "draft": False,
+            "prerelease": False,
+            "assets": [{
+                "name": "FocusFlow-Setup.exe",
+                "browser_download_url": "https://github.com/Franxescoo/FocusFlow/releases/download/v1.0.0/FocusFlow-Setup.exe",
+            }],
             "body": "## What's Changed\n* Initial release\n",
-        }
+        }]
         fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
         with (
             patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": "test-read-only-token"}),
