@@ -1140,5 +1140,75 @@
       });
     })();
   </script>
+<script>
+  (() => {
+    const card = document.getElementById("download-focusflow");
+    if (!card) return;
+
+    const status = document.getElementById("download-status");
+    const currentVersionLabel = document.getElementById("download-current-version");
+    const downloadButton = document.getElementById("download-installer");
+    const releaseLink = document.getElementById("download-release-link");
+    const currentVersion = card.dataset.currentVersion || "dev";
+    const releaseEndpoint = "https://api.github.com/repos/Franxescoo/FocusFlow/releases/latest";
+
+    const formatPublishedDate = (value) => {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("es-CL", { dateStyle: "medium" }).format(date);
+    };
+
+    currentVersionLabel.textContent = currentVersion === "dev"
+      ? "Versión actual: desarrollo local"
+      : "Versión instalada: " + currentVersion;
+
+    fetch(releaseEndpoint, {
+      headers: { "Accept": "application/vnd.github+json" },
+      cache: "no-store"
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("GitHub no respondió con una versión publicada.");
+        return response.json();
+      })
+      .then((release) => {
+        const tag = String(release.tag_name || "versión sin etiqueta");
+        const publishedDate = formatPublishedDate(release.published_at);
+        const dateSuffix = publishedDate ? " · publicada el " + publishedDate : "";
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        const installerExists = assets.some((asset) => asset.name === "FocusFlow-Setup.exe");
+
+        if (release.html_url) releaseLink.href = release.html_url;
+        if (!installerExists) {
+          status.textContent = "GitHub tiene una publicación, pero todavía no contiene el instalador esperado. Puedes revisar los detalles en GitHub.";
+          downloadButton.setAttribute("aria-disabled", "true");
+          downloadButton.classList.add("download-button-unavailable");
+          downloadButton.href = release.html_url || "https://github.com/Franxescoo/FocusFlow/releases";
+          downloadButton.textContent = "Ver publicación en GitHub ↗";
+          return;
+        }
+
+        const installedBuild = currentVersion.match(/^build-(\\d+)$/i);
+        const latestBuild = tag.match(/^build-(\\d+)$/i);
+        if (installedBuild && latestBuild) {
+          const difference = Number(latestBuild[1]) - Number(installedBuild[1]);
+          if (difference > 0) {
+            status.textContent = "Hay una actualización disponible (" + tag + "). Descarga el instalador para actualizar.";
+            status.classList.add("is-update-available");
+          } else {
+            status.textContent = "Tienes la última versión publicada (" + tag + ")" + dateSuffix + ".";
+            status.classList.add("is-up-to-date");
+          }
+        } else {
+          status.textContent = "Última versión publicada en GitHub: " + tag + dateSuffix + ".";
+        }
+      })
+      .catch(() => {
+        status.textContent = "No pudimos consultar GitHub ahora. Se necesita conexión a internet para comprobar la versión; vuelve a intentarlo más tarde.";
+      });
+  })();
+</script>
+
+
 </body>
 </html>
