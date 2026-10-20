@@ -10,8 +10,6 @@
 </head>
 <body>
   <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
-  <button class="music-launcher" id="music-launcher" type="button" aria-controls="music-sidebar" aria-expanded="false"><span class="launcher-icon">♫</span><span class="launcher-label">Música</span></button>
-  <div class="music-backdrop" id="music-backdrop" hidden></div>
   <main class="layout">
     <header class="topbar">
       <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio">
@@ -48,41 +46,7 @@
     </section>
 
     <div class="workspace-grid">
-      <aside class="music-sidebar" id="music-sidebar" aria-label="Panel de música" aria-hidden="true">
-        <section class="music-section" id="focusflow-music">
-          <div class="music-heading">
-            <div><p class="eyebrow">TU BANDA SONORA</p><h2><span>FOOCUS Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div><button type="button" class="music-close" id="music-close" aria-label="Cerrar panel de música">×</button>
-            <div class="music-note" aria-hidden="true">♫</div>
-          </div>
-          <form class="music-search" id="music-search-form">
-            <label class="sr-only" for="music-query">Buscar música</label>
-            <input id="music-query" type="search" maxlength="120" placeholder="Busca una canción o artista..." autocomplete="off">
-            <button class="primary-button" type="submit">Buscar</button>
-          </form>
-          <div class="music-shortcuts">
-            <button type="button" class="music-chip" data-query="lofi hip hop radio study">Lo-fi</button>
-            <button type="button" class="music-chip" data-query="instrumental music for concentration">Concentración</button>
-            <button type="button" class="music-chip" data-query="ambient music coding">Ambient</button>
-            <button type="button" class="music-chip" data-query="piano relaxing music">Piano</button><button type="button" class="music-chip" data-query="video game soundtrack focus">Soundtracks</button><button type="button" class="music-chip" data-query="deep focus electronic instrumental">Electrónica</button>
-          </div>
-          <div class="music-library-head"><div><p class="eyebrow">TU COLECCIÓN</p><h3>Mi música</h3></div><span class="library-count" id="library-count">0 guardadas</span></div>
-          <div class="music-library" id="music-library"><p class="library-empty">Guarda canciones con ☆ y aparecerán aquí.</p></div>
-          <p class="music-status" id="music-status" role="status">Busca música y selecciona una canción para escucharla.</p>
-          <div class="music-results" id="music-results" aria-live="polite"></div>
-          <div class="music-player-wrap" id="music-player-wrap" hidden>
-            <div class="player-topline"><span>REPRODUCTOR</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
-            <div class="player-controls" aria-label="Controles de reproducción">
-              <button type="button" id="music-play-pause" class="player-control primary-control" aria-label="Pausar música" title="Pausar o reanudar">Ⅱ <span>Pausar</span></button>
-              <button type="button" id="music-volume-down" class="player-control" aria-label="Bajar volumen" title="Bajar volumen">−</button>
-              <label class="volume-control" for="music-volume"><span>Volumen</span><input id="music-volume" type="range" min="0" max="100" value="50" step="5"><output id="music-volume-value" for="music-volume">50%</output></label>
-              <button type="button" id="music-volume-up" class="player-control" aria-label="Subir volumen" title="Subir volumen">＋</button>
-            </div>
-            <div id="youtube-player"></div>
-            <p class="player-note">Si YouTube bloquea una pista, prueba otra canción disponible para reproducción integrada.</p>
-          </div>
-          <div class="music-footer"><a id="youtube-search-link" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
-        </section>
-      </aside>
+
 
         <div class="main-column">
 <section class="stats" aria-label="Resumen de tareas">
@@ -128,6 +92,26 @@
           </div>
           <div class="activity-months"><span>{{ activity_days[0].label }}</span><span>{{ activity_days[17].label }}</span><span>{{ activity_days[-1].label }}</span></div>
           <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FOOCUS.</p>
+        </section>
+
+        <section class="anti-procrastination panel" id="start-small" aria-labelledby="start-small-title">
+          <div class="section-heading"><div><p class="eyebrow">PLAN ANTI-PROCRASTINACIÓN · 5 MIN</p><h2 id="start-small-title">Desbloquea tu próxima tarea.</h2><p class="notes-hint">Elige una tarea y conviértela en una acción pequeña que puedas empezar ahora.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
+          <div class="starter-steps" aria-label="Tres pasos para empezar">
+            <article class="starter-step"><span class="starter-step-number" aria-hidden="true">01</span><div class="starter-step-copy"><strong>Elige una tarea</strong><small>Solo una que esté pendiente.</small></div></article>
+            <article class="starter-step"><span class="starter-step-number" aria-hidden="true">02</span><div class="starter-step-copy"><strong>Reduce el primer paso</strong><small>Algo concreto que tome cinco minutos.</small></div></article>
+            <article class="starter-step"><span class="starter-step-number" aria-hidden="true">03</span><div class="starter-step-copy"><strong>Empieza sin presión</strong><small>Al terminar puedes descansar o seguir.</small></div></article>
+          </div>
+          <div class="starter-grid">
+            <label class="field" for="starter-task">¿Qué tarea quieres destrabar?
+              <select id="starter-task"><option value="">Elige una tarea pendiente…</option>{% for task in tasks if not task.completed %}<option value="{{ task.id }}" data-title="{{ task.title }}">{{ task.title }}</option>{% endfor %}</select>
+            </label>
+            <label class="field" for="starter-step">Tu primer paso (algo que puedas hacer en 5 minutos)
+              <input id="starter-step" type="text" maxlength="180" placeholder="Ej. abrir el proyecto y revisar un archivo">
+            </label>
+          </div>
+          <div class="starter-guidance" id="starter-guidance" role="status">Selecciona una tarea, define una acción pequeña y pulsa «Empezar 5 minutos».</div>
+          <div class="starter-actions"><button type="button" class="primary-button" id="starter-begin">Empezar 5 minutos</button><button type="button" class="focus-reset" id="starter-suggest">Elegir por mí</button></div>
+          <p class="starter-footnote">El objetivo es romper la barrera de inicio, no terminarlo todo. Después de cinco minutos puedes parar sin culpa.</p>
         </section>
 
         <details class="weekly-planner panel" id="weekly-planner">
@@ -316,25 +300,6 @@
         </div>
         <aside class="utility-rail" aria-label="Herramientas de concentración">
           <p class="utility-rail-title">TU ESPACIO DE ENFOQUE</p>
-          <details class="utility-card" id="utility-start-card">
-            <summary><span class="utility-card-icon">↗</span><span><strong>Empieza por algo pequeño</strong><small>Plan anti-procrastinación · 5 min</small></span><span class="utility-chevron">⌄</span></summary>
-            <div class="utility-card-content">
-<section class="anti-procrastination panel" id="start-small" aria-labelledby="start-small-title">
-          <div class="section-heading"><div><p class="eyebrow">SISTEMA ANTI-PROCRASTINACIÓN</p><h2 id="start-small-title">Hazlo tan pequeño que puedas empezar.</h2><p class="notes-hint">No necesitas terminarlo ahora. Solo romper la barrera de los primeros cinco minutos.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
-          <div class="starter-grid">
-            <label class="field" for="starter-task">¿Qué tarea vas a destrabar?
-              <select id="starter-task"><option value="">Elige una tarea pendiente…</option>{% for task in tasks if not task.completed %}<option value="{{ task.id }}" data-title="{{ task.title }}">{{ task.title }}</option>{% endfor %}</select>
-            </label>
-            <label class="field" for="starter-step">Tu primer paso (algo que puedas hacer en 5 minutos)
-              <input id="starter-step" type="text" maxlength="180" placeholder="Ej. abrir el proyecto y revisar un archivo">
-            </label>
-          </div>
-          <div class="starter-guidance" id="starter-guidance" role="status">Elige una tarea y define una acción concreta, pequeña y fácil de comenzar.</div>
-          <div class="starter-actions"><button type="button" class="primary-button" id="starter-begin">Empezar 5 minutos</button><button type="button" class="focus-reset" id="starter-suggest">Elegir por mí</button></div>
-          <p class="starter-footnote">Regla: si después de cinco minutos quieres parar, puedes parar. El objetivo es empezar, no hacerlo perfecto.</p>
-        </section>
-            </div>
-          </details>
           <details class="utility-card" id="utility-focus-card">
             <summary><span class="utility-card-icon">◷</span><span><strong>Temporizador</strong><small>Un bloque a la vez</small></span><span class="utility-chevron">⌄</span></summary>
             <div class="utility-card-content">
@@ -388,34 +353,8 @@
   </div>
   <button class="active-work-dock-reopen" id="active-work-dock-reopen" type="button">Volver a la sesión</button>
 </div>
-    <script src="{{ url_for('static', filename='music.js') }}" defer></script>
-  <script>
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
-    (() => {
-      const launcher = document.getElementById("music-launcher");
-      const sideLauncher = document.getElementById("sidebar-music-launcher");
-      const sidebar = document.getElementById("music-sidebar");
-      const backdrop = document.getElementById("music-backdrop");
-      const closeButton = document.getElementById("music-close");
-      function setMusicOpen(open) {
-        sidebar.classList.toggle("is-open", open);
-        backdrop.hidden = !open;
-        launcher.setAttribute("aria-expanded", String(open));
-        sidebar.setAttribute("aria-hidden", String(!open));
-        document.body.classList.toggle("music-open", open);
-        if (open) document.getElementById("music-query").focus();
-        else launcher.focus();
-      }
-      launcher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
-      if (sideLauncher) sideLauncher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
-      closeButton.addEventListener("click", () => setMusicOpen(false));
-      backdrop.addEventListener("click", () => setMusicOpen(false));
-      document.addEventListener("keydown", event => {
-        if (event.key === "Escape" && sidebar.classList.contains("is-open")) setMusicOpen(false);
-      });
-    })();
-  </script>
-  <script>
+  <script nonce="{{ csp_nonce }}">const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";</script>
+  <script nonce="{{ csp_nonce }}">
 
     (() => {
       const notes = document.getElementById("quick-notes");
@@ -819,7 +758,7 @@
     if (taskFilterClear) taskFilterClear.addEventListener("click", clearTaskFilters);
     updateTaskVisibility();
   </script>
-  <script>
+  <script nonce="{{ csp_nonce }}">
     (() => {
       document.querySelectorAll(".task-item").forEach(card => {
         const editButton = card.querySelector(".task-edit-button");
@@ -896,7 +835,7 @@
       });
     })();
   </script>
-  <script>
+  <script nonce="{{ csp_nonce }}">
     document.querySelectorAll("[data-filter]").forEach(button => {
       button.addEventListener("click", () => {
         activeTaskFilter = button.dataset.filter;
@@ -904,7 +843,7 @@
       });
     });
   </script>
-  <script>
+  <script nonce="{{ csp_nonce }}">
     (() => {
       const activePanel = document.getElementById("active-work-panel");
       const activeTitle = document.getElementById("active-work-title");
@@ -1071,7 +1010,7 @@
       }));
     })();
   </script>
-  <script>
+  <script nonce="{{ csp_nonce }}">
     (() => {
       const aura = document.getElementById("cursor-aura");
       if (!aura) return;
@@ -1131,7 +1070,7 @@
       });
     })();
   </script>\n
-<script>
+<script nonce="{{ csp_nonce }}">
     (() => {
       const panel = document.getElementById("update-center");
       const message = document.getElementById("update-center-message");
