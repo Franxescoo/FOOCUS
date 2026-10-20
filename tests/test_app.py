@@ -94,11 +94,11 @@ class FocusFlowTaskTests(unittest.TestCase):
             "published_at": "2026-10-20T12:00:00Z",
             "html_url": "https://github.com/Franxescoo/FocusFlow/releases/tag/v1.0.1",
             "body": (
-                "## What's Changed\\n"
+                "## What's Changed\n"
                 "* Add update notifications [#13](https://github.com/Franxescoo/FocusFlow/pull/13) "
-                "by @Franxescoo in https://github.com/Franxescoo/FocusFlow/pull/13\\n"
-                "* Show semantic version in the installer\\n"
-                "## New Contributors\\n* Nobody\\n"
+                "by @Franxescoo in https://github.com/Franxescoo/FocusFlow/pull/13\n"
+                "* Show semantic version in the installer\n"
+                "## New Contributors\n* Nobody\n"
             ),
         }
         fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
@@ -126,7 +126,7 @@ class FocusFlowTaskTests(unittest.TestCase):
             "tag_name": "v1.0.0",
             "name": "FocusFlow V1.0.0",
             "published_at": "2026-10-20T12:00:00Z",
-            "body": "## What's Changed\\n* Initial release\\n",
+            "body": "## What's Changed\n* Initial release\n",
         }
         fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
         with (
@@ -155,7 +155,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="download-focusflow"', response.data)
         self.assertIn(b'id="download-status"', response.data)
         self.assertIn(b'id="update-notice" aria-labelledby="update-notice-title" aria-live="polite" hidden', response.data)
-        self.assertIn(b'ActualizaciÃ³n detectada', response.data)
+        self.assertIn('Actualización detectada'.encode(), response.data)
         self.assertIn(b'fetch("/api/updates"', response.data)
         self.assertNotIn(b"api.github.com/repos/Franxescoo/FocusFlow/releases/latest", response.data)
         self.assertIn(b'https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe', response.data)
