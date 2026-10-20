@@ -78,6 +78,17 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'function clearTaskFilters()', page)
         self.assertIn(b'button.setAttribute("aria-pressed", String(active))', page)
 
+    def test_cursor_aura_is_decorative_and_respects_accessibility(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        page = response.data
+        self.assertIn(b'id="cursor-aura"', page)
+        self.assertIn(b'aria-hidden="true"', page)
+        self.assertIn(b'window.matchMedia("(prefers-reduced-motion: reduce)")', page)
+        self.assertIn(b'window.matchMedia("(hover: hover) and (pointer: fine)")', page)
+        self.assertIn(b'event.pointerType !== "mouse"', page)
+        self.assertIn(b'window.requestAnimationFrame(animateAura)', page)
+
     def test_active_work_session_uses_modal_after_reload(self):
         self.create_task(title="Repasar cálculo")
         task_id = self.task_id()
