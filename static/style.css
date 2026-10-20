@@ -1459,25 +1459,46 @@ html[data-theme="dark"] .work-log-next-step > strong {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 28px 100px #0e102a42;
+  opacity: 0;
+  transform: translateY(12px) scale(.965);
+  transition:
+    opacity 240ms ease,
+    transform 380ms cubic-bezier(.2, .85, .25, 1),
+    display 300ms allow-discrete,
+    overlay 300ms allow-discrete;
 }
 .active-work-dialog[open] {
-  animation: work-dialog-appear 280ms cubic-bezier(.2, .8, .2, 1) both;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@starting-style {
+  .active-work-dialog[open] {
+    opacity: 0;
+    transform: translateY(16px) scale(.955);
+  }
 }
 .active-work-dialog::backdrop {
-  background: rgb(13 16 31 / 62%);
+  background-color: rgb(13 16 31 / 0%);
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+  transition:
+    background-color 280ms ease,
+    backdrop-filter 320ms ease,
+    -webkit-backdrop-filter 320ms ease,
+    display 300ms allow-discrete,
+    overlay 300ms allow-discrete;
+}
+.active-work-dialog[open]::backdrop {
+  background-color: rgb(13 16 31 / 62%);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
 }
-.active-work-dialog[open]::backdrop {
-  animation: work-backdrop-appear 240ms ease-out both;
-}
-@keyframes work-dialog-appear {
-  from { opacity: 0; transform: translateY(14px) scale(.975); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes work-backdrop-appear {
-  from { background-color: rgb(13 16 31 / 0%); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); }
-  to { background-color: rgb(13 16 31 / 62%); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+@starting-style {
+  .active-work-dialog[open]::backdrop {
+    background-color: rgb(13 16 31 / 0%);
+    -webkit-backdrop-filter: blur(0);
+    backdrop-filter: blur(0);
+  }
 }
 .active-work-panel {
   display: flex;
@@ -1598,10 +1619,10 @@ html[data-theme="dark"] .work-log-next-step > strong {
   display: none !important;
 }
 .active-work-dock:not([hidden]) {
-  animation: work-dock-appear 240ms cubic-bezier(.2, .8, .2, 1) both;
+  animation: work-dock-appear 380ms cubic-bezier(.2, .85, .25, 1.12) both;
 }
 @keyframes work-dock-appear {
-  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  from { opacity: 0; transform: translateY(14px) scale(.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .active-work-dock-live {
