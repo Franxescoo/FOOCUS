@@ -335,7 +335,7 @@
       let endsAt = null;
       let sessions = 0;
 
-      try { sessions = Math.max(0, Number(localStorage.getItem(sessionKey) || 0)); } catch (error) {}
+      try { sessions = Math.max(0, Number(localStorage.getItem(sessionKey) || 0)); if (!Number.isFinite(sessions)) sessions = 0; sessions = Math.max(0, Math.floor(sessions)); } catch (error) {}
       sessionDisplay.textContent = String(sessions);
 
       function saveTimerState() {
@@ -414,7 +414,7 @@
         const saved = JSON.parse(localStorage.getItem(timerKey) || "null");
         if (saved && allowedMinutes.includes(Number(saved.totalSeconds) / 60)) {
           totalSeconds = Number(saved.totalSeconds);
-          if (saved.running && Number.isFinite(Number(saved.endsAt))) {
+          if (saved.running && saved.endsAt !== null && saved.endsAt !== undefined && Number.isFinite(Number(saved.endsAt))) {
             endsAt = Number(saved.endsAt);
             remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
             if (remaining > 0) {
