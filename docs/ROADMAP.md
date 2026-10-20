@@ -31,7 +31,7 @@ Siguientes mejoras recomendadas:
 - Introducir migraciones versionadas para que futuras modificaciones se puedan auditar, probar y revertir con seguridad.
 - Añadir semestres o periodos académicos y permitir archivar asignaturas antiguas.
 - Permitir bloques horarios opcionales sin obligar a todos a seguir una agenda estricta.
-- Registrar una breve revisión al cerrar una sesión: qué se avanzó y cuál es el siguiente paso.
+- Ampliar la revisión al cerrar una sesión con aprendizajes, bloqueos y recursos consultados, reutilizando el siguiente paso que ya se registra.
 - Comparar estimaciones y tiempos reales en un informe semanal para ajustar futuras estimaciones.
 
 La migración actual es aditiva y conservadora, pero no sustituye una herramienta de migraciones versionadas antes de introducir cambios de esquema más complejos.

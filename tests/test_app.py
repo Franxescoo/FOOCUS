@@ -281,10 +281,19 @@ class FocusFlowTaskTests(unittest.TestCase):
                     "INSERT INTO tasks (title, priority) VALUES (?, ?)",
                     ("Tarea antigua", "Alta"),
                 )
+                db.execute(
+                    "INSERT INTO work_sessions (task_id, started_at, comment) VALUES (?, ?, ?)",
+                    (1, "2026-10-19T08:00:00+00:00", "Avance anterior"),
+                )
             focusflow.init_db()
             with focusflow.get_db() as db:
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
+                session_columns = {row["name"] for row in db.execute("PRAGMA table_info(work_sessions)")}
                 task = db.execute("SELECT title, priority, estimated_minutes, subject_id FROM tasks").fetchone()
+                old_session = db.execute("SELECT comment, next_step FROM work_sessions").fetchone()
+            self.assertIn("next_step", session_columns)
+            self.assertEqual(old_session["comment"], "Avance anterior")
+            self.assertEqual(old_session["next_step"], "")
             self.assertIn("subject_id", columns)
             self.assertIn("estimated_minutes", columns)
             self.assertIn("planned_date", columns)
@@ -307,20 +316,25 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertTrue(started.json["ok"])
         stopped = self.client.post(
             "/api/work/stop",
-            json={"comment": "Terminé una parte del proyecto"},
+            json={
+                "comment": "Terminé una parte del proyecto",
+                "next_step": "Probar el flujo con un título vacío",
+            },
             headers=self.csrf_headers(),
         )
         self.assertEqual(stopped.status_code, 200)
         self.assertTrue(stopped.json["ok"])
         self.assertEqual(stopped.json["comment"], "Terminé una parte del proyecto")
+        self.assertEqual(stopped.json["next_step"], "Probar el flujo con un título vacío")
         with focusflow.get_db() as db:
             row = db.execute(
-                "SELECT ended_at, duration_seconds, comment FROM work_sessions WHERE task_id = ?",
+                "SELECT ended_at, duration_seconds, comment, next_step FROM work_sessions WHERE task_id = ?",
                 (task_id,),
             ).fetchone()
         self.assertIsNotNone(row["ended_at"])
         self.assertGreaterEqual(row["duration_seconds"], 0)
         self.assertEqual(row["comment"], "Terminé una parte del proyecto")
+        self.assertEqual(row["next_step"], "Probar el flujo con un título vacío")
 
     def test_only_one_work_session_can_be_active(self):
         self.create_task("Tarea A")
@@ -373,12 +387,28 @@ class FocusFlowTaskTests(unittest.TestCase):
         )
         self.client.post(
             "/api/work/stop",
-            json={"comment": "Prueba del historial"},
+            json={"comment": "Prueba del historial", "next_step": "Repasar el ejercicio 3"},
             headers=self.csrf_headers(),
         )
         response = self.client.get(f"/api/tasks/{task_id}/work-log")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["sessions"][0]["comment"], "Prueba del historial")
+        self.assertEqual(response.json["sessions"][0]["next_step"], "Repasar el ejercicio 3")
+
+    def test_next_step_is_visible_on_task_card(self):
+        self.create_task(title="Retomar cálculo")
+        task_id = self.task_id()
+        self.client.post(
+            "/api/work/start", json={"task_id": task_id}, headers=self.csrf_headers()
+        )
+        self.client.post(
+            "/api/work/stop",
+            json={"comment": "Resolví dos ejercicios", "next_step": "Revisar los límites laterales"},
+            headers=self.csrf_headers(),
+        )
+        page = self.client.get("/").data
+        self.assertIn("Retomar con".encode(), page)
+        self.assertIn("Revisar los límites laterales".encode(), page)
 
     def test_export_csv_includes_task_and_work_comment(self):
         self.create_task("Exportar mi progreso", priority="Alta", subject="Programación",
@@ -389,7 +419,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         )
         self.client.post(
             "/api/work/stop",
-            json={"comment": "Avancé el diseño"},
+            json={"comment": "Avancé el diseño", "next_step": "Conectar el formulario con la base de datos"},
             headers=self.csrf_headers(),
         )
         response = self.client.get("/export.csv")
@@ -401,6 +431,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn("Asignatura".encode(), response.data)
         self.assertIn("Fecha planificada".encode(), response.data)
         self.assertIn("2026-10-24".encode(), response.data)
+        self.assertIn("Siguiente paso".encode(), response.data)
+        self.assertIn("Conectar el formulario con la base de datos".encode(), response.data)
 
     def test_export_csv_escapes_spreadsheet_formulas(self):
         self.create_task("=1+1")

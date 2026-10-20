@@ -1389,3 +1389,58 @@ html[data-theme="dark"] .weekly-plan-item {
     display: none;
   }
 }
+
+
+/* Session review: leave a useful breadcrumb for the next study block. */
+.task-next-step {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 4px;
+  max-width: 560px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--purple);
+  border-radius: 0 9px 9px 0;
+  background: var(--soft-purple);
+}
+.task-next-step strong {
+  color: var(--purple-dark);
+  font-size: 10px;
+}
+.task-next-step span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.work-log-review,
+.work-log-next-step {
+  display: grid;
+  gap: 3px;
+  margin-top: 7px;
+}
+.work-log-review > strong,
+.work-log-next-step > strong {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .2px;
+}
+.work-log-next-step {
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: var(--soft-purple);
+}
+.work-log-next-step > strong {
+  color: var(--purple-dark);
+}
+html[data-theme="dark"] .task-next-step,
+html[data-theme="dark"] .work-log-next-step {
+  background: #292640;
+}
+html[data-theme="dark"] .task-next-step strong,
+html[data-theme="dark"] .work-log-next-step > strong {
+  color: #c0b8ff;
+}
