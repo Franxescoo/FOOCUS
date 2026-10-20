@@ -192,7 +192,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'fetch("/api/updates/download"', response.data)
         self.assertIn(b'fetch("/api/updates/download/status"', response.data)
         self.assertIn(b'fetch("/api/updates/download/open"', response.data)
-        self.assertIn(b'SHA-256', response.data)
+        self.assertIn(b"huella digital", response.data)
         self.assertNotIn(b'download.target = "_blank"', response.data)
         self.assertNotIn(b'FocusFlow-Setup.exe', response.data)
         self.assertNotIn(b"api.github.com/repos/Franxescoo/FOOCUS/releases/latest", response.data)
