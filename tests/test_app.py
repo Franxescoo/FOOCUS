@@ -26,6 +26,9 @@ class FocusFlowTaskTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Mis tareas", response.data)
+        self.assertIn(b"theme-toggle", response.data)
+        self.assertIn(b"SISTEMA ANTI-PROCRASTINACI", response.data)
+        self.assertIn(b"starter-task", response.data)
 
     def test_create_task(self):
         response = self.create_task()
