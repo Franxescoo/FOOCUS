@@ -15,8 +15,42 @@
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'DM Sans', sans-serif; }
+body { margin: 0; isolation: isolate; background: var(--bg); color: var(--ink); font-family: 'DM Sans', sans-serif; }
 body.music-open { overflow: hidden; }
+
+/* Soft cursor-following ambience: decorative only, never competes with content. */
+.cursor-aura {
+  position: fixed;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: clamp(340px, 44vw, 620px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle at center,
+    rgb(132 119 255 / 14%) 0%,
+    rgb(103 86 217 / 8%) 30%,
+    rgb(99 154 255 / 3.5%) 49%,
+    transparent 72%
+  );
+  filter: blur(14px);
+  transition: opacity 680ms cubic-bezier(.2, .75, .25, 1);
+  will-change: transform, opacity;
+}
+.cursor-aura.is-visible { opacity: 1; }
+html[data-theme="dark"] .cursor-aura {
+  background: radial-gradient(
+    circle at center,
+    rgb(139 125 255 / 20%) 0%,
+    rgb(103 86 217 / 12%) 31%,
+    rgb(91 121 226 / 6%) 51%,
+    transparent 73%
+  );
+  filter: blur(18px);
+}
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: .6; cursor: not-allowed; }
@@ -1863,4 +1897,9 @@ html[data-theme="dark"] .active-work-dock-copy small span {
   .active-work-dialog[open]::backdrop,
   .active-work-dock:not([hidden]),
   .active-work-dock-live { animation: none; }
+}
+
+
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .cursor-aura { display: none !important; }
 }
