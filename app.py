@@ -101,10 +101,16 @@ def init_db():
                 ended_at TEXT,
                 duration_seconds INTEGER NOT NULL DEFAULT 0,
                 comment TEXT NOT NULL DEFAULT '',
+                next_step TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
             """
         )
+        session_columns = {
+            row["name"] for row in db.execute("PRAGMA table_info(work_sessions)").fetchall()
+        }
+        if "next_step" not in session_columns:
+            db.execute("ALTER TABLE work_sessions ADD COLUMN next_step TEXT NOT NULL DEFAULT ''")
         db.execute(
             """
             CREATE TABLE IF NOT EXISTS app_settings (
@@ -298,11 +304,15 @@ def index():
         if subject_id is not None:
             subject_work_seconds[subject_id] = subject_work_seconds.get(subject_id, 0) + seconds
         task_id = work_session["task_id"]
-        work_stats.setdefault(task_id, {"seconds": 0, "sessions": 0, "last_comment": ""})
+        work_stats.setdefault(task_id, {
+            "seconds": 0, "sessions": 0, "last_comment": "", "last_next_step": ""
+        })
         work_stats[task_id]["seconds"] += seconds
         work_stats[task_id]["sessions"] += 1
         if not work_stats[task_id]["last_comment"] and work_session["comment"]:
             work_stats[task_id]["last_comment"] = work_session["comment"]
+        if not work_stats[task_id]["last_next_step"] and work_session["next_step"]:
+            work_stats[task_id]["last_next_step"] = work_session["next_step"]
         active_days_by_task.setdefault(task_id, set()).add(day_key)
 
     task_streaks = {}
@@ -574,6 +584,7 @@ def start_work():
 def stop_work():
     payload = request.get_json(silent=True) or {}
     comment = str(payload.get("comment", "")).strip()[:1000]
+    next_step = str(payload.get("next_step", "")).strip()[:500]
     ended_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
     with get_db() as db:
@@ -587,13 +598,16 @@ def stop_work():
         ended = datetime.fromisoformat(ended_at)
         duration = max(0, int((ended - started_at).total_seconds()))
         db.execute(
-            "UPDATE work_sessions SET ended_at = ?, duration_seconds = ?, comment = ? WHERE id = ?",
-            (ended_at, duration, comment, work_session["id"]),
+            """UPDATE work_sessions
+               SET ended_at = ?, duration_seconds = ?, comment = ?, next_step = ?
+               WHERE id = ?""",
+            (ended_at, duration, comment, next_step, work_session["id"]),
         )
     return jsonify({
         "ok": True,
         "duration_seconds": duration,
         "comment": comment,
+        "next_step": next_step,
         "message": "Sesión guardada.",
     })
 
@@ -605,7 +619,7 @@ def task_work_log(task_id):
         if not task:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
         logs = db.execute(
-            """SELECT id, started_at, ended_at, duration_seconds, comment
+            """SELECT id, started_at, ended_at, duration_seconds, comment, next_step
                FROM work_sessions WHERE task_id = ? AND ended_at IS NOT NULL
                ORDER BY started_at DESC LIMIT 20""",
             (task_id,),
@@ -678,7 +692,7 @@ def export_csv():
             """
             SELECT t.id, t.title, t.priority, t.due_date, t.planned_date, t.completed, t.created_at,
                    t.estimated_minutes, s.name AS subject_name,
-                   ws.started_at, ws.ended_at, ws.duration_seconds, ws.comment
+                   ws.started_at, ws.ended_at, ws.duration_seconds, ws.comment, ws.next_step
             FROM tasks t
             LEFT JOIN subjects s ON s.id = t.subject_id
             LEFT JOIN work_sessions ws ON ws.task_id = t.id AND ws.ended_at IS NOT NULL
@@ -691,7 +705,7 @@ def export_csv():
     writer.writerow([
         "ID tarea", "Tarea", "Asignatura", "Estimación (minutos)", "Fecha planificada",
         "Prioridad", "Fecha límite", "Completada", "Creada el", "Inicio sesión",
-        "Fin sesión", "Duración (segundos)", "Comentario de sesión",
+        "Fin sesión", "Duración (segundos)", "Comentario de sesión", "Siguiente paso",
     ])
     for row in rows:
         writer.writerow([
@@ -708,6 +722,7 @@ def export_csv():
             row["ended_at"] or "",
             row["duration_seconds"] if row["ended_at"] else "",
             spreadsheet_safe(row["comment"]) if row["ended_at"] else "",
+            spreadsheet_safe(row["next_step"]) if row["ended_at"] else "",
         ])
 
     response = make_response("\ufeff" + output.getvalue())
