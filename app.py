@@ -784,20 +784,24 @@ def update_download_status():
 @app.route("/api/updates/download", methods=["POST"])
 def start_update_download():
     with UPDATE_DOWNLOAD_LOCK:
-        if UPDATE_DOWNLOAD_STATE["status"] in {"starting", "downloading"}:
-            return jsonify(_update_download_response()), 409
-        UPDATE_DOWNLOAD_STATE.update({
-            "status": "starting",
-            "progress": 0,
-            "downloaded_bytes": 0,
-            "total_bytes": 0,
-            "filename": "FOOCUS-Setup.exe",
-            "version": "",
-            "message": "Preparando una descarga segura…",
-            "verified": False,
-            "verification": "",
-            "path": "",
-        })
+        already_downloading = UPDATE_DOWNLOAD_STATE["status"] in {"starting", "downloading"}
+        if not already_downloading:
+            UPDATE_DOWNLOAD_STATE.update({
+                "status": "starting",
+                "progress": 0,
+                "downloaded_bytes": 0,
+                "total_bytes": 0,
+                "filename": "FOOCUS-Setup.exe",
+                "version": "",
+                "message": "Preparando una descarga segura…",
+                "verified": False,
+                "verification": "",
+                "path": "",
+            })
+    if already_downloading:
+        payload = _update_download_response()
+        payload["ok"] = False
+        return jsonify(payload), 409
 
     worker = threading.Thread(
         target=_download_latest_installer,
