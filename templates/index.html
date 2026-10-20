@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>FocusFlow | Organiza tu día</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -80,10 +81,32 @@
         <section class="work-dashboard panel work-dashboard-main" id="work-dashboard">
           <div class="section-heading"><div><p class="eyebrow">TU CONSTANCIA, EN DATOS</p><h2>Actividad de trabajo</h2><p class="notes-hint">Registra el tiempo real que dedicas a tus tareas y deja un resumen de cada sesión.</p></div><span class="section-icon">◷</span></div>
           <div class="work-metrics">
-            <article><span>Hoy</span><strong id="today-work-total">{{ (today_work_seconds // 3600) }} h {{ ((today_work_seconds % 3600) // 60) }} min</strong></article>
-            <article><span>Tiempo registrado</span><strong id="all-work-total">{{ (total_work_seconds // 3600) }} h {{ ((total_work_seconds % 3600) // 60) }} min</strong></article>
-            <article><span>Sesiones</span><strong>{{ work_stats.values()|sum(attribute='sessions') if work_stats else 0 }}</strong></article>
+            <article><span>Hoy</span><strong id="today-work-total">{{ today_work_seconds // 3600 }} h {{ (today_work_seconds % 3600) // 60 }} min</strong><small>Tiempo guardado</small></article>
+            <article><span>Esta semana</span><strong id="week-work-total">{{ week_work_seconds // 3600 }} h {{ (week_work_seconds % 3600) // 60 }} min</strong><small>Desde el lunes</small></article>
+            <article><span>Total registrado</span><strong id="all-work-total">{{ total_work_seconds // 3600 }} h {{ (total_work_seconds % 3600) // 60 }} min</strong><small>Historial completo</small></article>
+            <article><span>Sesiones guardadas</span><strong id="all-work-sessions">{{ total_session_count }}</strong><small>Bloques finalizados</small></article>
           </div>
+          <section class="study-goal" aria-labelledby="study-goal-title" data-today-seconds="{{ today_work_seconds }}">
+            <div class="study-goal-head">
+              <div><p class="eyebrow">UN OBJETIVO REALISTA</p><h3 id="study-goal-title">Meta diaria de estudio</h3><p>La meta se guarda en este equipo junto con la base de datos de FocusFlow.</p></div>
+              <strong id="study-goal-value">{{ study_goal_minutes // 60 }} h{% if study_goal_minutes % 60 %} {{ study_goal_minutes % 60 }} min{% endif %}</strong>
+            </div>
+            <div class="study-goal-track" id="study-goal-track" role="progressbar" aria-label="Progreso de la meta diaria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ goal_progress_percent }}">
+              <div class="study-goal-fill" id="study-goal-fill" style="width: {{ goal_progress_percent }}%"></div>
+            </div>
+            <div class="study-goal-foot"><span id="study-goal-status" role="status">{% if goal_progress_percent >= 100 %}¡Meta cumplida! Tu constancia cuenta.{% else %}Llevas {{ goal_progress_percent }}% de tu meta. Te faltan {{ ((study_goal_minutes * 60 - today_work_seconds + 59) // 60) }} min.{% endif %}</span><span id="study-goal-percent">{{ goal_progress_percent }}%</span></div>
+            <div class="study-goal-controls">
+              <label class="field" for="study-goal-select">Cambiar meta diaria
+                <select id="study-goal-select">
+                  {% for minutes in [30, 60, 90, 120, 150, 180, 240, 300, 360, 480, 600] %}
+                  <option value="{{ minutes }}" {% if minutes == study_goal_minutes %}selected{% endif %}>{{ minutes // 60 }} h{% if minutes % 60 %} {{ minutes % 60 }} min{% endif %}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <button class="focus-reset" type="button" id="save-study-goal">Guardar meta</button>
+              <span id="study-goal-save-status" role="status" aria-live="polite"></span>
+            </div>
+          </section>
           <div class="activity-heading"><div><strong>Tu actividad · últimos 35 días</strong><span class="activity-legend"><i></i> Menos <i></i><i></i><i></i><i></i> Más</span></div></div>
           <div class="activity-grid" role="img" aria-label="Mapa de actividad diaria de trabajo">
             {% for day in activity_days %}
@@ -98,6 +121,7 @@
 <section class="panel">
           <div class="section-heading"><div><p class="eyebrow">PLANIFICA TU DÍA</p><h2>Agregar una tarea</h2></div><span class="section-icon">＋</span></div>
           <form class="task-form" action="{{ url_for('add_task') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="field task-title">Nombre de la tarea
               <input type="text" name="title" maxlength="160" placeholder="Ej. Estudiar Python 30 minutos" required>
             </label>
@@ -131,6 +155,7 @@
             {% for task in tasks %}
             <article class="task-item {% if task.completed %}is-complete{% endif %}" data-state="{% if task.completed %}completed{% else %}pending{% endif %}" data-task-id="{{ task.id }}">
               <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="check-button" type="submit" aria-label="{% if task.completed %}Marcar pendiente{% else %}Marcar completada{% endif %}">{% if task.completed %}✓{% endif %}</button>
               </form>
               <div class="task-info">
@@ -163,6 +188,7 @@
                 <div class="editor-actions"><button class="primary-button" type="submit">Guardar</button><button class="focus-reset editor-cancel" type="button">Cancelar</button><span class="editor-status" role="status"></span></div>
               </form>
               <form action="{{ url_for('delete_task', task_id=task.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta tarea?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="delete-button" type="submit" aria-label="Eliminar tarea">×</button>
               </form>
             </article>
@@ -200,7 +226,7 @@
 <section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
           <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
           <div class="focus-controls">
-            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div><div class="session-counter">Sesiones completadas hoy: <strong id="sessions-today">0</strong></div>
+            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div><div class="session-counter">Bloques de enfoque terminados hoy: <strong id="sessions-today">0</strong></div>
             <div class="focus-buttons"><button type="button" class="primary-button" id="focus-start">Comenzar</button><button type="button" class="focus-reset" id="focus-reset">Reiniciar</button></div>
             <div class="focus-presets"><button type="button" data-minutes="25" class="focus-preset active">25 min</button><button type="button" data-minutes="15" class="focus-preset">15 min</button><button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
           </div>
@@ -237,6 +263,7 @@
   </main>
   <script src="{{ url_for('static', filename='music.js') }}" defer></script>
   <script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
     (() => {
       const launcher = document.getElementById("music-launcher");
       const sideLauncher = document.getElementById("sidebar-music-launcher");
@@ -295,49 +322,122 @@
       const display = document.getElementById("focus-time");
       const start = document.getElementById("focus-start");
       const reset = document.getElementById("focus-reset");
-      const presets = document.querySelectorAll("[data-minutes]");
-      let totalSeconds = 25 * 60;
-      let remaining = totalSeconds;
-      let interval = null;
+      const presets = Array.from(document.querySelectorAll("[data-minutes]"));
       const sessionDisplay = document.getElementById("sessions-today");
+      const timerKey = "focusflow_timer_state_v1";
       const localDate = new Date();
       const sessionDate = localDate.getFullYear() + "-" + String(localDate.getMonth() + 1).padStart(2, "0") + "-" + String(localDate.getDate()).padStart(2, "0");
       const sessionKey = "focusflow_sessions_" + sessionDate;
+      const allowedMinutes = [5, 15, 25];
+      let totalSeconds = 25 * 60;
+      let remaining = totalSeconds;
+      let interval = null;
+      let endsAt = null;
       let sessions = 0;
-      try { sessions = Number(localStorage.getItem(sessionKey) || 0); } catch (error) {}
+
+      try { sessions = Math.max(0, Number(localStorage.getItem(sessionKey) || 0)); if (!Number.isFinite(sessions)) sessions = 0; sessions = Math.max(0, Math.floor(sessions)); } catch (error) {}
       sessionDisplay.textContent = String(sessions);
+
+      function saveTimerState() {
+        const currentRemaining = interval && endsAt
+          ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+          : remaining;
+        try {
+          localStorage.setItem(timerKey, JSON.stringify({
+            totalSeconds,
+            remaining: currentRemaining,
+            running: Boolean(interval && endsAt),
+            endsAt: interval && endsAt ? endsAt : null
+          }));
+        } catch (error) {}
+      }
+
       function draw() {
         display.textContent = String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0");
       }
-      function stop() {
+
+      function stopInterval() {
         if (interval) clearInterval(interval);
         interval = null;
-        start.textContent = "Continuar";
+        endsAt = null;
       }
-      function begin() {
-        if (interval) { stop(); return; }
-        if (remaining <= 0) remaining = totalSeconds;
-        start.textContent = "Pausar";
-        interval = setInterval(() => {
-          remaining -= 1;
-          draw();
-          if (remaining <= 0) {
-            stop();
-            remaining = 0;
-            draw();
-            start.textContent = "Terminado";
-            sessions += 1;
-            sessionDisplay.textContent = String(sessions);
-            try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
-            statusNotice();
-          }
-        }, 1000);
-      }
-      function statusNotice() {
+
+      function completeBlock() {
+        stopInterval();
+        remaining = 0;
+        draw();
         display.classList.add("is-finished");
-        if ("Notification" in window && Notification.permission === "granted") new Notification("FocusFlow", {body:"¡Terminó tu bloque de concentración! Tómate un descanso."});
+        start.textContent = "Terminado";
+        sessions += 1;
+        sessionDisplay.textContent = String(sessions);
+        try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
+        saveTimerState();
+        if ("Notification" in window && Notification.permission === "granted") {
+          try { new Notification("FocusFlow", {body: "Terminó tu bloque de concentración. Tómate un descanso."}); } catch (error) {}
+        }
       }
+
+      function tick() {
+        if (!endsAt) return;
+        remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+        draw();
+        if (remaining <= 0) {
+          completeBlock();
+        } else if (remaining % 2 === 0) {
+          saveTimerState();
+        }
+      }
+
+      function pause() {
+        if (interval && endsAt) remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+        stopInterval();
+        start.textContent = "Continuar";
+        draw();
+        saveTimerState();
+      }
+
+      function begin() {
+        if (interval) {
+          pause();
+          return;
+        }
+        if (remaining <= 0) remaining = totalSeconds;
+        endsAt = Date.now() + remaining * 1000;
+        start.textContent = "Pausar";
+        interval = setInterval(tick, 250);
+        saveTimerState();
+        tick();
+      }
+
+      let restoredExpiredBlock = false;
+      try {
+        const saved = JSON.parse(localStorage.getItem(timerKey) || "null");
+        if (saved && allowedMinutes.includes(Number(saved.totalSeconds) / 60)) {
+          totalSeconds = Number(saved.totalSeconds);
+          if (saved.running && saved.endsAt !== null && saved.endsAt !== undefined && Number.isFinite(Number(saved.endsAt))) {
+            endsAt = Number(saved.endsAt);
+            remaining = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+            if (remaining > 0) {
+              interval = setInterval(tick, 250);
+              start.textContent = "Pausar";
+            } else {
+              endsAt = null;
+              restoredExpiredBlock = true;
+            }
+          } else {
+            remaining = Math.max(0, Math.min(totalSeconds, Number(saved.remaining) || 0));
+          }
+        }
+      } catch (error) {}
+
+      presets.forEach(button => {
+        button.classList.toggle("active", Number(button.dataset.minutes) * 60 === totalSeconds);
+      });
       start.addEventListener("click", () => {
+        if (interval) {
+          pause();
+          return;
+        }
         if (remaining <= 0) {
           remaining = totalSeconds;
           display.classList.remove("is-finished");
@@ -346,23 +446,29 @@
         begin();
       });
       reset.addEventListener("click", () => {
-        stop();
+        pause();
         remaining = totalSeconds;
         display.classList.remove("is-finished");
         start.textContent = "Comenzar";
         draw();
+        saveTimerState();
       });
       presets.forEach(button => button.addEventListener("click", () => {
-        stop();
+        pause();
         totalSeconds = Number(button.dataset.minutes) * 60;
         remaining = totalSeconds;
         presets.forEach(item => item.classList.toggle("active", item === button));
         display.classList.remove("is-finished");
         start.textContent = "Comenzar";
         draw();
+        saveTimerState();
       }));
       draw();
+      if (restoredExpiredBlock) completeBlock();
+      else if (interval) tick();
+      else saveTimerState();
     })();
+
     (() => {
       const themeButton = document.getElementById("theme-toggle");
       const themeKey = "focusflow_theme_v1";
@@ -456,7 +562,7 @@
         beginButton.disabled = true;
         beginButton.textContent = "Preparando…";
         try {
-          const response = await fetch("/api/work/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({task_id:Number(task.id)})});
+          const response = await fetch("/api/work/start", {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken}, body:JSON.stringify({task_id:Number(task.id)})});
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar el registro de trabajo.");
           document.getElementById("utility-focus-card").open = true;
@@ -479,6 +585,57 @@
         }
       });
       refreshGuidance();
+    })();
+
+
+    (() => {
+      const section = document.querySelector(".study-goal");
+      const select = document.getElementById("study-goal-select");
+      const saveButton = document.getElementById("save-study-goal");
+      const value = document.getElementById("study-goal-value");
+      const fill = document.getElementById("study-goal-fill");
+      const track = document.getElementById("study-goal-track");
+      const percentLabel = document.getElementById("study-goal-percent");
+      const status = document.getElementById("study-goal-status");
+      const saveStatus = document.getElementById("study-goal-save-status");
+      if (!section || !select || !saveButton) return;
+      const todaySeconds = Math.max(0, Number(section.dataset.todaySeconds) || 0);
+      const formatGoal = minutes => {
+        const hours = Math.floor(minutes / 60);
+        const remainder = minutes % 60;
+        return hours + " h" + (remainder ? " " + remainder + " min" : "");
+      };
+      function renderGoal(minutes) {
+        const goalSeconds = minutes * 60;
+        const percent = Math.min(100, Math.round(todaySeconds / goalSeconds * 100));
+        const remainingMinutes = Math.max(0, Math.ceil((goalSeconds - todaySeconds) / 60));
+        value.textContent = formatGoal(minutes);
+        fill.style.width = percent + "%";
+        track.setAttribute("aria-valuenow", String(percent));
+        percentLabel.textContent = percent + "%";
+        status.textContent = percent >= 100
+          ? "¡Meta cumplida! Tu constancia cuenta."
+          : "Llevas " + percent + "% de tu meta. Te faltan " + remainingMinutes + " min.";
+      }
+      saveButton.addEventListener("click", async () => {
+        saveButton.disabled = true;
+        saveStatus.textContent = "Guardando...";
+        try {
+          const response = await fetch("/api/settings/study-goal", {
+            method: "PUT",
+            headers: {"Content-Type": "application/json", "X-CSRF-Token": csrfToken},
+            body: JSON.stringify({minutes: Number(select.value)})
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar la meta.");
+          renderGoal(data.minutes);
+          saveStatus.textContent = "Meta guardada.";
+        } catch (error) {
+          saveStatus.textContent = error.message || "No se pudo guardar. Inténtalo de nuevo.";
+        } finally {
+          saveButton.disabled = false;
+        }
+      });
     })();
 
     const taskSearch = document.getElementById("task-search");
@@ -522,7 +679,7 @@
           save.disabled = true;
           status.textContent = "Guardando...";
           try {
-            const response = await fetch("/api/tasks/" + encodeURIComponent(card.dataset.taskId), {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:titleInput.value, priority:priorityInput.value, due_date:dateInput.value})});
+            const response = await fetch("/api/tasks/" + encodeURIComponent(card.dataset.taskId), {method:"PATCH", headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken}, body:JSON.stringify({title:titleInput.value, priority:priorityInput.value, due_date:dateInput.value})});
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar.");
             window.location.reload();
@@ -612,7 +769,7 @@
         const original = button.textContent;
         button.textContent = "Iniciando...";
         try {
-          const response = await fetch("/api/work/start", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task_id:Number(button.dataset.startTask)})});
+          const response = await fetch("/api/work/start", {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({task_id:Number(button.dataset.startTask)})});
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar la sesión.");
           setWorking(data.task_id, data.task_title, data.started_at);
@@ -626,7 +783,7 @@
         stopButton.disabled = true;
         sessionStatus.textContent = "Guardando tiempo y comentario...";
         try {
-          const response = await fetch("/api/work/stop", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({comment:comment.value})});
+          const response = await fetch("/api/work/stop", {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({comment:comment.value})});
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar la sesión.");
           sessionStatus.textContent = "Sesión guardada: " + formatDuration(data.duration_seconds) + ". Actualizando estadísticas...";

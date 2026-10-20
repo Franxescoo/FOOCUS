@@ -1,25 +1,62 @@
-from datetime import date, datetime
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta
 import csv
+import hmac
 import io
-import sqlite3
+import os
 from pathlib import Path
+import secrets
+import sqlite3
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for, make_response
+from flask import (
+    Flask,
+    abort,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 app = Flask(__name__)
-app.config["TEMPLATES_AUTO_RELOAD"] = True
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-DATABASE = Path(__file__).with_name("focusflow.db")
+app.config.update(
+    SECRET_KEY=os.environ.get("FOCUSFLOW_SECRET_KEY") or secrets.token_hex(32),
+    TEMPLATES_AUTO_RELOAD=True,
+    SEND_FILE_MAX_AGE_DEFAULT=0,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("FOCUSFLOW_SECURE_COOKIE", "").lower()
+    in {"1", "true", "yes"},
+)
+DATABASE = Path(os.environ.get("FOCUSFLOW_DATABASE", str(Path(__file__).with_name("focusflow.db")))).expanduser()
+VALID_PRIORITIES = {"Baja", "Media", "Alta"}
+DEFAULT_STUDY_GOAL_MINUTES = 120
+MIN_STUDY_GOAL_MINUTES = 15
+MAX_STUDY_GOAL_MINUTES = 600
 
 
+@contextmanager
 def get_db():
-    connection = sqlite3.connect(DATABASE)
-    connection.execute("PRAGMA foreign_keys = ON")
+    """Open one SQLite connection per operation and always close it."""
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DATABASE, timeout=10)
     connection.row_factory = sqlite3.Row
-    return connection
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 10000")
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def init_db():
+    """Create the current schema and small indexes; safe to run on old databases."""
     with get_db() as db:
         db.execute(
             """
@@ -46,6 +83,95 @@ def init_db():
             )
             """
         )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        db.execute(
+            """
+            INSERT OR IGNORE INTO app_settings (setting_key, setting_value)
+            VALUES ('study_goal_minutes', ?)
+            """,
+            (str(DEFAULT_STUDY_GOAL_MINUTES),),
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_state_due ON tasks(completed, due_date, id)"
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_task_started ON work_sessions(task_id, started_at DESC)"
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_started_ended ON work_sessions(started_at, ended_at)"
+        )
+
+
+def csrf_token():
+    """Return a per-session token used to protect every state-changing request."""
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": csrf_token}
+
+
+@app.before_request
+def protect_state_changing_requests():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+
+    expected = session.get("_csrf_token")
+    supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        if request.is_json:
+            return jsonify({
+                "ok": False,
+                "message": "La sesión de seguridad venció. Recarga la página e inténtalo de nuevo.",
+            }), 400
+        abort(400, description="No se pudo validar la solicitud. Recarga la página e inténtalo de nuevo.")
+    return None
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
+
+
+@app.errorhandler(400)
+def bad_request(error):
+    if request.is_json:
+        return jsonify({"ok": False, "message": "La solicitud no es válida."}), 400
+    return render_template(
+        "error.html",
+        status_code=400,
+        title="No pudimos validar la solicitud",
+        message="Recarga la página para actualizar la sesión de seguridad y vuelve a intentarlo.",
+    ), 400
+
+
+@app.errorhandler(404)
+def not_found(error):
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "message": "No encontramos el recurso solicitado."}), 404
+    return render_template(
+        "error.html",
+        status_code=404,
+        title="No encontramos esa página",
+        message="Puede que el enlace haya cambiado o que el contenido ya no exista.",
+    ), 404
 
 
 def valid_due_date(value):
@@ -58,19 +184,28 @@ def valid_due_date(value):
         return False
 
 
+def get_study_goal_minutes(db):
+    row = db.execute(
+        "SELECT setting_value FROM app_settings WHERE setting_key = 'study_goal_minutes'"
+    ).fetchone()
+    try:
+        value = int(row["setting_value"]) if row else DEFAULT_STUDY_GOAL_MINUTES
+    except (TypeError, ValueError):
+        value = DEFAULT_STUDY_GOAL_MINUTES
+    return min(MAX_STUDY_GOAL_MINUTES, max(MIN_STUDY_GOAL_MINUTES, value))
+
+
 @app.route("/")
 def index():
+    today_date = date.today()
+    week_start = today_date - timedelta(days=today_date.weekday())
+
     with get_db() as db:
         tasks = db.execute(
             "SELECT * FROM tasks ORDER BY completed ASC, "
             "CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, "
             "due_date ASC, id DESC"
         ).fetchall()
-
-    total = len(tasks)
-    completed = sum(task["completed"] for task in tasks)
-    today_date = date.today()
-    with get_db() as db:
         sessions = db.execute(
             """SELECT ws.*, t.title AS task_title FROM work_sessions ws
                JOIN tasks t ON t.id = ws.task_id
@@ -81,49 +216,68 @@ def index():
                JOIN tasks t ON t.id = ws.task_id
                WHERE ws.ended_at IS NULL ORDER BY ws.id DESC LIMIT 1"""
         ).fetchone()
+        study_goal_minutes = get_study_goal_minutes(db)
 
+    total = len(tasks)
+    completed = sum(task["completed"] for task in tasks)
     work_stats = {}
     active_days_by_task = {}
     activity_by_day = {}
     total_work_seconds = 0
     today_work_seconds = 0
-    for session in sessions:
-        started = datetime.fromisoformat(session["started_at"])
+    week_work_seconds = 0
+    today_session_count = 0
+
+    for work_session in sessions:
+        started = datetime.fromisoformat(work_session["started_at"])
         day_key = started.date().isoformat()
-        seconds = max(0, int(session["duration_seconds"] or 0))
+        seconds = max(0, int(work_session["duration_seconds"] or 0))
         total_work_seconds += seconds
         activity_by_day[day_key] = activity_by_day.get(day_key, 0) + seconds
         if started.date() == today_date:
             today_work_seconds += seconds
-        task_id = session["task_id"]
+            today_session_count += 1
+        if started.date() >= week_start:
+            week_work_seconds += seconds
+
+        task_id = work_session["task_id"]
         work_stats.setdefault(task_id, {"seconds": 0, "sessions": 0, "last_comment": ""})
         work_stats[task_id]["seconds"] += seconds
         work_stats[task_id]["sessions"] += 1
-        if not work_stats[task_id]["last_comment"] and session["comment"]:
-            work_stats[task_id]["last_comment"] = session["comment"]
+        if not work_stats[task_id]["last_comment"] and work_session["comment"]:
+            work_stats[task_id]["last_comment"] = work_session["comment"]
         active_days_by_task.setdefault(task_id, set()).add(day_key)
 
     task_streaks = {}
     for task in tasks:
         days = active_days_by_task.get(task["id"], set())
-        cursor_day = today_date if today_date.isoformat() in days else date.fromordinal(today_date.toordinal() - 1)
+        cursor_day = today_date if today_date.isoformat() in days else today_date - timedelta(days=1)
         streak = 0
         while cursor_day.isoformat() in days:
             streak += 1
-            cursor_day = date.fromordinal(cursor_day.toordinal() - 1)
+            cursor_day -= timedelta(days=1)
         task_streaks[task["id"]] = streak
 
     activity_days = []
     for offset in range(34, -1, -1):
-        day = date.fromordinal(today_date.toordinal() - offset)
+        day = today_date - timedelta(days=offset)
         seconds = activity_by_day.get(day.isoformat(), 0)
         activity_days.append({
             "date": day.isoformat(),
             "label": day.strftime("%d/%m"),
             "seconds": seconds,
             "minutes": seconds // 60,
-            "level": 0 if seconds == 0 else (1 if seconds < 1800 else (2 if seconds < 7200 else (3 if seconds < 14400 else 4))),
+            "level": 0 if seconds == 0 else (
+                1 if seconds < 1800 else (
+                    2 if seconds < 7200 else (
+                        3 if seconds < 14400 else 4
+                    )
+                )
+            ),
         })
+
+    goal_seconds = study_goal_minutes * 60
+    goal_progress_percent = min(100, round(today_work_seconds / goal_seconds * 100)) if goal_seconds else 0
     response = make_response(render_template(
         "index.html",
         tasks=tasks,
@@ -135,11 +289,14 @@ def index():
         activity_days=activity_days,
         total_work_seconds=total_work_seconds,
         today_work_seconds=today_work_seconds,
+        week_work_seconds=week_work_seconds,
+        total_session_count=len(sessions),
+        today_session_count=today_session_count,
+        study_goal_minutes=study_goal_minutes,
+        goal_progress_percent=goal_progress_percent,
         active_session=active_session,
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 
@@ -152,7 +309,7 @@ def add_task():
 
     if not title:
         return redirect(url_for("index"))
-    if priority not in {"Baja", "Media", "Alta"}:
+    if priority not in VALID_PRIORITIES:
         priority = "Media"
     if due_date is False:
         due_date = None
@@ -169,11 +326,9 @@ def add_task():
 def toggle_task(task_id):
     with get_db() as db:
         db.execute(
-            """
-            UPDATE tasks
-            SET completed = CASE completed WHEN 0 THEN 1 ELSE 0 END
-            WHERE id = ?
-            """,
+            """UPDATE tasks
+               SET completed = CASE completed WHEN 0 THEN 1 ELSE 0 END
+               WHERE id = ?""",
             (task_id,),
         )
     return redirect(url_for("index"))
@@ -182,7 +337,15 @@ def toggle_task(task_id):
 @app.route("/tasks/<int:task_id>/delete", methods=["POST"])
 def delete_task(task_id):
     with get_db() as db:
-        db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        active_session = db.execute(
+            "SELECT id FROM work_sessions WHERE task_id = ? AND ended_at IS NULL LIMIT 1",
+            (task_id,),
+        ).fetchone()
+        if active_session:
+            abort(400, description="Termina la sesión de trabajo antes de eliminar esta tarea.")
+        cursor = db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        if cursor.rowcount == 0:
+            abort(404)
     return redirect(url_for("index"))
 
 
@@ -196,7 +359,7 @@ def edit_task(task_id):
 
     if not title:
         return jsonify({"ok": False, "message": "El nombre de la tarea no puede estar vacío."}), 400
-    if priority not in {"Baja", "Media", "Alta"}:
+    if priority not in VALID_PRIORITIES:
         return jsonify({"ok": False, "message": "Selecciona una prioridad válida."}), 400
     if due_date is False:
         return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
@@ -215,6 +378,32 @@ def edit_task(task_id):
     })
 
 
+@app.route("/api/settings/study-goal", methods=["PUT"])
+def update_study_goal():
+    payload = request.get_json(silent=True) or {}
+    try:
+        minutes = int(payload.get("minutes"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "Selecciona una meta diaria válida."}), 400
+
+    if minutes < MIN_STUDY_GOAL_MINUTES or minutes > MAX_STUDY_GOAL_MINUTES or minutes % 15 != 0:
+        return jsonify({
+            "ok": False,
+            "message": f"La meta debe estar entre {MIN_STUDY_GOAL_MINUTES} y {MAX_STUDY_GOAL_MINUTES} minutos, en intervalos de 15.",
+        }), 400
+
+    with get_db() as db:
+        db.execute(
+            """INSERT INTO app_settings (setting_key, setting_value, updated_at)
+               VALUES ('study_goal_minutes', ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(setting_key) DO UPDATE SET
+               setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP""",
+            (str(minutes),),
+        )
+
+    return jsonify({"ok": True, "minutes": minutes})
+
+
 @app.route("/api/work/start", methods=["POST"])
 def start_work():
     payload = request.get_json(silent=True) or {}
@@ -222,20 +411,37 @@ def start_work():
         task_id = int(payload.get("task_id"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "message": "Selecciona una tarea válida."}), 400
+
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     with get_db() as db:
-        task = db.execute("SELECT id, title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        # Acquire the SQLite write lock before checking for an active session so
+        # two fast requests cannot both pass the check and start overlapping work.
+        db.execute("BEGIN IMMEDIATE")
+        task = db.execute("SELECT id, title, completed FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not task:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
-        active = db.execute("SELECT id FROM work_sessions WHERE ended_at IS NULL LIMIT 1").fetchone()
+        if task["completed"]:
+            return jsonify({"ok": False, "message": "Esa tarea ya está completada. Reábrela para registrar más trabajo."}), 409
+        active = db.execute(
+            "SELECT id FROM work_sessions WHERE ended_at IS NULL LIMIT 1"
+        ).fetchone()
         if active:
-            return jsonify({"ok": False, "message": "Ya hay una sesión en curso. Termínala antes de empezar otra."}), 409
+            return jsonify({
+                "ok": False,
+                "message": "Ya hay una sesión en curso. Termínala antes de empezar otra.",
+            }), 409
         cursor = db.execute(
             "INSERT INTO work_sessions (task_id, started_at) VALUES (?, ?)",
             (task_id, started_at),
         )
         session_id = cursor.lastrowid
-    return jsonify({"ok": True, "session_id": session_id, "task_id": task_id, "task_title": task["title"], "started_at": started_at})
+    return jsonify({
+        "ok": True,
+        "session_id": session_id,
+        "task_id": task_id,
+        "task_title": task["title"],
+        "started_at": started_at,
+    })
 
 
 @app.route("/api/work/stop", methods=["POST"])
@@ -243,20 +449,27 @@ def stop_work():
     payload = request.get_json(silent=True) or {}
     comment = str(payload.get("comment", "")).strip()[:1000]
     ended_at = datetime.now().astimezone().isoformat(timespec="seconds")
+
     with get_db() as db:
-        session = db.execute(
+        db.execute("BEGIN IMMEDIATE")
+        work_session = db.execute(
             "SELECT * FROM work_sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).fetchone()
-        if not session:
+        if not work_session:
             return jsonify({"ok": False, "message": "No hay ninguna sesión en curso."}), 409
-        started_at = datetime.fromisoformat(session["started_at"])
+        started_at = datetime.fromisoformat(work_session["started_at"])
         ended = datetime.fromisoformat(ended_at)
         duration = max(0, int((ended - started_at).total_seconds()))
         db.execute(
             "UPDATE work_sessions SET ended_at = ?, duration_seconds = ?, comment = ? WHERE id = ?",
-            (ended_at, duration, comment, session["id"]),
+            (ended_at, duration, comment, work_session["id"]),
         )
-    return jsonify({"ok": True, "duration_seconds": duration, "comment": comment, "message": "Sesión guardada."})
+    return jsonify({
+        "ok": True,
+        "duration_seconds": duration,
+        "comment": comment,
+        "message": "Sesión guardada.",
+    })
 
 
 @app.route("/api/tasks/<int:task_id>/work-log")
@@ -282,6 +495,7 @@ def search_music():
 
     try:
         from ytmusicapi import YTMusic
+
         music = YTMusic()
         found = music.search(query, filter="songs", limit=8)
         items = []
@@ -302,19 +516,32 @@ def search_music():
                 "thumbnail": thumbnail,
             })
         if not items:
-            return jsonify({"items": [], "message": "No encontré canciones con esa búsqueda. Prueba con otro término."})
+            return jsonify({
+                "items": [],
+                "message": "No encontré canciones con esa búsqueda. Prueba con otro término.",
+            })
         return jsonify({"items": items, "message": ""})
     except ImportError:
         return jsonify({
             "items": [],
-            "message": "Falta instalar ytmusicapi. En la terminal ejecuta: pip install -r requirements.txt"
+            "message": "Falta instalar ytmusicapi. En la terminal ejecuta: pip install -r requirements.txt",
         }), 503
     except Exception:
         app.logger.exception("Error buscando música con ytmusicapi")
         return jsonify({
             "items": [],
-            "message": "YouTube Music no respondió como se esperaba. La búsqueda usa una interfaz no oficial; prueba más tarde o abre YouTube Music."
+            "message": "YouTube Music no respondió como se esperaba. La búsqueda usa una interfaz no oficial; prueba más tarde o abre YouTube Music.",
         }), 502
+
+
+def spreadsheet_safe(value):
+    """Avoid CSV formula injection when exported strings are opened in spreadsheet apps."""
+    if value is None:
+        return ""
+    text_value = str(value)
+    if text_value.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + text_value
+    return text_value
 
 
 @app.route("/export.csv")
@@ -335,15 +562,20 @@ def export_csv():
     writer = csv.writer(output)
     writer.writerow([
         "ID tarea", "Tarea", "Prioridad", "Fecha límite", "Completada",
-        "Creada el", "Inicio sesión", "Fin sesión", "Duración (segundos)", "Comentario de sesión"
+        "Creada el", "Inicio sesión", "Fin sesión", "Duración (segundos)", "Comentario de sesión",
     ])
     for row in rows:
         writer.writerow([
-            row["id"], row["title"], row["priority"], row["due_date"] or "",
-            "Sí" if row["completed"] else "No", row["created_at"],
-            row["started_at"] or "", row["ended_at"] or "",
+            row["id"],
+            spreadsheet_safe(row["title"]),
+            spreadsheet_safe(row["priority"]),
+            row["due_date"] or "",
+            "Sí" if row["completed"] else "No",
+            row["created_at"],
+            row["started_at"] or "",
+            row["ended_at"] or "",
             row["duration_seconds"] if row["ended_at"] else "",
-            row["comment"] if row["ended_at"] else "",
+            spreadsheet_safe(row["comment"]) if row["ended_at"] else "",
         ])
 
     response = make_response("\ufeff" + output.getvalue())
@@ -356,4 +588,4 @@ def export_csv():
 init_db()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes"})
