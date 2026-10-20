@@ -3,10 +3,14 @@ from datetime import date, datetime, timedelta
 import csv
 import hmac
 import io
+import json
 import os
+import re
 from pathlib import Path
 import secrets
 import sqlite3
+import urllib.error
+import urllib.request
 
 from flask import (
     Flask,
@@ -23,8 +27,8 @@ from flask import (
 try:
     from focusflow_build import APP_VERSION
 except ImportError:
-    # Source runs use a development marker; Windows builds embed their build number.
-    APP_VERSION = os.environ.get("FOCUSFLOW_VERSION", "dev")
+    # The first semantic release is V1.0.0; desktop builds embed their exact version.
+    APP_VERSION = os.environ.get("FOCUSFLOW_VERSION", "V1.0.0")
 
 
 app = Flask(__name__)
@@ -411,6 +415,119 @@ def index():
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
+
+
+
+def parse_semantic_version(value):
+    """Return a comparable semantic-version tuple, or None for non-release builds."""
+    match = re.fullmatch(r"[vV]?(\\d+)\\.(\\d+)\\.(\\d+)", str(value or "").strip())
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def release_change_items(body):
+    """Extract human-readable change bullets from GitHub's generated release notes."""
+    lines = str(body or "").splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().casefold() in {"## what's changed", "## what’s changed"}:
+            lines = lines[index + 1:]
+            break
+    else:
+        lines = [line for line in lines if line.strip().startswith(("-", "*"))]
+
+    items = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## ") or stripped.startswith("**Full Changelog**"):
+            break
+        if not stripped.startswith(("-", "*")):
+            continue
+        item = stripped[1:].strip()
+        item = re.sub(r"\\[([^\\]]+)\\]\\([^)]+\\)", r"\\1", item)
+        item = re.sub(r"\\s+by @[^ ]+ in https?://\\S+", "", item).strip()
+        item = re.sub(r"\\s+", " ", item)
+        if item and item not in items:
+            items.append(item[:240])
+        if len(items) >= 8:
+            break
+    return items
+
+
+@app.route("/api/updates")
+def check_for_updates():
+    """Check private GitHub releases using a server-side, read-only token."""
+    token = os.environ.get("FOCUSFLOW_GITHUB_TOKEN", "").strip()
+    if not token:
+        return jsonify({
+            "ok": False,
+            "checkable": False,
+            "available": False,
+            "current_version": APP_VERSION,
+            "message": (
+                "La detección automática necesita configurar FOCUSFLOW_GITHUB_TOKEN "
+                "en el servidor. No se debe guardar el token dentro del programa."
+            ),
+        }), 503
+
+    api_url = "https://api.github.com/repos/Franxescoo/FocusFlow/releases/latest"
+    github_request = urllib.request.Request(
+        api_url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "FocusFlow-update-check",
+        },
+    )
+    try:
+        with urllib.request.urlopen(github_request, timeout=5) as response:
+            release = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        app.logger.warning("GitHub release check returned HTTP %s", error.code)
+        return jsonify({
+            "ok": False,
+            "checkable": False,
+            "available": False,
+            "current_version": APP_VERSION,
+            "message": (
+                "GitHub no permitió consultar las versiones. Comprueba que "
+                "FOCUSFLOW_GITHUB_TOKEN tenga permiso de lectura del repositorio."
+            ),
+        }), 502
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
+        return jsonify({
+            "ok": False,
+            "checkable": False,
+            "available": False,
+            "current_version": APP_VERSION,
+            "message": "No se pudo consultar GitHub. Revisa la conexión e inténtalo de nuevo.",
+        }), 502
+
+    latest_version = str(release.get("tag_name") or "").strip().lstrip("vV")
+    current_semver = parse_semantic_version(APP_VERSION)
+    latest_semver = parse_semantic_version(latest_version)
+    if latest_semver is None:
+        return jsonify({
+            "ok": False,
+            "checkable": False,
+            "available": False,
+            "current_version": APP_VERSION,
+            "message": "La última publicación de GitHub no tiene una versión semántica válida.",
+        }), 502
+
+    # Legacy builds such as "build-20" are considered older than the first semantic release.
+    available = latest_semver > current_semver if current_semver is not None else True
+    return jsonify({
+        "ok": True,
+        "checkable": True,
+        "available": available,
+        "current_version": APP_VERSION,
+        "latest_version": "V" + latest_version,
+        "release_name": release.get("name") or ("FocusFlow V" + latest_version),
+        "published_at": release.get("published_at"),
+        "changes": release_change_items(release.get("body", "")),
+        "release_url": "https://github.com/Franxescoo/FocusFlow/releases/latest",
+        "download_url": "https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe",
+    })
 
 
 @app.route("/tasks", methods=["POST"])
