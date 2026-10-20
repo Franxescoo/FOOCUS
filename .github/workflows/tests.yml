@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@
+        with:
+          persist-credentials: falsev7
       - name: Set up Python
         uses: actions/setup-python@v7
         with:

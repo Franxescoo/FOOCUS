@@ -17,16 +17,16 @@ FOOCUS es una aplicación local de escritorio y navegador para organizar tareas 
 - Registrar sesiones de trabajo, cronómetro, avances y siguientes pasos.
 - Consultar historial de sesiones, estadísticas, meta diaria y mapa de actividad.
 - Usar temporizadores de enfoque de 5, 15 o 25 minutos.
+- Desbloquear tareas pendientes con un plan anti-procrastinación de cinco minutos, un primer paso concreto y sugerencias por prioridad y fecha límite.
 - Guardar notas rápidas, cambiar entre modo claro y oscuro y exportar tareas/sesiones a CSV.
-- Buscar música y reproducir contenido integrado cuando el servicio externo lo permite.
 
-Las tareas, las sesiones y la meta diaria se almacenan en SQLite. Las notas rápidas, el tema, la colección musical y el estado del temporizador se almacenan en el navegador utilizado. Esta versión es local y de un solo usuario; no incluye cuentas ni sincronización entre dispositivos.
+Las tareas, las sesiones y la meta diaria se almacenan en SQLite. Las notas rápidas, el tema y el estado del temporizador se almacenan en el navegador utilizado. Esta versión es local y de un solo usuario; no incluye cuentas ni sincronización entre dispositivos.
 
 ## Requisitos
 
 - Python 3.10 o posterior.
 - Navegador actualizado para la versión web local.
-- Conexión a internet para música y comprobación de nuevas versiones.
+- Conexión a internet para comprobar nuevas versiones.
 
 ## Ejecutar desde el código fuente en Windows
 
@@ -66,12 +66,11 @@ GitHub Actions ejecuta la suite automáticamente en los cambios configurados del
 ## Seguridad y limitaciones
 
 - No publiques esta versión como servicio web multiusuario sin autenticación, autorización, aislamiento de datos por usuario y una configuración de producción.
-- La protección CSRF y los encabezados de seguridad existentes no sustituyen autenticación ni autorización.
-- La búsqueda de música depende de una biblioteca comunitaria no oficial y puede cambiar si el servicio externo modifica su comportamiento.
+- La protección CSRF, la política CSP con nonce y los encabezados de seguridad reducen riesgos del navegador, pero no sustituyen autenticación ni autorización.
 - Haz una copia de seguridad de la base de datos antes de actualizar o mover los datos.
 
 ## Tecnologías
 
-Python · Flask · SQLite · Jinja · HTML · CSS · JavaScript · ytmusicapi · PyInstaller · Inno Setup
+Python · Flask · SQLite · Jinja · HTML · CSS · JavaScript · PyInstaller · Inno Setup
 
 Repositorio: [Franxescoo/FOOCUS](https://github.com/Franxescoo/FOOCUS)

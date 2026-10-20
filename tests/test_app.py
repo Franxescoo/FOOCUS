@@ -247,6 +247,35 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(response.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
+        policy = response.headers.get("Content-Security-Policy", "")
+        self.assertIn("default-src 'self'", policy)
+        self.assertIn("frame-ancestors 'none'", policy)
+        self.assertIn("object-src 'none'", policy)
+        self.assertIn("script-src 'self' 'nonce-", policy)
+        self.assertIn(b'nonce="', response.data)
+
+    def test_anti_procrastination_panel_is_prominent_and_music_is_removed(self):
+        page = self.client.get("/").data
+        dashboard_position = page.index(b'id="work-dashboard"')
+        procrastination_position = page.index(b'id="start-small"')
+        weekly_position = page.index(b'id="weekly-planner"')
+        self.assertLess(dashboard_position, procrastination_position)
+        self.assertLess(procrastination_position, weekly_position)
+        self.assertIn(b'class="starter-steps"', page)
+        self.assertNotIn(b'id="utility-start-card"', page)
+        self.assertNotIn(b"music-sidebar", page)
+        self.assertNotIn(b"FOOCUS Music", page)
+        self.assertNotIn(b"music.js", page)
+
+    def test_music_search_endpoint_is_removed_in_this_release(self):
+        self.assertEqual(self.client.get("/api/music/search?q=lofi").status_code, 404)
+
+    def test_state_changing_requests_require_a_csrf_token(self):
+        response = self.client.post("/tasks", data={"title": "Sin token CSRF", "priority": "Alta"})
+        self.assertEqual(response.status_code, 400)
+        with focusflow.get_db() as db:
+            count = db.execute("SELECT COUNT(*) AS total FROM tasks").fetchone()["total"]
+        self.assertEqual(count, 0)
 
     def test_create_task(self):
         response = self.create_task()

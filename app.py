@@ -15,6 +15,7 @@ import urllib.request
 from flask import (
     Flask,
     abort,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -28,7 +29,7 @@ try:
     from focusflow_build import APP_VERSION
 except ImportError:
     # Desktop builds embed their exact version; source installs default to the current release.
-    APP_VERSION = os.environ.get("FOOCUS_VERSION", os.environ.get("FOCUSFLOW_VERSION", "V1.0.1"))
+    APP_VERSION = os.environ.get("FOOCUS_VERSION", os.environ.get("FOCUSFLOW_VERSION", "V1.0.5"))
 
 
 app = Flask(__name__)
@@ -164,11 +165,12 @@ def csrf_token():
 
 @app.context_processor
 def inject_csrf_token():
-    return {"csrf_token": csrf_token, "app_version": APP_VERSION}
+    return {"csrf_token": csrf_token, "app_version": APP_VERSION, "csp_nonce": getattr(g, "csp_nonce", "")}
 
 
 @app.before_request
 def protect_state_changing_requests():
+    g.csp_nonce = secrets.token_urlsafe(18)
     if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
         return None
 
@@ -194,6 +196,25 @@ def add_security_headers(response):
     response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
     response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    nonce = getattr(g, "csp_nonce", "")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "; ".join([
+            "default-src 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+            "img-src 'self' data:",
+            "font-src 'self' https://fonts.gstatic.com data:",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            f"script-src 'self' 'nonce-{nonce}'",
+            "connect-src 'self'",
+            "frame-src 'none'",
+        ]),
+    )
+    if request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
 
 
@@ -760,63 +781,6 @@ def task_work_log(task_id):
             (task_id,),
         ).fetchall()
     return jsonify({"ok": True, "sessions": [dict(row) for row in logs]})
-
-
-@app.route("/api/music/search")
-def search_music():
-    query = request.args.get("q", "").strip()[:120]
-    if not query:
-        return jsonify({"items": [], "message": "Escribe una canción, artista o estilo."}), 400
-
-    try:
-        from ytmusicapi import YTMusic
-
-        music = YTMusic()
-        found = music.search(query, filter="songs", limit=8)
-        items = []
-        for song in found:
-            video_id = song.get("videoId")
-            if not video_id:
-                continue
-            artists = song.get("artists") or []
-            artist_names = ", ".join(
-                artist.get("name", "") for artist in artists if artist.get("name")
-            )
-            thumbnails = song.get("thumbnails") or []
-            thumbnail = thumbnails[-1].get("url", "") if thumbnails else ""
-            items.append({
-                "id": video_id,
-                "title": song.get("title", "Canción sin título"),
-                "channel": artist_names or (song.get("album") or {}).get("name", "YouTube Music"),
-                "thumbnail": thumbnail,
-            })
-        if not items:
-            return jsonify({
-                "items": [],
-                "message": "No encontré canciones con esa búsqueda. Prueba con otro término.",
-            })
-        return jsonify({"items": items, "message": ""})
-    except ImportError:
-        return jsonify({
-            "items": [],
-            "message": "Falta instalar ytmusicapi. En la terminal ejecuta: pip install -r requirements.txt",
-        }), 503
-    except Exception:
-        app.logger.exception("Error buscando música con ytmusicapi")
-        return jsonify({
-            "items": [],
-            "message": "YouTube Music no respondió como se esperaba. La búsqueda usa una interfaz no oficial; prueba más tarde o abre YouTube Music.",
-        }), 502
-
-
-def spreadsheet_safe(value):
-    """Avoid CSV formula injection when exported strings are opened in spreadsheet apps."""
-    if value is None:
-        return ""
-    text_value = str(value)
-    if text_value.startswith(("=", "+", "-", "@", "\t", "\r")):
-        return "'" + text_value
-    return text_value
 
 
 @app.route("/export.csv")
