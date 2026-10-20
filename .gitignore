@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# FocusFlow local database files
+focusflow.db
+focusflow.db-shm
+focusflow.db-wal
