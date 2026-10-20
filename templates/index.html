@@ -25,7 +25,6 @@
         <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
         <h1>Haz espacio para<br><span>lo importante.</span></h1>
         <p class="subtitle">Organiza tus tareas, avanza a tu ritmo y mantén el foco.</p>
-        <p class="welcome-download-link"><a href="#download-focusflow">Descargar FocusFlow para Windows <span aria-hidden="true">↓</span></a></p>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
@@ -351,43 +350,7 @@
           
         </aside>
       </div>
-    </div>
-    <section class="download-section panel" id="download-focusflow" aria-labelledby="download-focusflow-title" data-current-version="{{ app_version }}">
-      <div class="download-section-copy">
-        <p class="eyebrow">FOCUSFLOW PARA WINDOWS</p>
-        <h2 id="download-focusflow-title">Tu espacio de enfoque, también en el escritorio.</h2>
-        <p class="download-description">Instala FocusFlow en Windows y ábrelo en su propia ventana. Esta sección consulta GitHub para mostrar la versión publicada más reciente.</p>
-        <div class="download-meta">
-          <span class="download-platform">Windows · 64 bits</span>
-          <span class="download-current-version" id="download-current-version">Versión instalada: {{ app_version }}</span>
-        </div>
-        <p class="download-status" id="download-status" role="status" aria-live="polite">Consultando la última versión publicada en GitHub…</p>
-        <section class="update-notice" id="update-notice" aria-labelledby="update-notice-title" aria-live="polite" hidden>
-          <div class="update-notice-heading">
-            <span class="update-notice-icon" aria-hidden="true">↻</span>
-            <div>
-              <p class="eyebrow">VERSIÓN NUEVA DISPONIBLE</p>
-              <h3 id="update-notice-title">Actualización detectada</h3>
-              <span class="update-version" id="update-version">V1.0.1</span>
-            </div>
-          </div>
-          <p class="update-description" id="update-description">Hay una nueva versión de FocusFlow disponible.</p>
-          <div class="update-changes-wrap">
-            <strong>Contenido añadido y cambios</strong>
-            <ul id="update-changes"><li>Consulta las novedades en la publicación de GitHub.</li></ul>
-          </div>
-          <a class="primary-button update-action" id="update-action" href="https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe" target="_blank" rel="noopener noreferrer">Actualizar a V1.0.1</a>
-        </section>
-      </div>
-      <div class="download-section-action">
-        <a class="primary-button download-button" id="download-installer" href="https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe" target="_blank" rel="noopener noreferrer">
-          Descargar instalador <span aria-hidden="true">↓</span>
-        </a>
-        <a class="download-release-link" id="download-release-link" href="https://github.com/Franxescoo/FocusFlow/releases/latest" target="_blank" rel="noopener noreferrer">Ver publicación y notas en GitHub ↗</a>
-        <p class="download-hint">La página descarga el instalador; debes abrir el archivo descargado para instalar o actualizar. Tus tareas se guardan fuera de la carpeta del programa.</p>
-      </div>
-    </section>
-    <footer>FocusFlow · Un paso a la vez.</footer>
+    </div>    <footer>FocusFlow · Un paso a la vez.</footer>
   </main>
 <dialog class="active-work-dialog" id="active-work-dialog" tabindex="-1" aria-modal="true" aria-labelledby="active-work-title" aria-describedby="active-work-subtitle">
   <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
@@ -1155,74 +1118,6 @@
         }
       });
     })();
-  </script>
-<script>
-  (() => {
-    const card = document.getElementById("download-focusflow");
-    if (!card) return;
-
-    const status = document.getElementById("download-status");
-    const currentVersionLabel = document.getElementById("download-current-version");
-    const notice = document.getElementById("update-notice");
-    const noticeTitle = document.getElementById("update-notice-title");
-    const versionLabel = document.getElementById("update-version");
-    const description = document.getElementById("update-description");
-    const changesList = document.getElementById("update-changes");
-    const updateAction = document.getElementById("update-action");
-    const installedVersion = card.dataset.currentVersion || "V1.0.0";
-    const defaultDownloadUrl = "https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe";
-
-    currentVersionLabel.textContent = "Versión instalada: " + installedVersion;
-
-    async function checkForUpdates() {
-      try {
-        const response = await fetch("/api/updates", { cache: "no-store" });
-        const result = await response.json();
-        if (!response.ok || !result.checkable) {
-          notice.hidden = true;
-          status.textContent = result.message || "No se pudo comprobar si hay actualizaciones.";
-          return;
-        }
-
-        currentVersionLabel.textContent = "Versión instalada: " + result.current_version;
-        if (!result.available) {
-          notice.hidden = true;
-          status.textContent = "Tienes la versión " + result.current_version + ". No hay actualizaciones pendientes.";
-          return;
-        }
-
-        const latestVersion = result.latest_version || "nueva versión";
-        noticeTitle.textContent = "Actualización detectada";
-        versionLabel.textContent = latestVersion;
-        description.textContent = "Hay una nueva versión de FocusFlow disponible: " + latestVersion + ". Descarga el instalador e inícialo para actualizar.";
-        updateAction.textContent = "Actualizar a " + latestVersion;
-        updateAction.href = result.download_url || defaultDownloadUrl;
-        notice.hidden = false;
-        status.textContent = "Se encontró una actualización: " + latestVersion + ".";
-
-        changesList.replaceChildren();
-        const changes = Array.isArray(result.changes) ? result.changes : [];
-        if (changes.length) {
-          changes.forEach((change) => {
-            const item = document.createElement("li");
-            item.textContent = String(change);
-            changesList.appendChild(item);
-          });
-        } else {
-          const item = document.createElement("li");
-          item.textContent = "Consulta las notas de la versión para conocer todos los cambios.";
-          changesList.appendChild(item);
-        }
-      } catch (_error) {
-        notice.hidden = true;
-        status.textContent = "No se pudo consultar GitHub ahora. Vuelve a intentarlo más tarde.";
-      }
-    }
-
-    checkForUpdates();
-    window.setInterval(checkForUpdates, 30 * 60 * 1000);
-  })();
-</script>
-
+  </script>\n
 </body>
 </html>
