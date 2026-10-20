@@ -1,26 +1,45 @@
 # FocusFlow
 
-FocusFlow es una aplicación de productividad personal construida con Python, Flask y SQLite. Permite gestionar tareas y ofrece una sección musical propia conectada a servicios de YouTube.
+FocusFlow es una aplicación de productividad personal construida con Python, Flask, SQLite, HTML, CSS y JavaScript. Incluye gestión de tareas, un temporizador de concentración, notas rápidas y un panel musical.
 
 ## Funciones
-- Crear tareas con prioridad y fecha límite.
-- Marcar tareas como completadas y eliminarlas.
-- Guardar tareas localmente en SQLite.
-- Ver un resumen de tareas totales y completadas.
-- FocusFlow Music: buscar videos musicales con YouTube Data API v3 y reproducir videos compatibles con el reproductor oficial de YouTube.
-- Abrir búsquedas directamente en YouTube Music.
+
+- Crear tareas con nombre, prioridad y fecha límite.
+- Marcar tareas como completadas o pendientes y eliminarlas.
+- Editar el nombre, la prioridad y la fecha de una tarea sin tener que volver a crearla.
+- Ordenar las tareas pendientes por fecha límite.
+- Mostrar avisos visuales para tareas que vencen hoy o están atrasadas.
+- Buscar y filtrar tareas por estado o texto.
+- Guardar tareas en una base de datos SQLite local.
+- Temporizador de enfoque con bloques de 25, 15 y 5 minutos.
+- Contador diario de sesiones de concentración.
+- Notas rápidas guardadas en el almacenamiento local del navegador.
+- FocusFlow Music: búsqueda de canciones con `ytmusicapi`, colección de canciones guardadas y controles para el reproductor integrado de YouTube cuando el video admite reproducción incrustada.
+
+## Requisitos
+
+- Python 3.10 o posterior.
+- Conexión a internet para la búsqueda musical y el reproductor de YouTube.
+- Navegador actualizado.
 
 ## Ejecutar en Windows
-1. Abre la carpeta FocusFlow en VS Code.
-2. Abre **Terminal > Nueva terminal**.
-3. Instala la dependencia:
 
-   ```bash
-   pip install -r requirements.txt
+1. Abre la carpeta del repositorio en VS Code.
+2. Abre **Terminal > Nueva terminal**.
+3. (Recomendado) crea y activa un entorno virtual:
+
+   ```powershell
+   py -m venv .venv
+   .venv\Scripts\Activate.ps1
    ```
 
-4. (Opcional) Configura la variable de entorno `YOUTUBE_API_KEY` con una clave de YouTube Data API v3 para habilitar la búsqueda musical dentro de FocusFlow.
-5. Ejecuta:
+4. Instala las dependencias:
+
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+
+5. Inicia la aplicación:
 
    ```bash
    python app.py
@@ -28,20 +47,32 @@ FocusFlow es una aplicación de productividad personal construida con Python, Fl
 
 6. Abre http://127.0.0.1:5000 en el navegador.
 
-## Activar la búsqueda musical
-1. Entra a [Google Cloud Console](https://console.cloud.google.com/).
-2. Selecciona o crea un proyecto y habilita **YouTube Data API v3**.
-3. Crea una clave de API.
-4. Configura esa clave como variable de entorno llamada `YOUTUBE_API_KEY` antes de ejecutar `python app.py`.
+La base de datos `focusflow.db` se crea automáticamente junto a `app.py`. Mantén la aplicación en ejecución mientras la uses.
 
-No pongas tu clave directamente en el código ni la publiques en GitHub. Si no configuras la clave, las tareas seguirán funcionando y FocusFlow mostrará un aviso; el enlace para abrir YouTube Music seguirá disponible.
+## FocusFlow Music
 
-## Límites
-La API de YouTube permite buscar videos, pero no da acceso ilimitado a todo el catálogo ni a las funciones privadas de una cuenta de YouTube Music. Algunos videos no permiten reproducción incrustada. FocusFlow no solicita tu contraseña de Google ni evita las restricciones de YouTube.
+El panel consulta resultados mediante `ytmusicapi`, una biblioteca comunitaria que interactúa con una interfaz de YouTube Music que no es una API oficial estable. Por ello, la búsqueda puede dejar de funcionar si el servicio cambia o limita las solicitudes.
+
+La reproducción integrada utiliza el reproductor oficial de YouTube. No todos los videos permiten reproducción fuera de YouTube; si el propietario bloquea la inserción o YouTube rechaza la reproducción, usa el enlace para abrir la canción en YouTube Music. Los controles de pausa y volumen solo pueden controlar la reproducción integrada que sí haya cargado.
+
+FocusFlow no solicita la contraseña de Google ni intenta saltarse las restricciones de reproducción. No es una API propia de YouTube Music ni garantiza acceso a todas las funciones de una suscripción.
+
+## Privacidad y almacenamiento
+
+- Las tareas se guardan en el archivo local `focusflow.db`.
+- Las notas rápidas y la colección de música se guardan en el almacenamiento local del navegador. En otro navegador o perfil no aparecerán automáticamente.
+- No hay cuentas ni sincronización entre dispositivos implementadas actualmente.
+- No publiques claves, contraseñas ni datos personales en el repositorio.
 
 ## Archivos principales
-- `app.py`: servidor Flask, tareas y búsqueda musical.
-- `templates/index.html`: estructura de la interfaz.
-- `static/style.css`: estilos.
-- `static/music.js`: búsqueda y reproductor.
-- `focusflow.db`: base de datos local creada automáticamente.
+
+- `app.py`: aplicación Flask, base de datos, rutas de tareas y búsqueda musical.
+- `templates/index.html`: estructura HTML/Jinja y componentes de la interfaz.
+- `static/style.css`: diseño adaptable y estilos.
+- `static/music.js`: búsqueda musical, colección guardada y reproductor.
+- `requirements.txt`: dependencias de Python.
+- `focusflow.db`: base de datos local creada al iniciar la aplicación.
+
+## Limitaciones actuales
+
+FocusFlow está pensado como proyecto local. Antes de publicarlo en internet habría que añadir protección CSRF para formularios, autenticación si se necesitan usuarios, configuración de producción de Flask y pruebas automatizadas. La música depende de servicios externos y puede tener restricciones por canción, navegador o región.
