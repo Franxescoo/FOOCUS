@@ -17,7 +17,9 @@ jobs:
       release_version: ${{ steps.version.outputs.release_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@
+        with:
+          persist-credentials: falsev4
 
       - name: Set up Python
         uses: actions/setup-python@v5
