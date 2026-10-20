@@ -13,6 +13,8 @@
       <span class="today">HOY · {{ today }}</span>
     </header>
 
+    <div class="workspace-grid">
+      <div class="main-column">
     <section class="welcome">
       <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
       <h1>Haz espacio para<br><span>lo importante.</span></h1>
@@ -44,15 +46,7 @@
     </section>
 
 
-    <section class="music-section" id="focusflow-music">
-      <div class="music-heading"><div><p class="eyebrow">TU BANDA SONORA</p><h2>FocusFlow <span>Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div><div class="music-note" aria-hidden="true">♫</div></div>
-      <form class="music-search" id="music-search-form"><label class="sr-only" for="music-query">Buscar música</label><input id="music-query" type="search" maxlength="120" placeholder="Busca lo-fi, música instrumental, un artista..." autocomplete="off"><button class="primary-button" type="submit">Buscar música</button></form>
-      <div class="music-shortcuts"><button type="button" class="music-chip" data-query="lofi hip hop radio study">Lo-fi para estudiar</button><button type="button" class="music-chip" data-query="instrumental music for concentration">Concentración</button><button type="button" class="music-chip" data-query="ambient music coding">Ambient para programar</button><button type="button" class="music-chip" data-query="piano relaxing music">Piano relajante</button></div>
-      <p class="music-status" id="music-status" role="status">Elige una sugerencia o busca música. La búsqueda integrada necesita una clave de YouTube Data API.</p>
-      <div class="music-results" id="music-results" aria-live="polite"></div>
-      <div class="music-player-wrap" id="music-player-wrap" hidden><div class="player-topline"><span>REPRODUCTOR DE YOUTUBE</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div><div id="youtube-player"></div><p class="player-note">Algunos videos pueden no permitir reproducción incrustada. Puedes abrirlos en YouTube.</p></div>
-      <div class="music-footer"><span>Contenido y reproducción sujetos a las condiciones de YouTube.</span><a id="youtube-search-link" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
-    </section>
+
 
     <section class="tasks-section">
       <div class="section-heading task-heading">
@@ -88,6 +82,19 @@
       </div>
       {% endif %}
     </section>
+      </div>
+      <aside class="music-sidebar" aria-label="Panel de música">
+    <section class="music-section" id="focusflow-music">
+      <div class="music-heading"><div><p class="eyebrow">TU BANDA SONORA</p><h2>FocusFlow <span>Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div><div class="music-note" aria-hidden="true">♫</div></div>
+      <form class="music-search" id="music-search-form"><label class="sr-only" for="music-query">Buscar música</label><input id="music-query" type="search" maxlength="120" placeholder="Busca lo-fi, música instrumental, un artista..." autocomplete="off"><button class="primary-button" type="submit">Buscar música</button></form>
+      <div class="music-shortcuts"><button type="button" class="music-chip" data-query="lofi hip hop radio study">Lo-fi para estudiar</button><button type="button" class="music-chip" data-query="instrumental music for concentration">Concentración</button><button type="button" class="music-chip" data-query="ambient music coding">Ambient para programar</button><button type="button" class="music-chip" data-query="piano relaxing music">Piano relajante</button></div>
+      <p class="music-status" id="music-status" role="status">Elige una sugerencia o busca música. La búsqueda integrada necesita una clave de YouTube Data API.</p>
+      <div class="music-results" id="music-results" aria-live="polite"></div>
+      <div class="music-player-wrap" id="music-player-wrap" hidden><div class="player-topline"><span>REPRODUCTOR DE YOUTUBE</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div><div id="youtube-player"></div><p class="player-note">Algunos videos pueden no permitir reproducción incrustada. Puedes abrirlos en YouTube.</p></div>
+      <div class="music-footer"><span>Contenido y reproducción sujetos a las condiciones de YouTube.</span><a id="youtube-search-link" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
+    </section>
+      </aside>
+    </div>
     <footer>FocusFlow · Un paso a la vez.</footer>
   </main>
   <script src="{{ url_for('static', filename='music.js') }}" defer></script>
