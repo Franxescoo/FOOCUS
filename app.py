@@ -420,7 +420,7 @@ def index():
 
 def parse_semantic_version(value):
     """Return a comparable semantic-version tuple, or None for non-release builds."""
-    match = re.fullmatch(r"[vV]?(\\d+)\\.(\\d+)\\.(\\d+)", str(value or "").strip())
+    match = re.fullmatch(r"[vV]?(\d+)\.(\d+)\.(\d+)", str(value or "").strip())
     return tuple(int(part) for part in match.groups()) if match else None
 
 
@@ -442,9 +442,9 @@ def release_change_items(body):
         if not stripped.startswith(("-", "*")):
             continue
         item = stripped[1:].strip()
-        item = re.sub(r"\\[([^\\]]+)\\]\\([^)]+\\)", r"\\1", item)
-        item = re.sub(r"\\s+by @[^ ]+ in https?://\\S+", "", item).strip()
-        item = re.sub(r"\\s+", " ", item)
+        item = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\\1", item)
+        item = re.sub(r"\s+by @[^ ]+ in https?://\S+", "", item).strip()
+        item = re.sub(r"\s+", " ", item)
         if item and item not in items:
             items.append(item[:240])
         if len(items) >= 8:
