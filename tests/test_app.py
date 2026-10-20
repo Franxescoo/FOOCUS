@@ -611,5 +611,17 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(count, 0)
 
 
+    def test_security_headers_and_windows_download_section_removed(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
+        self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 64 * 1024)
+        self.assertNotIn(b"Descargar FocusFlow para Windows", response.data)
+        self.assertNotIn(b"download-installer", response.data)
+        self.assertNotIn(b"download-focusflow", response.data)
+
+
 if __name__ == "__main__":
     unittest.main()
