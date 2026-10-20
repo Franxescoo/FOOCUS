@@ -256,7 +256,7 @@
         else launcher.focus();
       }
       launcher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
-      sideLauncher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
+      if (sideLauncher) sideLauncher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
       closeButton.addEventListener("click", () => setMusicOpen(false));
       backdrop.addEventListener("click", () => setMusicOpen(false));
       document.addEventListener("keydown", event => {
@@ -462,6 +462,8 @@
           const response = await fetch("/api/work/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({task_id:Number(task.id)})});
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar el registro de trabajo.");
+          document.getElementById("utility-focus-card").open = true;
+          document.getElementById("utility-session-card").open = true;
           const preset = document.querySelector('[data-minutes="5"]');
           if (preset) preset.click();
           const startTimer = document.getElementById("focus-start");
@@ -602,7 +604,11 @@
         startTicker();
         activePanel.scrollIntoView({behavior:"smooth", block:"center"});
       }
-      window.focusFlowSetWorking = setWorking;
+      window.focusFlowSetWorking = (taskId, title, start) => {
+        const sessionCard = document.getElementById("utility-session-card");
+        if (sessionCard) sessionCard.open = true;
+        setWorking(taskId, title, start);
+      };
       if (activeTaskId && startedAt) setWorking(activeTaskId, activeTitle.textContent, startedAt);
       document.querySelectorAll("[data-start-task]").forEach(button => button.addEventListener("click", async () => {
         button.disabled = true;
