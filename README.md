@@ -61,6 +61,7 @@ La base de datos `focusflow.db` se crea automáticamente junto a `app.py`. Mant�
 - **Ver sesiones** muestra el historial reciente de tiempo y notas de esa tarea.
 - Cada tarea muestra el tiempo total registrado y una racha de días consecutivos en los que guardaste al menos una sesión.
 - El panel de actividad representa los últimos 35 días con un mapa de intensidad inspirado en el calendario de contribuciones de GitHub. Es actividad de FocusFlow, no datos conectados a GitHub.
+- El panel **Actividad de trabajo** está visible directamente en la página principal, debajo del resumen de tareas; no hace falta abrir una tarjeta lateral para consultar el tiempo y la constancia.
 - Las estadísticas se calculan con las sesiones que se han terminado y guardado. Si cierras el navegador con una sesión activa, vuelve a abrir la aplicación para retomarla y finalizarla.
 
 Las sesiones se almacenan en la tabla local `work_sessions` dentro de `focusflow.db`. No se necesita instalar una dependencia adicional para esta función.
