@@ -42,3 +42,17 @@ input:focus,select:focus{border-color:var(--purple);box-shadow:0 0 0 3px #6756d9
 footer{padding:28px 0 24px;color:#9b9bad;text-align:center;font-size:10px}
 @media(max-width:900px){.welcome{padding:22px 3%;min-height:220px}.hero-art{flex-basis:230px;scale:.85;transform-origin:center right}.workspace-grid{grid-template-columns:minmax(0,1fr)}.main-column{grid-column:1;grid-row:1}.music-sidebar{grid-column:1;grid-row:2;margin-top:22px}.music-results{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.layout{width:min(100% - 24px,700px)}.topbar{height:66px}.today{font-size:8px;letter-spacing:.5px}.welcome{min-height:0;padding:25px 18px 18px}.hero-art{display:none}h1{font-size:32px}.stats{gap:7px}.stat-card{padding:12px 9px}.stat-label{font-size:8px;letter-spacing:.2px}.stat-card strong{font-size:23px}.stat-detail{font-size:9px}.panel{padding:17px 13px}.form-row{grid-template-columns:1fr}.music-search{grid-template-columns:minmax(0,1fr)}.music-search .primary-button{width:100%}.music-results{grid-template-columns:1fr}.player-topline{align-items:flex-start;flex-direction:column}.task-item{padding:12px 10px}}
+
+/* FocusFlow Music: drawer hidden until the left-side button is pressed */
+.music-launcher{position:fixed;z-index:40;left:0;top:42%;display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 10px;border:1px solid #dcd6ff;border-left:0;border-radius:0 13px 13px 0;background:#fff;color:#5547b9;box-shadow:0 8px 24px #27204a18;cursor:pointer}
+.launcher-icon{font-size:23px;line-height:1}.launcher-label{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.6px}
+.music-backdrop{position:fixed;z-index:49;inset:0;background:#17152d66;backdrop-filter:blur(2px)}
+.music-sidebar{position:fixed!important;z-index:50;top:0;bottom:0;left:0;width:min(390px,92vw);padding:16px;background:#f7f7fc;overflow-y:auto;overscroll-behavior:contain;transform:translateX(-105%);transition:transform .25s ease;box-shadow:12px 0 35px #17152d20;align-self:auto!important}
+.music-sidebar.is-open{transform:translateX(0)}
+.music-section{min-height:100%;padding:20px}
+.music-heading{padding-right:30px}
+.music-close{position:absolute;top:18px;right:18px;width:32px;height:32px;border:0;border-radius:9px;background:#eeecff;color:#5140bd;font-size:24px;line-height:1;cursor:pointer}
+body.music-open{overflow:hidden}
+@media(max-width:900px){.music-sidebar{grid-row:auto!important;grid-column:auto!important;margin-top:0!important}.music-launcher{top:auto;bottom:25%;padding:12px 9px}}
+@media(max-width:600px){.music-sidebar{width:min(360px,94vw);padding:10px}.music-section{padding:16px}.music-launcher{bottom:22%}}
+@media(prefers-reduced-motion:reduce){.music-sidebar{transition:none}.hero-orbit,.hero-spark{animation:none}}
