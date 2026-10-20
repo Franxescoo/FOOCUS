@@ -485,3 +485,11 @@ html[data-theme="dark"] .task-history .work-log-item { border-color: var(--line)
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+html[data-theme="dark"] .focus-preset.active { border-color: #4b456f; background: #34304f; color: #d0caff; }
+html[data-theme="dark"] .music-launcher { border-color: #3a3656; background: #222438; color: #d0caff; box-shadow: 0 8px 24px #00000030; }
+html[data-theme="dark"] .player-controls { border-color: var(--line); background: #191b2b; }
+html[data-theme="dark"] .player-control { border-color: var(--line); background: #25273a; color: #d0caff; }
+html[data-theme="dark"] .export-button { border-color: var(--line); background: #25273a; color: #d0caff; }
+html[data-theme="dark"] .empty-state p { color: var(--muted); }
+html[data-theme="dark"] .focus-time.is-finished { color: #8bd4ad; }
