@@ -83,6 +83,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         with patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": ""}):
             response = self.client.get("/api/updates")
         self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
         payload = response.get_json()
         self.assertFalse(payload["checkable"])
         self.assertIn("FOCUSFLOW_GITHUB_TOKEN", payload["message"])
