@@ -611,16 +611,29 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(count, 0)
 
 
-    def test_security_headers_and_windows_download_section_removed(self):
+    def test_security_headers_and_download_section_are_available_on_web(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(response.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
         self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 64 * 1024)
+        self.assertIn(b"Descargar FocusFlow para Windows", response.data)
+        self.assertIn(b'id="download-installer"', response.data)
+        self.assertIn(b'id="download-focusflow"', response.data)
+        self.assertIn(b'fetch("/api/updates"', response.data)
+
+    def test_download_section_is_hidden_only_in_desktop_mode(self):
+        original_mode = focusflow.app.config["DESKTOP_MODE"]
+        try:
+            focusflow.app.config["DESKTOP_MODE"] = True
+            response = self.client.get("/")
+        finally:
+            focusflow.app.config["DESKTOP_MODE"] = original_mode
+        self.assertEqual(response.status_code, 200)
         self.assertNotIn(b"Descargar FocusFlow para Windows", response.data)
-        self.assertNotIn(b"download-installer", response.data)
-        self.assertNotIn(b"download-focusflow", response.data)
+        self.assertNotIn(b'id="download-installer"', response.data)
+        self.assertNotIn(b'id="download-focusflow"', response.data)
 
 
 if __name__ == "__main__":
