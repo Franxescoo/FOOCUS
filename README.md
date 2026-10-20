@@ -69,7 +69,7 @@ FocusFlow se puede instalar como una aplicación de escritorio con su propia ven
 3. Pulsa **Descargar instalador** y, cuando termine la descarga de `FocusFlow-Setup.exe`, ábrelo para instalar o actualizar FocusFlow.
 4. Cierra FocusFlow antes de actualizar. El instalador utiliza el mismo identificador de aplicación para actualizar la carpeta del programa.
 
-El botón apunta a la publicación más reciente, por lo que no hay que cambiar el enlace de la página para cada versión. La comprobación de versiones necesita internet; si GitHub no responde, la aplicación sigue funcionando y la página muestra un aviso.
+El botón apunta al instalador de la publicación más reciente, por lo que no hay que cambiar el enlace de la página para cada versión. Como el repositorio es privado, debes iniciar sesión en GitHub con una cuenta que tenga acceso a FocusFlow para descargar el archivo. La publicación enlazada permite revisar la versión y sus notas. La página no consulta la API privada ni compara automáticamente las versiones porque eso requeriría credenciales autorizadas; no se incluye ningún token dentro de la aplicación.
 
 ### Publicación automática
 
