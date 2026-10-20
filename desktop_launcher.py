@@ -14,8 +14,10 @@ import sys
 from threading import Thread
 from typing import Mapping
 
-APP_NAME = "FocusFlow"
-WINDOW_TITLE = "FocusFlow"
+APP_NAME = "FOOCUS"
+WINDOW_TITLE = "FOOCUS"
+# Keep the existing data directory so upgrades preserve user data.
+DATA_DIRECTORY_NAME = "FocusFlow"
 DEFAULT_WINDOW_SIZE = (1280, 860)
 MIN_WINDOW_SIZE = (900, 620)
 
@@ -32,7 +34,7 @@ def get_user_data_dir(
     else:
         root = (home or Path.home()) / "AppData" / "Local"
 
-    data_dir = root / APP_NAME
+    data_dir = root / DATA_DIRECTORY_NAME
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
