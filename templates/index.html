@@ -343,7 +343,7 @@
     </div>
     <footer>FocusFlow · Un paso a la vez.</footer>
   </main>
-<dialog class="active-work-dialog" id="active-work-dialog" aria-labelledby="active-work-title">
+<dialog class="active-work-dialog" id="active-work-dialog" tabindex="-1" aria-modal="true" aria-labelledby="active-work-title" aria-describedby="active-work-subtitle">
   <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
           <div class="active-work-dialog-header">
             <span class="active-work-dialog-label"><span class="live-dot"></span> Sesión de estudio activa</span>
