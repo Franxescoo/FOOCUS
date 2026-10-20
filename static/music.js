@@ -71,6 +71,11 @@
     openYoutube.href = url;
   }
 
+  function setFallbackLink(link, video) {
+    link.href = "https://music.youtube.com/watch?v=" + encodeURIComponent(video.id);
+    link.textContent = "Abrir canción en YouTube Music ↗";
+  }
+
   function playerContainer() {
     let node = document.getElementById("youtube-player");
     if (!node || node.tagName.toLowerCase() !== "div") {
@@ -94,10 +99,10 @@
     const note = document.createElement("p");
     note.textContent = reason || "Este video puede tener restricciones de reproducción incrustada.";
     const link = document.createElement("a");
-    link.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(video.id);
+    link.href = "https://music.youtube.com/watch?v=" + encodeURIComponent(video.id);
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "Reproducir en YouTube";
+    link.textContent = "Abrir canción en YouTube Music ↗";
     box.append(title, note, link);
     node.append(box);
     status.textContent = "La canción se encontró, pero YouTube no permitió reproducirla aquí.";
@@ -122,7 +127,7 @@
           if (code === 5) reason = "El reproductor HTML5 de YouTube no pudo reproducir este video. Puede ser una incompatibilidad del navegador o del formato del video; prueba otra canción o ábrela en YouTube.";
           if (code === 100) reason = "El video fue eliminado o es privado.";
           if (code === 101 || code === 150) reason = "El propietario no permite reproducir este video en otras páginas.";
-          if (code === 153) reason = "YouTube no recibió la información de referencia necesaria del reproductor.";
+          if (code === 153) reason = "YouTube no recibió información suficiente para identificar el reproductor. Revisa que abras FocusFlow desde http://127.0.0.1:5000 y no desde un archivo HTML local; si continúa, abre la canción en YouTube Music.";
           if (video) showFallback(video, reason);
         }
       }
