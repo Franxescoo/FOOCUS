@@ -562,3 +562,5 @@ html[data-theme="dark"] .utility-card[open] > summary { border-color: var(--line
 @media (prefers-reduced-motion: reduce) {
   .utility-chevron { transition: none; }
 }
+
+.utility-card-content .active-work-panel[hidden] { display: none !important; }
