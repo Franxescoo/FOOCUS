@@ -116,3 +116,16 @@ body.music-open{overflow:hidden}
 .session-counter{margin-top:8px;color:var(--muted);font-size:10px;text-align:center}
 .session-counter strong{color:var(--purple-dark);font-size:12px}
 @media(max-width:600px){.quick-notes{padding:17px 13px}.notes-footer{align-items:flex-start;flex-direction:column}}
+
+/* FocusFlow Music custom playback controls */
+#youtube-player{position:relative;pointer-events:none;overflow:hidden;border-radius:12px;aspect-ratio:16/9;background:#111}
+#youtube-player iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+.player-controls{display:flex;align-items:center;gap:8px;margin:12px 0;padding:10px;border:1px solid var(--line);border-radius:12px;background:#faf9ff}
+.player-control{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:36px;height:36px;padding:0 10px;border:1px solid #ded9f7;border-radius:9px;background:#fff;color:var(--purple-dark);font-size:18px;font-weight:700;cursor:pointer}
+.player-control:hover{background:#efecff}
+.primary-control{background:var(--purple);border-color:var(--purple);color:#fff;font-size:12px}
+.primary-control:hover{filter:brightness(.96);background:var(--purple);color:#fff}
+.volume-control{display:flex;align-items:center;gap:7px;flex:1;min-width:80px;color:var(--muted);font-size:10px}
+.volume-control input{width:100%;min-width:30px;accent-color:var(--purple);cursor:pointer}
+.volume-control output{min-width:31px;text-align:right;color:var(--purple-dark);font-weight:700}
+@media(max-width:420px){.player-controls{gap:5px;padding:7px}.player-control{min-width:32px;padding:0 7px}.primary-control{font-size:0}.primary-control span{font-size:11px}.volume-control{gap:4px}}
