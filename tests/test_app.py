@@ -29,6 +29,20 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b"theme-toggle", response.data)
         self.assertIn(b"SISTEMA ANTI-PROCRASTINACI", response.data)
         self.assertIn(b"starter-task", response.data)
+        self.assertIn(b'id="work-dashboard"', response.data)
+        self.assertIn(b"Actividad de trabajo", response.data)
+        self.assertNotIn(b'id="utility-activity-card"', response.data)
+
+    def test_work_dashboard_is_visible_on_main_page(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        page = response.data
+        stats_position = page.index(b'class="stats"')
+        dashboard_position = page.index(b'id="work-dashboard"')
+        add_task_position = page.index(b'Agregar una tarea')
+        self.assertLess(stats_position, dashboard_position)
+        self.assertLess(dashboard_position, add_task_position)
+        self.assertNotIn(b'id="utility-activity-card"', page)
 
     def test_create_task(self):
         response = self.create_task()
