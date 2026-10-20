@@ -84,3 +84,25 @@ body.music-open{overflow:hidden}
 .saved-track-info{display:grid;gap:4px;min-width:0;flex:1}.saved-track-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.saved-track-info small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}
 .saved-track-remove{border:0;background:transparent;color:var(--muted);font-size:19px;cursor:pointer}
 .music-result-row{display:flex;align-items:stretch;gap:5px;min-width:0}.music-result-row .music-result{flex:1}.music-save{width:38px;flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--purple-dark);font-size:20px;cursor:pointer}.music-save:hover{background:#f0edff;border-color:#dcd6ff}
+
+/* Left navigation sidebar */
+@media(min-width:1100px){
+  .layout{width:min(calc(100% - 64px),1360px)}
+  .workspace-grid{display:grid;grid-template-columns:218px minmax(0,920px);gap:30px;justify-content:center;align-items:start}
+  .product-sidebar{position:sticky;top:24px;display:flex;flex-direction:column;min-height:500px;padding:18px 13px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 8px 28px #27204a06}
+  .main-column{width:100%;max-width:920px;margin:0}
+  .side-brand{display:flex;align-items:center;gap:10px;padding:5px 7px 24px}
+  .side-brand>span{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#eeecff;color:var(--purple);font-size:29px;font-weight:700}
+  .side-brand div{display:grid;gap:3px}.side-brand strong{font:800 15px 'Manrope',sans-serif}.side-brand small{color:var(--muted);font-size:10px}
+  .side-label{margin:4px 8px 10px;color:#9999ad;font-size:9px;font-weight:800;letter-spacing:1.1px}
+  .side-link{display:flex;align-items:center;gap:10px;width:100%;margin:3px 0;padding:12px 10px;border:0;border-radius:10px;background:transparent;color:#696b82;text-align:left;text-decoration:none;font:600 12px 'DM Sans',sans-serif;cursor:pointer}
+  .side-link>span:first-child{display:grid;place-items:center;width:20px;font-size:17px}
+  .side-link.active,.side-link:hover{background:#f0edff;color:var(--purple-dark)}
+  .side-count{margin-left:auto;padding:3px 7px;border-radius:7px;background:#fff;color:var(--purple-dark);font-size:10px}
+  .side-arrow{margin-left:auto;font-size:13px}
+  .side-tip{margin-top:32px;padding:14px 12px;border:1px solid #e5e0ff;border-radius:12px;background:linear-gradient(145deg,#f0edff,#fff)}
+  .tip-icon{display:block;margin-bottom:8px;color:var(--purple);font-size:19px}.side-tip strong{font:700 12px 'Manrope',sans-serif}.side-tip p{margin:7px 0 0;color:var(--muted);font-size:10px;line-height:1.6}
+  .side-bottom{display:flex;align-items:center;gap:8px;margin-top:auto;padding:20px 8px 4px;color:var(--muted);font-size:10px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:#3bb782}
+}
+@media(max-width:1099px){.product-sidebar{display:none}}
