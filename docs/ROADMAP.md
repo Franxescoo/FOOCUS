@@ -11,6 +11,7 @@ FocusFlow es una aplicación **local y de un solo usuario** construida con Flask
 - Las sesiones activas tienen un inicio registrado y solo se consolidan en el historial cuando se terminan y guardan.
 - La búsqueda musical usa una biblioteca no oficial; depende de cambios externos y no debe considerarse un servicio garantizado.
 - No existen cuentas de usuario, sincronización entre dispositivos, permisos ni aislamiento de datos por persona.
+- La aplicación puede empaquetarse como instalador de escritorio para Windows usando una ventana WebView local; la compilación automática entrega un artefacto en GitHub Actions.
 
 ## Prioridades recomendadas
 
