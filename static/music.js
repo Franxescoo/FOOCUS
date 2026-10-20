@@ -6,9 +6,64 @@
   const playerWrap = document.getElementById("music-player-wrap");
   const youtubeLink = document.getElementById("youtube-search-link");
   const openYoutube = document.getElementById("open-youtube");
+  const library = document.getElementById("music-library");
+  const libraryCount = document.getElementById("library-count");
+  const SAVED_KEY = "focusflow_saved_music_v1";
+  let saved = loadSaved();
   let player = null;
   let pendingVideo = null;
   let apiLoading = false;
+
+  function loadSaved() {
+    try { return JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"); }
+    catch (error) { return []; }
+  }
+
+  function saveLibrary() {
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(saved)); }
+    catch (error) { status.textContent = "No se pudo guardar la colección en este navegador."; }
+    renderLibrary();
+  }
+
+  function renderLibrary() {
+    library.replaceChildren();
+    libraryCount.textContent = saved.length + (saved.length === 1 ? " guardada" : " guardadas");
+    if (!saved.length) {
+      const empty = document.createElement("p");
+      empty.className = "library-empty";
+      empty.textContent = "Guarda canciones con ☆ y aparecerán aquí.";
+      library.append(empty);
+      return;
+    }
+    saved.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "saved-track";
+      const playButton = document.createElement("button");
+      playButton.type = "button";
+      playButton.className = "saved-track-play";
+      playButton.textContent = "▶";
+      playButton.setAttribute("aria-label", "Reproducir " + item.title);
+      playButton.addEventListener("click", () => play(item));
+      const info = document.createElement("span");
+      info.className = "saved-track-info";
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      const artist = document.createElement("small");
+      artist.textContent = item.channel || "YouTube Music";
+      info.append(title, artist);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "saved-track-remove";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Quitar " + item.title + " de Mi música");
+      remove.addEventListener("click", () => {
+        saved = saved.filter(track => track.id !== item.id);
+        saveLibrary();
+      });
+      row.append(playButton, info, remove);
+      library.append(row);
+    });
+  }
 
   function setLinks(query) {
     const url = "https://music.youtube.com/search?q=" + encodeURIComponent(query || "lofi music for studying");
@@ -109,6 +164,8 @@
   function render(items) {
     results.replaceChildren();
     items.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "music-result-row";
       const button = document.createElement("button");
       button.type = "button";
       button.className = "music-result";
@@ -132,7 +189,28 @@
         button.setAttribute("aria-pressed", "true");
         play(item);
       });
-      results.append(button);
+      const favorite = document.createElement("button");
+      favorite.type = "button";
+      favorite.className = "music-save";
+      const isSaved = () => saved.some(track => track.id === item.id);
+      favorite.textContent = isSaved() ? "★" : "☆";
+      favorite.setAttribute("aria-label", isSaved() ? "Quitar de Mi música" : "Guardar en Mi música");
+      favorite.title = favorite.getAttribute("aria-label");
+      favorite.addEventListener("click", () => {
+        if (isSaved()) {
+          saved = saved.filter(track => track.id !== item.id);
+          status.textContent = "Canción quitada de Mi música.";
+        } else {
+          saved.unshift(item);
+          status.textContent = "Canción guardada en Mi música.";
+        }
+        saveLibrary();
+        favorite.textContent = isSaved() ? "★" : "☆";
+        favorite.setAttribute("aria-label", isSaved() ? "Quitar de Mi música" : "Guardar en Mi música");
+        favorite.title = favorite.getAttribute("aria-label");
+      });
+      row.append(button, favorite);
+      results.append(row);
     });
   }
 
@@ -173,4 +251,5 @@
     search(button.dataset.query);
   }));
   setLinks("");
+  renderLibrary();
 })();
