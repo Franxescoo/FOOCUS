@@ -13,7 +13,8 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 - Identificar tareas con planificación pasada para reprogramarlas sin perder la fecha límite original.
 - Buscar tareas y filtrarlas por estado.
 - Avisos visuales para tareas vencidas o que vencen hoy.
-- Registro de sesiones de trabajo por tarea, con tiempo transcurrido y comentarios al cerrar.
+- Registro de sesiones de trabajo por tarea, con tiempo transcurrido, resumen del avance y siguiente paso al cerrar.
+- Mostrar el siguiente paso guardado en la tarjeta de la tarea para retomar el trabajo más rápido.
 - Historial de sesiones y tiempo total registrado por tarea.
 - Estadísticas de tiempo de hoy, esta semana y el historial completo.
 - Mapa de actividad de los últimos 35 días.
@@ -24,7 +25,7 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 ### Herramientas personales
 - Notas rápidas guardadas en el almacenamiento local del navegador.
 - Modo claro y oscuro.
-- Exportación CSV de tareas y sesiones, incluyendo asignatura, estimación y día planificado de cada tarea.
+- Exportación CSV de tareas y sesiones, incluyendo asignatura, estimación, día planificado y siguiente paso registrado.
 - Panel musical con búsqueda mediante ytmusicapi, colección local y reproductor integrado de YouTube cuando el video permite reproducción incrustada.
 
 ## Requisitos
@@ -68,9 +69,10 @@ Las pruebas usan una base de datos temporal; no deberían modificar tu base de d
 
 1. En una tarea pendiente, pulsa **Empezar a trabajar**.
 2. FocusFlow registra la hora de inicio y muestra el cronómetro de la sesión.
-3. Cuando termines, añade una nota breve sobre lo que avanzaste y pulsa **Terminar y guardar**.
+3. Cuando termines, anota lo que avanzaste y define el siguiente paso concreto antes de pulsar **Terminar y guardar**.
 4. Las estadísticas y el mapa de actividad se actualizan con las sesiones guardadas.
 5. En **Actividad de trabajo**, puedes fijar una meta diaria de entre 15 minutos y 10 horas, en incrementos de 15 minutos.
+6. El siguiente paso aparece en la tarjeta de la tarea y en su historial de sesiones para que puedas retomar desde ahí en la próxima sesión.
 6. Asigna un **día para estudiar** a las tareas que quieras planificar. En **Plan de estudio · próximos 7 días** puedes revisar la carga por día e iniciar una tarea directamente desde ese panel. La fecha planificada no cambia la fecha límite de entrega.
 
 Solo puede haber una sesión de trabajo activa a la vez. El servidor evita iniciar trabajo sobre una tarea completada y no permite eliminar una tarea mientras tiene una sesión activa. Si cierras el navegador o la aplicación durante una sesión, vuelve a abrir FocusFlow para retomar y finalizar esa sesión.

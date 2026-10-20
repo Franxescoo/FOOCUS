@@ -245,6 +245,9 @@
                   <div class="task-estimate-label"><span>Estimado {{ task.estimated_minutes }} min</span><span>Real {{ actual_minutes }} min</span></div>
                   <div class="task-estimate-track"><div class="task-estimate-fill" style="width: {{ ([100, ((actual_minutes / task.estimated_minutes * 100)|round|int)]|min) if task.estimated_minutes else 0 }}%"></div></div>
                 </div>
+                {% if work_stats.get(task.id, {}).get('last_next_step') %}
+                <div class="task-next-step"><strong>Retomar con</strong><span>{{ work_stats.get(task.id, {}).get('last_next_step') }}</span></div>
+                {% endif %}
                 <span class="task-streak" title="Días consecutivos con tiempo de trabajo registrado">🔥 {{ task_streaks.get(task.id, 0) }} día{% if task_streaks.get(task.id, 0) != 1 %}s{% endif %} de racha</span>
                 <span class="task-time-total">⏱ {{ task_seconds // 3600 }} h {{ (task_seconds % 3600) // 60 }} min</span>
                 <button class="start-task-work" type="button" data-start-task="{{ task.id }}" data-task-title="{{ task.title }}">▶ Empezar a trabajar</button>
@@ -342,6 +345,9 @@
           <div class="active-work-clock" id="active-work-clock" data-started-at="{{ active_session.started_at if active_session else '' }}">00:00:00</div>
           <label class="field work-comment-field" for="work-comment">¿Qué avanzaste en esta sesión?</label>
           <textarea id="work-comment" rows="2" maxlength="1000" placeholder="Ej. Terminé el diseño de la pantalla y corregí dos errores..."></textarea>
+          <label class="field work-comment-field" for="work-next-step">¿Qué harás después?</label>
+          <textarea id="work-next-step" rows="2" maxlength="500" placeholder="Ej. Probar el formulario con datos vacíos y corregir la validación..."></textarea>
+          <p class="field-hint">Este paso aparecerá junto a la tarea para ayudarte a retomarla en la próxima sesión.</p>
           <div class="active-work-actions"><span id="work-session-status" role="status">Guarda una nota al terminar para recordar tu progreso.</span><button class="primary-button" id="stop-work-button" type="button">■ Terminar y guardar</button></div>
         </section>
             </div>
@@ -665,7 +671,7 @@
           if (window.focusFlowSetWorking) window.focusFlowSetWorking(data.task_id, data.task_title, data.started_at);
           document.getElementById("active-work-subtitle").textContent = "Primer paso: " + step;
           document.getElementById("work-session-status").textContent = "Tu sesión quedó registrada. Al terminar, guarda lo que avanzaste.";
-          document.getElementById("work-comment").value = step;
+          document.getElementById("work-next-step").value = step;
           guidance.textContent = "¡Ya empezaste! Durante cinco minutos, céntrate solo en: " + step + ".";
           beginButton.textContent = "Bloque iniciado";
         } catch (error) {
@@ -835,6 +841,7 @@
       const activeTitle = document.getElementById("active-work-title");
       const clock = document.getElementById("active-work-clock");
       const comment = document.getElementById("work-comment");
+      const nextStep = document.getElementById("work-next-step");
       const stopButton = document.getElementById("stop-work-button");
       const sessionStatus = document.getElementById("work-session-status");
       let activeTaskId = {{ active_session.task_id if active_session else 'null' }};
@@ -896,7 +903,7 @@
         stopButton.disabled = true;
         sessionStatus.textContent = "Guardando tiempo y comentario...";
         try {
-          const response = await fetch("/api/work/stop", {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({comment:comment.value})});
+          const response = await fetch("/api/work/stop", {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({comment:comment.value, next_step:nextStep.value})});
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar la sesión.");
           sessionStatus.textContent = "Sesión guardada: " + formatDuration(data.duration_seconds) + ". Actualizando estadísticas...";
@@ -930,9 +937,24 @@
               const meta = document.createElement("strong");
               const date = new Date(session.started_at);
               meta.textContent = date.toLocaleString() + " · " + formatDuration(session.duration_seconds);
+              const review = document.createElement("div");
+              review.className = "work-log-review";
+              const reviewLabel = document.createElement("strong");
+              reviewLabel.textContent = "Avance";
               const note = document.createElement("p");
-              note.textContent = session.comment || "Sin comentario guardado.";
-              item.append(meta, note);
+              note.textContent = session.comment || "Sin nota de avance.";
+              review.append(reviewLabel, note);
+              item.append(meta, review);
+              if (session.next_step) {
+                const next = document.createElement("div");
+                next.className = "work-log-next-step";
+                const nextLabel = document.createElement("strong");
+                nextLabel.textContent = "Siguiente paso";
+                const nextText = document.createElement("p");
+                nextText.textContent = session.next_step;
+                next.append(nextLabel, nextText);
+                item.append(next);
+              }
               history.append(item);
             });
           }
