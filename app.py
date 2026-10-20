@@ -1,4 +1,6 @@
 from datetime import date, datetime
+import csv
+import io
 import sqlite3
 from pathlib import Path
 
@@ -313,6 +315,42 @@ def search_music():
             "items": [],
             "message": "YouTube Music no respondió como se esperaba. La búsqueda usa una interfaz no oficial; prueba más tarde o abre YouTube Music."
         }), 502
+
+
+@app.route("/export.csv")
+def export_csv():
+    """Download tasks and their saved work sessions as a spreadsheet-friendly CSV."""
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT t.id, t.title, t.priority, t.due_date, t.completed, t.created_at,
+                   ws.started_at, ws.ended_at, ws.duration_seconds, ws.comment
+            FROM tasks t
+            LEFT JOIN work_sessions ws ON ws.task_id = t.id AND ws.ended_at IS NOT NULL
+            ORDER BY t.id ASC, ws.started_at ASC
+            """
+        ).fetchall()
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID tarea", "Tarea", "Prioridad", "Fecha límite", "Completada",
+        "Creada el", "Inicio sesión", "Fin sesión", "Duración (segundos)", "Comentario de sesión"
+    ])
+    for row in rows:
+        writer.writerow([
+            row["id"], row["title"], row["priority"], row["due_date"] or "",
+            "Sí" if row["completed"] else "No", row["created_at"],
+            row["started_at"] or "", row["ended_at"] or "",
+            row["duration_seconds"] if row["ended_at"] else "",
+            row["comment"] if row["ended_at"] else "",
+        ])
+
+    response = make_response("\ufeff" + output.getvalue())
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = 'attachment; filename="focusflow-export.csv"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 init_db()
