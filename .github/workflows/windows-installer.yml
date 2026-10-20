@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-installer:
@@ -30,6 +30,16 @@ jobs:
 
       - name: Run application tests
         run: python -m unittest discover -s tests -v
+
+      - name: Embed build version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq "push" -and $env:GITHUB_REF -eq "refs/heads/main") {
+            $version = "build-$env:GITHUB_RUN_NUMBER"
+          } else {
+            $version = "dev-$env:GITHUB_RUN_NUMBER"
+          }
+          "APP_VERSION = '$version'" | Set-Content -Path focusflow_build.py -Encoding ascii
 
       - name: Package FocusFlow for Windows
         shell: pwsh
@@ -71,3 +81,18 @@ jobs:
           path: dist-installer/FocusFlow-Setup.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish latest Windows release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: FocusFlow para Windows · build ${{ github.run_number }}
+          body: |
+            Instalador de Windows generado automáticamente desde el commit `${{ github.sha }}`.
+
+            Descarga `FocusFlow-Setup.exe` para instalar FocusFlow o actualizar una instalación existente.
+          files: dist-installer/FocusFlow-Setup.exe
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
