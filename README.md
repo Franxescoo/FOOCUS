@@ -42,10 +42,10 @@ Luego abre http://127.0.0.1:5000 en el navegador. La base de datos focusflow.db 
 ## Instalar FOOCUS para Windows
 
 1. Abre [Releases](https://github.com/Franxescoo/FOOCUS/releases/latest).
-2. Descarga FocusFlow-Setup.exe y ejecútalo.
+2. Descarga FOOCUS-Setup.exe y ejecútalo.
 3. Para actualizar una instalación anterior, cierra la app y ejecuta el instalador más reciente.
 
-El identificador del instalador, el ejecutable interno, la carpeta de instalación y la carpeta de datos existentes se conservan por compatibilidad. El nombre de descarga también se mantiene como FocusFlow-Setup.exe para que las instalaciones anteriores sigan encontrando el archivo.
+El identificador del instalador, el ejecutable interno, la carpeta de instalación y la carpeta de datos existentes se conservan por compatibilidad. El instalador nuevo se distribuye como FOOCUS-Setup.exe. Se conservan el identificador del instalador, el ejecutable interno y las carpetas de instalación y datos para mantener la compatibilidad con instalaciones anteriores.
 
 ## Actualizaciones
 
