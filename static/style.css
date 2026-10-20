@@ -332,3 +332,34 @@ footer { padding: 28px 0 24px; color: #9b9bad; font-size: 10px; text-align: cent
   .music-sidebar { transition: none; }
   .hero-orbit, .hero-spark { animation: none; }
 }
+
+
+/* Task cards use a stable grid so long titles never stretch the row */
+.task-item {
+  display: grid;
+  grid-template-columns: 23px minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 8px;
+}
+.task-item > form:first-child { grid-column: 1; grid-row: 1; }
+.task-item > .task-info { grid-column: 2; grid-row: 1; min-width: 0; }
+.task-item > .task-work-summary { grid-column: 2 / -1; grid-row: 2; width: 100%; flex: initial; padding: 2px 0 0; }
+.task-item > .task-edit-button { grid-column: 3; grid-row: 1; }
+.task-item > .task-inline-editor { grid-column: 2 / -1; grid-row: 3; width: 100%; min-width: 0; }
+.task-item > form:last-child { grid-column: 4; grid-row: 1; }
+.task-item .task-info h3 { max-width: 100%; }
+.task-work-summary .task-history { width: 100%; }
+@media (max-width: 600px) {
+  .task-item {
+    grid-template-columns: 23px minmax(0, 1fr) auto;
+    column-gap: 9px;
+    row-gap: 10px;
+  }
+  .task-item > form:first-child { grid-column: 1; grid-row: 1; }
+  .task-item > .task-info { grid-column: 2 / -1; grid-row: 1; padding-right: 2px; }
+  .task-item > .task-work-summary { grid-column: 1 / -1; grid-row: 2; }
+  .task-item > .task-edit-button { grid-column: 2; grid-row: 3; justify-self: start; }
+  .task-item > form:last-child { grid-column: 3; grid-row: 3; justify-self: end; }
+  .task-item > .task-inline-editor { grid-column: 1 / -1; grid-row: 4; }
+}
