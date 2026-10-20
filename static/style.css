@@ -493,3 +493,72 @@ html[data-theme="dark"] .player-control { border-color: var(--line); background:
 html[data-theme="dark"] .export-button { border-color: var(--line); background: #25273a; color: #d0caff; }
 html[data-theme="dark"] .empty-state p { color: var(--muted); }
 html[data-theme="dark"] .focus-time.is-finished { color: #8bd4ad; }
+
+
+/* Compact side rail: keep the task list primary and tuck secondary tools away */
+.workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 20px; }
+.main-column { width: 100%; max-width: none; min-width: 0; margin: 0; }
+.utility-rail { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; min-width: 0; }
+.utility-rail-title { margin: 0 0 2px; padding: 0 3px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+.utility-card { min-width: 0; overflow: clip; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: 0 4px 16px #24204408; }
+.utility-card > summary { display: flex; align-items: center; gap: 10px; min-height: 66px; padding: 12px; cursor: pointer; list-style: none; }
+.utility-card > summary::-webkit-details-marker { display: none; }
+.utility-card > summary:hover { background: var(--soft-purple); }
+.utility-card > summary > span:nth-child(2) { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.utility-card > summary strong { color: var(--ink); font-size: 12px; font-weight: 750; line-height: 1.35; }
+.utility-card > summary small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.utility-card-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 11px; background: var(--soft-purple); color: var(--purple-dark); font-size: 17px; }
+.utility-chevron { color: var(--muted); font-size: 17px; transition: transform .18s ease; }
+.utility-card[open] > summary { border-bottom: 1px solid var(--line); }
+.utility-card[open] .utility-chevron { transform: rotate(180deg); }
+.utility-card-content { padding: 12px; min-width: 0; }
+.utility-card-content > section { margin: 0; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.utility-card-content .section-heading { margin-bottom: 12px; }
+.utility-card-content .section-heading h2 { font-size: 17px; }
+.utility-card-content .section-heading .eyebrow,
+.utility-card-content .section-heading .notes-hint { display: none; }
+.utility-card-content .starter-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.utility-card-content .starter-guidance { margin-top: 10px; padding: 10px; }
+.utility-card-content .starter-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+.utility-card-content .starter-actions button { width: 100%; }
+.utility-card-content .focus-card { display: flex; flex-direction: column; gap: 14px; }
+.utility-card-content .focus-copy h2 { font-size: 17px; }
+.utility-card-content .focus-copy p:not(.eyebrow) { font-size: 11px; }
+.utility-card-content .focus-time { font-size: 34px; }
+.utility-card-content .focus-buttons { display: grid; grid-template-columns: 1fr 1fr; }
+.utility-card-content .work-metrics { grid-template-columns: 1fr; gap: 7px; }
+.utility-card-content .work-metrics article { padding: 10px; }
+.utility-card-content .activity-grid { gap: 3px; }
+.utility-card-content .activity-cell { width: 100%; }
+.utility-card-content .activity-heading > div { align-items: flex-start; flex-direction: column; gap: 8px; }
+.utility-card-content .activity-footnote { font-size: 10px; }
+.utility-card-content .active-work-panel { display: flex; flex-direction: column; gap: 10px; }
+.utility-card-content .active-work-clock { font-size: 26px; }
+.utility-card-content .active-work-actions { align-items: stretch; flex-direction: column; }
+.utility-card-content .quick-notes textarea { min-height: 100px; }
+html[data-theme="dark"] .utility-card { background: var(--surface); border-color: var(--line); }
+html[data-theme="dark"] .utility-card > summary:hover { background: #292640; }
+html[data-theme="dark"] .utility-card[open] > summary { border-color: var(--line); }
+@media (min-width: 980px) {
+  .workspace-grid { grid-template-columns: minmax(0, 1fr) 292px; gap: 22px; }
+  .main-column { grid-column: 1; }
+  .utility-rail { grid-column: 2; grid-row: 1; position: sticky; top: 18px; max-height: calc(100vh - 36px); overflow-y: auto; padding: 2px 3px 8px 0; scrollbar-width: thin; }
+  .main-column .stats { margin-bottom: 18px; }
+}
+@media (min-width: 1350px) {
+  .workspace-grid { grid-template-columns: minmax(0, 1fr) 310px; gap: 26px; }
+}
+@media (max-width: 979px) {
+  .utility-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .utility-rail-title { grid-column: 1 / -1; }
+  .utility-card-content { padding: 10px; }
+}
+@media (max-width: 600px) {
+  .utility-rail { grid-template-columns: minmax(0, 1fr); }
+  .utility-rail-title { grid-column: 1; }
+  .utility-card > summary { min-height: 60px; }
+  .utility-card-content { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .utility-chevron { transition: none; }
+}
