@@ -34,16 +34,6 @@
     </section>
 
     <div class="workspace-grid">
-      <aside class="product-sidebar" aria-label="Herramientas FocusFlow">
-        <div class="side-brand"><span>∞</span><div><strong>FocusFlow</strong><small>Tu espacio de enfoque</small></div></div>
-        <p class="side-label">TU ESPACIO</p>
-        <a class="side-link active" href="#tasks-area"><span>▦</span> Mis tareas <span class="side-count">{{ total }}</span></a>
-        <a class="side-link" href="#focus-area"><span>◷</span> Concentración</a>
-        <a class="side-link" href="#notes-area"><span>✎</span> Notas rápidas</a>
-        <button class="side-link side-music-button" id="sidebar-music-launcher" type="button"><span>♫</span> FocusFlow Music <span class="side-arrow">↗</span></button>
-        <div class="side-tip"><span class="tip-icon">✦</span><strong>Un paso a la vez</strong><p>El progreso se construye con pequeñas acciones constantes.</p></div>
-        <div class="side-bottom"><span class="online-dot"></span> Tu espacio personal</div>
-      </aside>
       <aside class="music-sidebar" id="music-sidebar" aria-label="Panel de música" aria-hidden="true">
         <section class="music-section" id="focusflow-music">
           <div class="music-heading">
@@ -80,38 +70,14 @@
         </section>
       </aside>
 
-      <div class="main-column">
-        <section class="stats" aria-label="Resumen de tareas">
+        <div class="main-column">
+<section class="stats" aria-label="Resumen de tareas">
           <article class="stat-card"><span class="stat-label">TAREAS TOTALES</span><strong>{{ total }}</strong><span class="stat-detail">En tu lista</span></article>
           <article class="stat-card"><span class="stat-label">COMPLETADAS</span><strong>{{ completed }}</strong><span class="stat-detail">Buen trabajo</span></article>
           <article class="stat-card"><span class="stat-label">PENDIENTES</span><strong>{{ total - completed }}</strong><span class="stat-detail">Paso a paso</span></article>
         </section>
 
-        <section class="work-dashboard panel" id="work-dashboard">
-          <div class="section-heading"><div><p class="eyebrow">TU CONSTANCIA, EN DATOS</p><h2>Actividad de trabajo</h2><p class="notes-hint">Registra el tiempo real que dedicas a tus tareas y deja un resumen de cada sesión.</p></div><span class="section-icon">◷</span></div>
-          <div class="work-metrics">
-            <article><span>Hoy</span><strong id="today-work-total">{{ (today_work_seconds // 3600) }} h {{ ((today_work_seconds % 3600) // 60) }} min</strong></article>
-            <article><span>Tiempo registrado</span><strong id="all-work-total">{{ (total_work_seconds // 3600) }} h {{ ((total_work_seconds % 3600) // 60) }} min</strong></article>
-            <article><span>Sesiones</span><strong>{{ work_stats.values()|sum(attribute='sessions') if work_stats else 0 }}</strong></article>
-          </div>
-          <div class="activity-heading"><div><strong>Tu actividad · últimos 35 días</strong><span class="activity-legend"><i></i> Menos <i></i><i></i><i></i><i></i> Más</span></div></div>
-          <div class="activity-grid" role="img" aria-label="Mapa de actividad diaria de trabajo">
-            {% for day in activity_days %}
-            <span class="activity-cell level-{{ day.level }}" title="{{ day.date }} · {{ day.minutes }} minutos registrados" aria-label="{{ day.date }}: {{ day.minutes }} minutos"></span>
-            {% endfor %}
-          </div>
-          <div class="activity-months"><span>{{ activity_days[0].label }}</span><span>{{ activity_days[17].label }}</span><span>{{ activity_days[-1].label }}</span></div>
-          <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FocusFlow.</p>
-        </section>
-        <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
-          <div class="active-work-copy"><span class="live-dot"></span><div><p class="eyebrow">SESIÓN EN CURSO</p><h2 id="active-work-title">{% if active_session %}{{ active_session.task_title }}{% else %}Sin sesión activa{% endif %}</h2><p id="active-work-subtitle">El tiempo se está contando mientras trabajas.</p></div></div>
-          <div class="active-work-clock" id="active-work-clock" data-started-at="{{ active_session.started_at if active_session else '' }}">00:00:00</div>
-          <label class="field work-comment-field" for="work-comment">¿Qué avanzaste en esta sesión?</label>
-          <textarea id="work-comment" rows="2" maxlength="1000" placeholder="Ej. Terminé el diseño de la pantalla y corregí dos errores..."></textarea>
-          <div class="active-work-actions"><span id="work-session-status" role="status">Guarda una nota al terminar para recordar tu progreso.</span><button class="primary-button" id="stop-work-button" type="button">■ Terminar y guardar</button></div>
-        </section>
-
-        <section class="panel">
+<section class="panel">
           <div class="section-heading"><div><p class="eyebrow">PLANIFICA TU DÍA</p><h2>Agregar una tarea</h2></div><span class="section-icon">＋</span></div>
           <form class="task-form" action="{{ url_for('add_task') }}" method="post">
             <label class="field task-title">Nombre de la tarea
@@ -129,37 +95,7 @@
           </form>
         </section>
 
-
-        <section class="quick-notes panel" id="notes-area" aria-label="Notas rápidas">
-          <div class="section-heading"><div><p class="eyebrow">CAPTURA RÁPIDA</p><h2>Notas rápidas</h2></div><span class="section-icon">✎</span></div>
-          <p class="notes-hint">Anota una idea o algo que no quieras olvidar. Se guarda en este navegador.</p>
-          <textarea id="quick-notes" rows="3" maxlength="2000" placeholder="Escribe aquí una idea, recordatorio o próximo paso..."></textarea>
-          <div class="notes-footer"><span id="notes-status" role="status">Tus notas se guardan automáticamente.</span><button type="button" class="focus-reset" id="clear-notes">Borrar notas</button></div>
-        </section>
-
-        <section class="anti-procrastination panel" id="start-small" aria-labelledby="start-small-title">
-          <div class="section-heading"><div><p class="eyebrow">SISTEMA ANTI-PROCRASTINACIÓN</p><h2 id="start-small-title">Hazlo tan pequeño que puedas empezar.</h2><p class="notes-hint">No necesitas terminarlo ahora. Solo romper la barrera de los primeros cinco minutos.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
-          <div class="starter-grid">
-            <label class="field" for="starter-task">¿Qué tarea vas a destrabar?
-              <select id="starter-task"><option value="">Elige una tarea pendiente…</option>{% for task in tasks if not task.completed %}<option value="{{ task.id }}" data-title="{{ task.title }}">{{ task.title }}</option>{% endfor %}</select>
-            </label>
-            <label class="field" for="starter-step">Tu primer paso (algo que puedas hacer en 5 minutos)
-              <input id="starter-step" type="text" maxlength="180" placeholder="Ej. abrir el proyecto y revisar un archivo">
-            </label>
-          </div>
-          <div class="starter-guidance" id="starter-guidance" role="status">Elige una tarea y define una acción concreta, pequeña y fácil de comenzar.</div>
-          <div class="starter-actions"><button type="button" class="primary-button" id="starter-begin">Empezar 5 minutos</button><button type="button" class="focus-reset" id="starter-suggest">Elegir por mí</button></div>
-          <p class="starter-footnote">Regla: si después de cinco minutos quieres parar, puedes parar. El objetivo es empezar, no hacerlo perfecto.</p>
-        </section>
-        <section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
-          <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
-          <div class="focus-controls">
-            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div><div class="session-counter">Sesiones completadas hoy: <strong id="sessions-today">0</strong></div>
-            <div class="focus-buttons"><button type="button" class="primary-button" id="focus-start">Comenzar</button><button type="button" class="focus-reset" id="focus-reset">Reiniciar</button></div>
-            <div class="focus-presets"><button type="button" data-minutes="25" class="focus-preset active">25 min</button><button type="button" data-minutes="15" class="focus-preset">15 min</button><button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
-          </div>
-        </section>
-        <section class="tasks-section" id="tasks-area">
+<section class="tasks-section" id="tasks-area">
           <div class="section-heading task-heading"><div><p class="eyebrow">MANTÉN EL RITMO</p><h2>Mis tareas</h2></div><div class="task-heading-actions"><a class="export-button" href="{{ url_for('export_csv') }}" download>↓ Exportar CSV</a><span class="count">{{ total }} en total</span></div></div>
           <div class="progress-card">
             <div class="progress-copy"><span>Progreso general</span><strong>{{ ((completed / total * 100)|round|int) if total else 0 }}%</strong></div>
@@ -218,6 +154,86 @@
           <div class="empty-state"><div class="empty-icon">✦</div><h3>Tu espacio está listo</h3><p>Añade tu primera tarea y empieza a organizar tu día.</p></div>
           {% endif %}
         </section>
+        </div>
+        <aside class="utility-rail" aria-label="Herramientas de concentración">
+          <p class="utility-rail-title">TU ESPACIO DE ENFOQUE</p>
+          <details class="utility-card" id="utility-start-card" open>
+            <summary><span class="utility-card-icon">↗</span><span><strong>Empieza por algo pequeño</strong><small>Plan anti-procrastinación · 5 min</small></span><span class="utility-chevron">⌄</span></summary>
+            <div class="utility-card-content">
+<section class="anti-procrastination panel" id="start-small" aria-labelledby="start-small-title">
+          <div class="section-heading"><div><p class="eyebrow">SISTEMA ANTI-PROCRASTINACIÓN</p><h2 id="start-small-title">Hazlo tan pequeño que puedas empezar.</h2><p class="notes-hint">No necesitas terminarlo ahora. Solo romper la barrera de los primeros cinco minutos.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
+          <div class="starter-grid">
+            <label class="field" for="starter-task">¿Qué tarea vas a destrabar?
+              <select id="starter-task"><option value="">Elige una tarea pendiente…</option>{% for task in tasks if not task.completed %}<option value="{{ task.id }}" data-title="{{ task.title }}">{{ task.title }}</option>{% endfor %}</select>
+            </label>
+            <label class="field" for="starter-step">Tu primer paso (algo que puedas hacer en 5 minutos)
+              <input id="starter-step" type="text" maxlength="180" placeholder="Ej. abrir el proyecto y revisar un archivo">
+            </label>
+          </div>
+          <div class="starter-guidance" id="starter-guidance" role="status">Elige una tarea y define una acción concreta, pequeña y fácil de comenzar.</div>
+          <div class="starter-actions"><button type="button" class="primary-button" id="starter-begin">Empezar 5 minutos</button><button type="button" class="focus-reset" id="starter-suggest">Elegir por mí</button></div>
+          <p class="starter-footnote">Regla: si después de cinco minutos quieres parar, puedes parar. El objetivo es empezar, no hacerlo perfecto.</p>
+        </section>
+            </div>
+          </details>
+          <details class="utility-card" id="utility-focus-card">
+            <summary><span class="utility-card-icon">◷</span><span><strong>Temporizador</strong><small>Un bloque a la vez</small></span><span class="utility-chevron">⌄</span></summary>
+            <div class="utility-card-content">
+<section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
+          <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
+          <div class="focus-controls">
+            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div><div class="session-counter">Sesiones completadas hoy: <strong id="sessions-today">0</strong></div>
+            <div class="focus-buttons"><button type="button" class="primary-button" id="focus-start">Comenzar</button><button type="button" class="focus-reset" id="focus-reset">Reiniciar</button></div>
+            <div class="focus-presets"><button type="button" data-minutes="25" class="focus-preset active">25 min</button><button type="button" data-minutes="15" class="focus-preset">15 min</button><button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
+          </div>
+        </section>
+            </div>
+          </details>
+          <details class="utility-card" id="utility-notes-card">
+            <summary><span class="utility-card-icon">✎</span><span><strong>Notas rápidas</strong><small>Guarda una idea</small></span><span class="utility-chevron">⌄</span></summary>
+            <div class="utility-card-content">
+<section class="quick-notes panel" id="notes-area" aria-label="Notas rápidas">
+          <div class="section-heading"><div><p class="eyebrow">CAPTURA RÁPIDA</p><h2>Notas rápidas</h2></div><span class="section-icon">✎</span></div>
+          <p class="notes-hint">Anota una idea o algo que no quieras olvidar. Se guarda en este navegador.</p>
+          <textarea id="quick-notes" rows="3" maxlength="2000" placeholder="Escribe aquí una idea, recordatorio o próximo paso..."></textarea>
+          <div class="notes-footer"><span id="notes-status" role="status">Tus notas se guardan automáticamente.</span><button type="button" class="focus-reset" id="clear-notes">Borrar notas</button></div>
+        </section>
+            </div>
+          </details>
+          <details class="utility-card" id="utility-activity-card">
+            <summary><span class="utility-card-icon">▦</span><span><strong>Actividad de trabajo</strong><small>Tiempo y constancia</small></span><span class="utility-chevron">⌄</span></summary>
+            <div class="utility-card-content">
+<section class="work-dashboard panel" id="work-dashboard">
+          <div class="section-heading"><div><p class="eyebrow">TU CONSTANCIA, EN DATOS</p><h2>Actividad de trabajo</h2><p class="notes-hint">Registra el tiempo real que dedicas a tus tareas y deja un resumen de cada sesión.</p></div><span class="section-icon">◷</span></div>
+          <div class="work-metrics">
+            <article><span>Hoy</span><strong id="today-work-total">{{ (today_work_seconds // 3600) }} h {{ ((today_work_seconds % 3600) // 60) }} min</strong></article>
+            <article><span>Tiempo registrado</span><strong id="all-work-total">{{ (total_work_seconds // 3600) }} h {{ ((total_work_seconds % 3600) // 60) }} min</strong></article>
+            <article><span>Sesiones</span><strong>{{ work_stats.values()|sum(attribute='sessions') if work_stats else 0 }}</strong></article>
+          </div>
+          <div class="activity-heading"><div><strong>Tu actividad · últimos 35 días</strong><span class="activity-legend"><i></i> Menos <i></i><i></i><i></i><i></i> Más</span></div></div>
+          <div class="activity-grid" role="img" aria-label="Mapa de actividad diaria de trabajo">
+            {% for day in activity_days %}
+            <span class="activity-cell level-{{ day.level }}" title="{{ day.date }} · {{ day.minutes }} minutos registrados" aria-label="{{ day.date }}: {{ day.minutes }} minutos"></span>
+            {% endfor %}
+          </div>
+          <div class="activity-months"><span>{{ activity_days[0].label }}</span><span>{{ activity_days[17].label }}</span><span>{{ activity_days[-1].label }}</span></div>
+          <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FocusFlow.</p>
+        </section>
+            </div>
+          </details>
+          <details class="utility-card" id="utility-session-card"  {% if active_session %}open{% endif %}>
+            <summary><span class="utility-card-icon">●</span><span><strong>Sesión en curso</strong><small>Tu registro de trabajo</small></span><span class="utility-chevron">⌄</span></summary>
+            <div class="utility-card-content">
+<section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
+          <div class="active-work-copy"><span class="live-dot"></span><div><p class="eyebrow">SESIÓN EN CURSO</p><h2 id="active-work-title">{% if active_session %}{{ active_session.task_title }}{% else %}Sin sesión activa{% endif %}</h2><p id="active-work-subtitle">El tiempo se está contando mientras trabajas.</p></div></div>
+          <div class="active-work-clock" id="active-work-clock" data-started-at="{{ active_session.started_at if active_session else '' }}">00:00:00</div>
+          <label class="field work-comment-field" for="work-comment">¿Qué avanzaste en esta sesión?</label>
+          <textarea id="work-comment" rows="2" maxlength="1000" placeholder="Ej. Terminé el diseño de la pantalla y corregí dos errores..."></textarea>
+          <div class="active-work-actions"><span id="work-session-status" role="status">Guarda una nota al terminar para recordar tu progreso.</span><button class="primary-button" id="stop-work-button" type="button">■ Terminar y guardar</button></div>
+        </section>
+            </div>
+          </details>
+        </aside>
       </div>
     </div>
     <footer>FocusFlow · Un paso a la vez.</footer>
