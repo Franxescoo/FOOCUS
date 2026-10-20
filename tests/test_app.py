@@ -76,6 +76,44 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json["ok"])
 
+
+    def test_start_and_stop_work_session_with_comment(self):
+        self.create_task()
+        with focusflow.get_db() as db:
+            task_id = db.execute("SELECT id FROM tasks").fetchone()["id"]
+        started = self.client.post("/api/work/start", json={"task_id": task_id})
+        self.assertEqual(started.status_code, 200)
+        self.assertTrue(started.json["ok"])
+        stopped = self.client.post("/api/work/stop", json={"comment": "Terminé una parte del proyecto"})
+        self.assertEqual(stopped.status_code, 200)
+        self.assertTrue(stopped.json["ok"])
+        self.assertEqual(stopped.json["comment"], "Terminé una parte del proyecto")
+        with focusflow.get_db() as db:
+            row = db.execute("SELECT ended_at, duration_seconds, comment FROM work_sessions WHERE task_id = ?", (task_id,)).fetchone()
+        self.assertIsNotNone(row["ended_at"])
+        self.assertGreaterEqual(row["duration_seconds"], 0)
+        self.assertEqual(row["comment"], "Terminé una parte del proyecto")
+
+    def test_only_one_work_session_can_be_active(self):
+        self.create_task("Tarea A")
+        self.create_task("Tarea B")
+        with focusflow.get_db() as db:
+            ids = [row["id"] for row in db.execute("SELECT id FROM tasks ORDER BY id").fetchall()]
+        first = self.client.post("/api/work/start", json={"task_id": ids[0]})
+        second = self.client.post("/api/work/start", json={"task_id": ids[1]})
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 409)
+
+    def test_task_work_log_returns_saved_comment(self):
+        self.create_task()
+        with focusflow.get_db() as db:
+            task_id = db.execute("SELECT id FROM tasks").fetchone()["id"]
+        self.client.post("/api/work/start", json={"task_id": task_id})
+        self.client.post("/api/work/stop", json={"comment": "Prueba del historial"})
+        response = self.client.get(f"/api/tasks/{task_id}/work-log")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["sessions"][0]["comment"], "Prueba del historial")
+
     def test_delete_task(self):
         self.create_task()
         with focusflow.get_db() as db:
