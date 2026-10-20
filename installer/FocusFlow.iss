@@ -13,7 +13,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\dist-installer
-OutputBaseFilename=FocusFlow-Setup
+OutputBaseFilename=FOOCUS-Setup
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -37,4 +37,4 @@ Name: "{autodesktop}\FOOCUS"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopi
 
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Preparando el componente web de FOOCUS..."; Flags: waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar FocusFlow"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar FOOCUS"; Flags: postinstall nowait skipifsilent
