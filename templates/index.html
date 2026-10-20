@@ -20,6 +20,18 @@
       <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo oscuro</span></button></div>
     </header>
 
+    <section class="update-center" id="update-center" aria-live="polite" aria-atomic="true" hidden>
+      <div class="update-center-copy">
+        <p class="eyebrow">ACTUALIZACIONES DE FOOCUS</p>
+        <p class="update-center-message" id="update-center-message">Comprobando la versión más reciente...</p>
+        <ul class="update-center-changes" id="update-center-changes" hidden></ul>
+      </div>
+      <div class="update-center-actions">
+        <a class="primary-button update-center-download" id="update-center-download" href="#" hidden>Descargar actualización</a>
+        <button class="focus-reset" id="update-center-retry" type="button" hidden>Reintentar</button>
+        <button class="focus-reset" id="update-center-close" type="button">Ocultar</button>
+      </div>
+    </section>
     <section class="welcome">
       <div class="welcome-copy">
         <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
@@ -1119,5 +1131,79 @@
       });
     })();
   </script>\n
+<script>
+    (() => {
+      const panel = document.getElementById("update-center");
+      const message = document.getElementById("update-center-message");
+      const changes = document.getElementById("update-center-changes");
+      const download = document.getElementById("update-center-download");
+      const retry = document.getElementById("update-center-retry");
+      const close = document.getElementById("update-center-close");
+      if (!panel || !message || !changes || !download || !retry || !close) return;
+
+      let dismissed = false;
+      let timer = null;
+      const show = () => { dismissed = false; panel.hidden = false; };
+      const clearChanges = () => { changes.replaceChildren(); changes.hidden = true; };
+      const showError = text => {
+        message.textContent = text || "No se pudo comprobar si hay una nueva versión.";
+        download.hidden = true;
+        clearChanges();
+        retry.hidden = false;
+        show();
+      };
+
+      async function checkUpdates() {
+        retry.disabled = true;
+        retry.textContent = "Comprobando...";
+        try {
+          const response = await fetch("/api/updates", {
+            method: "GET",
+            cache: "no-store",
+            headers: {"Accept": "application/json"}
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok || !data.checkable) {
+            showError(data.message || "No se pudo comprobar si hay una nueva versión.");
+            return;
+          }
+          if (data.available) {
+            message.textContent = "Hay una actualización disponible: " + data.latest_version;
+            download.href = data.download_url;
+            download.textContent = "Descargar " + data.latest_version;
+            download.hidden = false;
+            retry.hidden = true;
+            clearChanges();
+            (Array.isArray(data.changes) ? data.changes : []).forEach(change => {
+              const item = document.createElement("li");
+              item.textContent = change;
+              changes.append(item);
+            });
+            changes.hidden = changes.childElementCount === 0;
+            show();
+          } else {
+            panel.hidden = true;
+            dismissed = false;
+          }
+        } catch (error) {
+          showError("No se pudo conectar con GitHub para comprobar actualizaciones. Revisa tu conexión e inténtalo de nuevo.");
+        } finally {
+          retry.disabled = false;
+          retry.textContent = "Reintentar";
+        }
+      }
+
+      retry.addEventListener("click", checkUpdates);
+      close.addEventListener("click", () => { dismissed = true; panel.hidden = true; });
+      checkUpdates();
+      timer = window.setInterval(() => {
+        if (document.visibilityState === "visible" && !dismissed) checkUpdates();
+      }, 30 * 60 * 1000);
+      window.addEventListener("beforeunload", () => {
+        if (timer !== null) window.clearInterval(timer);
+      }, {once: true});
+    })();
+  </script>
+
 </body>
 </html>

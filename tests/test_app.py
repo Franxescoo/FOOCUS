@@ -93,6 +93,7 @@ class FocusFlowTaskTests(unittest.TestCase):
                 "FOOCUS_GITHUB_TOKEN": "",
                 "FOCUSFLOW_GITHUB_TOKEN": "",
             }),
+            patch.object(focusflow, "APP_VERSION", "V1.0.0"),
             patch("app.urllib.request.urlopen", return_value=fake_response) as github_request,
         ):
             response = self.client.get("/api/updates")
@@ -171,13 +172,13 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="active-work-dialog"', response.data)
         self.assertIn(b'id="active-work-dock"', response.data)
         self.assertIn(b'id="work-minimize-button"', response.data)
-        self.assertIn(b'id="download-focusflow"', response.data)
-        self.assertIn(b'id="download-status"', response.data)
-        self.assertIn(b'id="update-notice" aria-labelledby="update-notice-title" aria-live="polite" hidden', response.data)
-        self.assertIn('Actualización detectada'.encode(), response.data)
+        self.assertIn(b'id="update-center"', response.data)
+        self.assertIn(b'id="update-center-download"', response.data)
+        self.assertIn(b'id="update-center-message"', response.data)
+        self.assertIn(b'id="update-center-retry"', response.data)
         self.assertIn(b'fetch("/api/updates"', response.data)
         self.assertNotIn(b"api.github.com/repos/Franxescoo/FOOCUS/releases/latest", response.data)
-        self.assertIn(b'https://github.com/Franxescoo/FOOCUS/releases/latest/download/FocusFlow-Setup.exe', response.data)
+        self.assertIn("FOOCUS".encode(), response.data)
         self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
 
