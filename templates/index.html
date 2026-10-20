@@ -451,10 +451,8 @@
           const startTimer = document.getElementById("focus-start");
           if (startTimer && startTimer.textContent !== "Pausar") startTimer.click();
           document.getElementById("focus-area").scrollIntoView({behavior:"smooth", block:"center"});
-          document.getElementById("active-work-panel").hidden = false;
-          document.getElementById("active-work-title").textContent = task.title;
+          if (window.focusFlowSetWorking) window.focusFlowSetWorking(data.task_id, data.task_title, data.started_at);
           document.getElementById("active-work-subtitle").textContent = "Primer paso: " + step;
-          document.getElementById("active-work-clock").dataset.startedAt = data.started_at;
           document.getElementById("work-session-status").textContent = "Tu sesión quedó registrada. Al terminar, guarda lo que avanzaste.";
           document.getElementById("work-comment").value = step;
           guidance.textContent = "¡Ya empezaste! Durante cinco minutos, céntrate solo en: " + step + ".";
@@ -588,6 +586,7 @@
         startTicker();
         activePanel.scrollIntoView({behavior:"smooth", block:"center"});
       }
+      window.focusFlowSetWorking = setWorking;
       if (activeTaskId && startedAt) setWorking(activeTaskId, activeTitle.textContent, startedAt);
       document.querySelectorAll("[data-start-task]").forEach(button => button.addEventListener("click", async () => {
         button.disabled = true;
