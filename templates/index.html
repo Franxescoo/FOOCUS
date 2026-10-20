@@ -801,6 +801,23 @@
           label.textContent = "Vence hoy · " + due;
         }
       });
+      document.querySelectorAll(".planned-date[data-planned-date]").forEach(label => {
+        const planned = new Date(label.dataset.plannedDate + "T00:00:00");
+        if (Number.isNaN(planned.getTime())) return;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const card = label.closest(".task-item");
+        if (!card || card.dataset.state === "completed") return;
+        if (planned.getTime() === today.getTime()) {
+          label.classList.add("planned-today");
+          label.textContent = "Estudiar hoy";
+        } else if (planned < today) {
+          label.classList.add("planned-overdue");
+          label.textContent = "Plan pendiente · " + label.dataset.plannedDate;
+        } else {
+          label.textContent = "Plan: " + label.dataset.plannedDate;
+        }
+      });
     })();
   </script>
   <script>
