@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 import sqlite3
 from pathlib import Path
 
@@ -32,11 +32,23 @@ def init_db():
         )
 
 
+def valid_due_date(value):
+    """Accept an empty date or a real ISO calendar date."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value).isoformat()
+    except (TypeError, ValueError):
+        return False
+
+
 @app.route("/")
 def index():
     with get_db() as db:
         tasks = db.execute(
-            "SELECT * FROM tasks ORDER BY completed ASC, id DESC"
+            "SELECT * FROM tasks ORDER BY completed ASC, "
+            "CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, "
+            "due_date ASC, id DESC"
         ).fetchall()
 
     total = len(tasks)
@@ -49,24 +61,30 @@ def index():
         today=date.today().isoformat(),
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 
 @app.route("/tasks", methods=["POST"])
 def add_task():
-    title = request.form.get("title", "").strip()
+    title = request.form.get("title", "").strip()[:160]
     priority = request.form.get("priority", "Media")
-    due_date = request.form.get("due_date", "").strip() or None
+    raw_due_date = request.form.get("due_date", "").strip()
+    due_date = valid_due_date(raw_due_date)
 
-    if title:
-        if priority not in {"Baja", "Media", "Alta"}:
-            priority = "Media"
-        with get_db() as db:
-            db.execute(
-                "INSERT INTO tasks (title, priority, due_date) VALUES (?, ?, ?)",
-                (title, priority, due_date),
-            )
+    if not title:
+        return redirect(url_for("index"))
+    if priority not in {"Baja", "Media", "Alta"}:
+        priority = "Media"
+    if due_date is False:
+        due_date = None
 
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO tasks (title, priority, due_date) VALUES (?, ?, ?)",
+            (title, priority, due_date),
+        )
     return redirect(url_for("index"))
 
 
@@ -91,9 +109,38 @@ def delete_task(task_id):
     return redirect(url_for("index"))
 
 
+@app.route("/api/tasks/<int:task_id>", methods=["PATCH"])
+def edit_task(task_id):
+    """Update an existing task from the inline editor."""
+    payload = request.get_json(silent=True) or {}
+    title = str(payload.get("title", "")).strip()[:160]
+    priority = payload.get("priority", "Media")
+    due_date = valid_due_date(str(payload.get("due_date", "")).strip())
+
+    if not title:
+        return jsonify({"ok": False, "message": "El nombre de la tarea no puede estar vacío."}), 400
+    if priority not in {"Baja", "Media", "Alta"}:
+        return jsonify({"ok": False, "message": "Selecciona una prioridad válida."}), 400
+    if due_date is False:
+        return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
+
+    with get_db() as db:
+        cursor = db.execute(
+            "UPDATE tasks SET title = ?, priority = ?, due_date = ? WHERE id = ?",
+            (title, priority, due_date, task_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+
+    return jsonify({
+        "ok": True,
+        "task": {"id": task_id, "title": title, "priority": priority, "due_date": due_date},
+    })
+
+
 @app.route("/api/music/search")
 def search_music():
-    query = request.args.get("q", "").strip()
+    query = request.args.get("q", "").strip()[:120]
     if not query:
         return jsonify({"items": [], "message": "Escribe una canción, artista o estilo."}), 400
 
@@ -115,7 +162,7 @@ def search_music():
             items.append({
                 "id": video_id,
                 "title": song.get("title", "Canción sin título"),
-                "channel": artist_names or song.get("album", {}).get("name", "YouTube Music"),
+                "channel": artist_names or (song.get("album") or {}).get("name", "YouTube Music"),
                 "thumbnail": thumbnail,
             })
         if not items:
