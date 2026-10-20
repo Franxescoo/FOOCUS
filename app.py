@@ -27,8 +27,8 @@ from flask import (
 try:
     from focusflow_build import APP_VERSION
 except ImportError:
-    # The first semantic release is V1.0.0; desktop builds embed their exact version.
-    APP_VERSION = os.environ.get("FOCUSFLOW_VERSION", "V1.0.0")
+    # Desktop builds embed their exact version; source installs default to the current release.
+    APP_VERSION = os.environ.get("FOOCUS_VERSION", os.environ.get("FOCUSFLOW_VERSION", "V1.0.1"))
 
 
 app = Flask(__name__)
@@ -459,43 +459,47 @@ def release_change_items(body):
 
 @app.route("/api/updates")
 def check_for_updates():
-    """Check private GitHub releases using a server-side, read-only token."""
-    token = os.environ.get("FOCUSFLOW_GITHUB_TOKEN", "").strip()
-    if not token:
+    """Read the latest GitHub release; public repositories do not require user tokens."""
+    repository = os.environ.get("FOOCUS_GITHUB_REPOSITORY", "Franxescoo/FOOCUS").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         return jsonify({
             "ok": False,
             "checkable": False,
             "available": False,
             "current_version": APP_VERSION,
-            "message": (
-                "La detección automática necesita configurar FOCUSFLOW_GITHUB_TOKEN "
-                "en el servidor. No se debe guardar el token dentro del programa."
-            ),
-        }), 503
+            "message": "La configuración del repositorio de actualizaciones no es válida.",
+        }), 500
 
-    api_url = "https://api.github.com/repos/Franxescoo/FocusFlow/releases/latest"
-    github_request = urllib.request.Request(
-        api_url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "FocusFlow-update-check",
-        },
-    )
+    # Public repositories work anonymously. Tokens remain optional and server-side only.
+    token = (
+        os.environ.get("FOOCUS_GITHUB_TOKEN")
+        or os.environ.get("FOCUSFLOW_GITHUB_TOKEN")
+        or ""
+    ).strip()
+    api_url = f"https://api.github.com/repos/{repository}/releases/latest"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "FOOCUS-update-check",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    github_request = urllib.request.Request(api_url, headers=headers)
+
     try:
-        with urllib.request.urlopen(github_request, timeout=5) as response:
+        with urllib.request.urlopen(github_request, timeout=8) as response:
             release = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
-        app.logger.warning("GitHub release check returned HTTP %s", error.code)
+        app.logger.warning("GitHub release check returned HTTP %s for %s", error.code, repository)
         return jsonify({
             "ok": False,
             "checkable": False,
             "available": False,
             "current_version": APP_VERSION,
             "message": (
-                "GitHub no permitió consultar las versiones. Comprueba que "
-                "FOCUSFLOW_GITHUB_TOKEN tenga permiso de lectura del repositorio."
+                "No se pudo consultar la última versión. Comprueba que el repositorio "
+                "FOOCUS exista y sea público; si es privado, configura un token de lectura "
+                "en el entorno del servidor."
             ),
         }), 502
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
@@ -504,7 +508,7 @@ def check_for_updates():
             "checkable": False,
             "available": False,
             "current_version": APP_VERSION,
-            "message": "No se pudo consultar GitHub. Revisa la conexión e inténtalo de nuevo.",
+            "message": "No se pudo conectar con GitHub. Revisa tu conexión e inténtalo de nuevo.",
         }), 502
 
     latest_version = str(release.get("tag_name") or "").strip().lstrip("vV")
@@ -519,19 +523,21 @@ def check_for_updates():
             "message": "La última publicación de GitHub no tiene una versión semántica válida.",
         }), 502
 
-    # Legacy builds such as "build-20" are considered older than the first semantic release.
+    # Legacy builds such as "build-20" are older than semantic releases.
     available = latest_semver > current_semver if current_semver is not None else True
+    repository_url = f"https://github.com/{repository}"
     return jsonify({
         "ok": True,
         "checkable": True,
         "available": available,
         "current_version": APP_VERSION,
         "latest_version": "V" + latest_version,
-        "release_name": release.get("name") or ("FocusFlow V" + latest_version),
+        "release_name": release.get("name") or ("FOOCUS V" + latest_version),
         "published_at": release.get("published_at"),
         "changes": release_change_items(release.get("body", "")),
-        "release_url": "https://github.com/Franxescoo/FocusFlow/releases/latest",
-        "download_url": "https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe",
+        "release_url": repository_url + "/releases/latest",
+        # Keep the asset name stable so existing installations can upgrade.
+        "download_url": repository_url + "/releases/latest/download/FocusFlow-Setup.exe",
     })
 
 
