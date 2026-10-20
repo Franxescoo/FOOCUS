@@ -461,15 +461,93 @@ html[data-theme="dark"] .anti-procrastination { background: linear-gradient(135d
 html[data-theme="dark"] .starter-guidance { border-color: var(--line); background: #191b2b; }
 html[data-theme="dark"] .theme-toggle { border-color: var(--line); background: #222438; color: var(--ink); }
 html[data-theme="dark"] .theme-toggle:hover { background: #34304f; }
-html[data-theme="dark"] .music-sidebar { background: #202235; color: var(--ink); }
-html[data-theme="dark"] .music-result,
-html[data-theme="dark"] .saved-track { border-color: var(--line); background: #25273a; color: var(--ink); }
+/* Give every Music surface its own dark palette, not the light-mode defaults. */
+html[data-theme="dark"] .music-sidebar {
+  background: #171927;
+  color: var(--ink);
+  box-shadow: 12px 0 42px #00000055;
+}
+html[data-theme="dark"] .music-section {
+  border-color: #34364d;
+  background: linear-gradient(150deg, #272640 0%, #202235 44%, #1a1c2d 100%);
+  box-shadow: 0 12px 40px #00000024;
+}
+html[data-theme="dark"] .music-description,
 html[data-theme="dark"] .music-status,
-html[data-theme="dark"] .library-empty { color: var(--muted); }
+html[data-theme="dark"] .library-empty,
+html[data-theme="dark"] .player-note { color: #aeb2c9; }
+html[data-theme="dark"] .music-close,
+html[data-theme="dark"] .saved-track-play {
+  border: 1px solid #454160;
+  background: #34304f;
+  color: #d0caff;
+}
+html[data-theme="dark"] .music-close:hover,
+html[data-theme="dark"] .saved-track-play:hover { background: #403960; }
+html[data-theme="dark"] .music-search input {
+  border-color: #3a3d55;
+  background: #191b2b;
+  color: var(--ink);
+}
+html[data-theme="dark"] .music-search input::placeholder { color: #898da7; }
+html[data-theme="dark"] .music-result,
+html[data-theme="dark"] .saved-track {
+  border-color: #363950;
+  background: #25273a;
+  color: var(--ink);
+  transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+html[data-theme="dark"] .music-result:hover,
+html[data-theme="dark"] .music-result[aria-pressed="true"],
+html[data-theme="dark"] .saved-track:hover {
+  border-color: #6256a2;
+  background: #302d4b;
+}
+html[data-theme="dark"] .music-result:active,
+html[data-theme="dark"] .saved-track:active { transform: scale(.99); }
+html[data-theme="dark"] .music-save {
+  border-color: #454160;
+  background: #292b40;
+  color: #d0caff;
+}
+html[data-theme="dark"] .music-save:hover {
+  border-color: #6256a2;
+  background: #34304f;
+}
+html[data-theme="dark"] .library-empty {
+  border-color: #44415f;
+  background: #1e2032;
+}
+html[data-theme="dark"] .player-topline a,
+html[data-theme="dark"] .music-footer a { color: #c0b8ff; }
+html[data-theme="dark"] .player-topline a:hover,
+html[data-theme="dark"] .music-footer a:hover { color: #e0dcff; }
 html[data-theme="dark"] .music-result-title,
 html[data-theme="dark"] .saved-track-info strong { color: var(--ink); }
 html[data-theme="dark"] .music-result-channel,
-html[data-theme="dark"] .saved-track-info small { color: var(--muted); }
+html[data-theme="dark"] .saved-track-info small { color: #a1a5bc; }
+html[data-theme="dark"] .player-controls {
+  border-color: #363950;
+  background: #191b2b;
+}
+html[data-theme="dark"] .player-control {
+  border-color: #454160;
+  background: #292b40;
+  color: #d0caff;
+}
+html[data-theme="dark"] .player-control:hover {
+  border-color: #6256a2;
+  background: #34304f;
+}
+html[data-theme="dark"] .player-control.primary-control,
+html[data-theme="dark"] .player-control.primary-control:hover {
+  border-color: var(--purple);
+  background: var(--purple);
+  color: #fff;
+}
+html[data-theme="dark"] .volume-control output { color: #c0b8ff; }
+html[data-theme="dark"] .music-player-wrap,
+html[data-theme="dark"] .music-footer { border-color: #363950; }
 html[data-theme="dark"] .task-history .work-log-item { border-color: var(--line); }
 @media (max-width: 640px) {
   .topbar-actions { gap: 8px; }
