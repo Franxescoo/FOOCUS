@@ -198,3 +198,49 @@ button:disabled{opacity:.6;cursor:wait}
 /* Contribution-style layout: seven weekdays by five weeks */
 .activity-grid{grid-template-columns:repeat(5,12px);grid-template-rows:repeat(7,12px);grid-auto-flow:column;justify-content:start;max-width:100%;gap:4px}
 .activity-cell{width:12px;height:12px;aspect-ratio:auto}
+
+
+/* Fix: prevent task titles and labels from looking stretched */
+.task-item,
+.task-item * {
+  letter-spacing: normal;
+  word-spacing: normal;
+}
+.task-item {
+  justify-content: flex-start;
+  text-align: left;
+}
+.task-item .task-info {
+  flex: 1 1 180px;
+  width: auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.task-item .task-info h3 {
+  display: block;
+  width: 100%;
+  margin: 0 0 7px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  text-align: left;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+.task-item .task-meta {
+  justify-content: flex-start;
+  line-height: 1.5;
+}
+.task-item .task-work-summary {
+  justify-content: flex-start;
+}
+@media(max-width:520px) {
+  .task-item .task-info {
+    flex: 1 1 calc(100% - 45px);
+  }
+  .task-item .task-info h3 {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+}
