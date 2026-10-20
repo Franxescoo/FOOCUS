@@ -58,6 +58,21 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 
 La base de datos focusflow.db se crea automáticamente junto a app.py. Si necesitas ubicarla en otra carpeta, configura la variable de entorno FOCUSFLOW_DATABASE con su ruta absoluta. Mantén la aplicación en ejecución mientras la usas. Las nuevas instalaciones crean las tablas de asignaturas, las estimaciones y las fechas planificadas; las instalaciones anteriores reciben columnas nuevas de forma aditiva y conservan sus tareas y sesiones. Haz una copia de seguridad antes de actualizar una base de datos importante.
 
+## Instalar como aplicación de escritorio en Windows
+
+FocusFlow también se puede empaquetar como una aplicación de escritorio con su propia ventana, sin tener que abrir el navegador manualmente.
+
+1. Abre la pestaña **Actions** del repositorio en GitHub.
+2. Entra al flujo **Windows desktop installer** y abre la ejecución más reciente que terminó correctamente.
+3. Descarga el artefacto **FocusFlow-Windows-Installer** y extrae el archivo `FocusFlow-Setup.exe`.
+4. Ejecuta el instalador. Crea accesos directos y ofrece abrir FocusFlow al terminar.
+
+La compilación de Windows se genera automáticamente al subir cambios a `main` o a una rama `feature/**`. Los artefactos de Actions se conservan durante 30 días. El instalador instala el componente Microsoft Edge WebView2 necesario para la ventana de escritorio.
+
+La aplicación de escritorio guarda sus datos en `%LOCALAPPDATA%\\FocusFlow` y solo inicia su servidor web en `127.0.0.1`. La base SQLite, la clave local de sesión y el puerto estable quedan fuera de la carpeta de instalación, por lo que actualizar o desinstalar el programa no debería borrar el historial. La música requiere conexión a internet.
+
+**Importante si ya usas la versión de desarrollo:** la base `focusflow.db` ubicada junto al repositorio no se copia automáticamente. Para conservar esos datos en la versión de escritorio, cierra FocusFlow, crea la carpeta `%LOCALAPPDATA%\\FocusFlow` si no existe y copia allí tu `focusflow.db` antes de iniciar la aplicación instalada por primera vez. Haz primero una copia de seguridad.
+
 ## Ejecutar pruebas
 
 Desde la carpeta raíz del proyecto:
