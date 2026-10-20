@@ -587,14 +587,15 @@ html[data-theme="dark"] .utility-card[open] > summary { border-color: var(--line
   background: var(--surface-soft, var(--surface));
 }
 .work-dashboard-main .activity-grid {
-  grid-template-columns: repeat(5, minmax(12px, 1fr));
+  grid-template-columns: repeat(5, 14px);
   grid-template-rows: repeat(7, 14px);
   gap: 5px;
-  max-width: 390px;
+  width: max-content;
+  max-width: 100%;
   overflow: visible;
 }
 .work-dashboard-main .activity-cell {
-  width: 100%;
+  width: 14px;
   height: 14px;
   border-radius: 4px;
 }
@@ -611,9 +612,5 @@ html[data-theme="dark"] .utility-card[open] > summary { border-color: var(--line
   }
   .work-dashboard-main .work-metrics article strong {
     text-align: right;
-  }
-  .work-dashboard-main .activity-grid {
-    max-width: 100%;
-    grid-template-columns: repeat(5, minmax(10px, 1fr));
   }
 }
