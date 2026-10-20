@@ -102,6 +102,8 @@ def main() -> int:
         import webview
         from app import app as flask_app
 
+        flask_app.config["DESKTOP_MODE"] = True
+
         port = load_saved_port(data_dir)
         server = make_server("127.0.0.1", port, flask_app, threaded=True)
         actual_port = int(server.server_port)
