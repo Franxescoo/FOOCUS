@@ -17,21 +17,24 @@ FocusFlow es una aplicación **local y de un solo usuario** construida con Flask
 ### 1. Consolidar la experiencia local
 
 - Mantener las métricas principales visibles y sin sobrecargar la pantalla.
+- Mantener asignaturas, estimaciones, filtro y resumen de carga de estudio cubiertos por pruebas.
 - Probar creación, edición, cierre y eliminación de tareas con fechas límite.
 - Probar sesiones activas, recargas, errores de red y sesiones que quedan abiertas.
 - Añadir pruebas de regresión para las estadísticas, la meta diaria y la exportación.
 - Seguir manteniendo controles de accesibilidad, modo oscuro, diseño móvil y movimiento reducido.
 
-### 2. Preparar el modelo de datos para estudios
+### 2. Evolucionar el modelo académico
 
-Cuando el flujo actual sea estable, añadir entidades explícitas para:
-- Asignaturas o cursos.
-- Tareas vinculadas a una asignatura.
-- Tiempo estimado y tiempo real por tarea.
-- Objetivos semanales y plan de estudio.
-- Revisiones breves al cerrar una sesión.
+**Ya implementado:** tabla normalizada de asignaturas, tareas vinculadas mediante `subject_id`, tiempo estimado por tarea, comparación con tiempo real, filtro por asignatura y resumen de carga pendiente. `init_db()` detecta columnas ausentes y las añade sin recrear la tabla ni borrar tareas existentes.
 
-Antes de agregar campos a tablas existentes, crear migraciones versionadas. No depender únicamente de cambios al CREATE TABLE, porque ese comando no modifica las bases de datos que ya existen.
+Siguientes mejoras recomendadas:
+- Introducir migraciones versionadas para que futuras modificaciones se puedan auditar, probar y revertir con seguridad.
+- Añadir semestres o periodos académicos y permitir archivar asignaturas antiguas.
+- Desarrollar una planificación semanal con bloques de estudio y fecha objetivo, basada en la estimación pendiente.
+- Registrar una breve revisión al cerrar una sesión: qué se avanzó y cuál es el siguiente paso.
+- Comparar estimaciones y tiempos reales en un informe semanal para ajustar futuras estimaciones.
+
+La migración actual es aditiva y conservadora, pero no sustituye una herramienta de migraciones versionadas antes de introducir cambios de esquema más complejos.
 
 ### 3. Separar la lógica del servidor
 
