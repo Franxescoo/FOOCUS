@@ -241,7 +241,7 @@ class FocusFlowTaskTests(unittest.TestCase):
     def test_task_without_planned_date_is_not_added_to_week_plan(self):
         self.create_task(title="Sin día asignado")
         page = self.client.get("/").data
-        self.assertIn(b"Sin día asignado", page)
+        self.assertIn("Sin día asignado".encode(), page)
         self.assertNotIn(b"data-planned-task=", page)
 
     def test_invalid_planned_date_is_ignored_on_task_creation(self):
