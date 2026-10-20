@@ -9,6 +9,8 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 - Reutilizar asignaturas escritas desde el formulario de tareas; FocusFlow las normaliza para evitar duplicados por mayúsculas y espacios.
 - Definir el tiempo estimado por tarea, comparar la estimación con el tiempo registrado y filtrar la lista por asignatura.
 - Consultar un resumen plegable por asignatura con pendientes, tiempo estimado pendiente y tiempo registrado.
+- Planificar cada tarea para un día de estudio y revisar los próximos siete días en un calendario plegable, separado de la fecha límite.
+- Identificar tareas con planificación pasada para reprogramarlas sin perder la fecha límite original.
 - Buscar tareas y filtrarlas por estado.
 - Avisos visuales para tareas vencidas o que vencen hoy.
 - Registro de sesiones de trabajo por tarea, con tiempo transcurrido y comentarios al cerrar.
