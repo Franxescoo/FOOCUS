@@ -64,6 +64,7 @@
           const video = pendingVideo;
           const code = event.data;
           let reason = "YouTube rechazó la reproducción (error " + code + ").";
+          if (code === 5) reason = "El reproductor HTML5 de YouTube no pudo reproducir este video. Puede ser una incompatibilidad del navegador o del formato del video; prueba otra canción o ábrela en YouTube.";
           if (code === 100) reason = "El video fue eliminado o es privado.";
           if (code === 101 || code === 150) reason = "El propietario no permite reproducir este video en otras páginas.";
           if (code === 153) reason = "YouTube no recibió la información de referencia necesaria del reproductor.";
