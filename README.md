@@ -9,6 +9,8 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 - Reutilizar asignaturas escritas desde el formulario de tareas; FocusFlow las normaliza para evitar duplicados por mayúsculas y espacios.
 - Definir el tiempo estimado por tarea, comparar la estimación con el tiempo registrado y filtrar la lista por asignatura.
 - Consultar un resumen plegable por asignatura con pendientes, tiempo estimado pendiente y tiempo registrado.
+- Planificar cada tarea para un día de estudio y revisar los próximos siete días en un calendario plegable, separado de la fecha límite.
+- Identificar tareas con planificación pasada para reprogramarlas sin perder la fecha límite original.
 - Buscar tareas y filtrarlas por estado.
 - Avisos visuales para tareas vencidas o que vencen hoy.
 - Registro de sesiones de trabajo por tarea, con tiempo transcurrido y comentarios al cerrar.
@@ -22,7 +24,7 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 ### Herramientas personales
 - Notas rápidas guardadas en el almacenamiento local del navegador.
 - Modo claro y oscuro.
-- Exportación CSV de tareas y sesiones, incluyendo asignatura y estimación de cada tarea.
+- Exportación CSV de tareas y sesiones, incluyendo asignatura, estimación y día planificado de cada tarea.
 - Panel musical con búsqueda mediante ytmusicapi, colección local y reproductor integrado de YouTube cuando el video permite reproducción incrustada.
 
 ## Requisitos
@@ -52,7 +54,7 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 
 6. Abre http://127.0.0.1:5000 en el navegador.
 
-La base de datos focusflow.db se crea automáticamente junto a app.py. Si necesitas ubicarla en otra carpeta, configura la variable de entorno FOCUSFLOW_DATABASE con su ruta absoluta. Mantén la aplicación en ejecución mientras la usas. Las nuevas instalaciones crean las tablas de asignaturas y estimaciones; las instalaciones anteriores reciben columnas nuevas de forma aditiva y conservan sus tareas y sesiones. Haz una copia de seguridad antes de actualizar una base de datos importante.
+La base de datos focusflow.db se crea automáticamente junto a app.py. Si necesitas ubicarla en otra carpeta, configura la variable de entorno FOCUSFLOW_DATABASE con su ruta absoluta. Mantén la aplicación en ejecución mientras la usas. Las nuevas instalaciones crean las tablas de asignaturas, las estimaciones y las fechas planificadas; las instalaciones anteriores reciben columnas nuevas de forma aditiva y conservan sus tareas y sesiones. Haz una copia de seguridad antes de actualizar una base de datos importante.
 
 ## Ejecutar pruebas
 
@@ -69,6 +71,7 @@ Las pruebas usan una base de datos temporal; no deberían modificar tu base de d
 3. Cuando termines, añade una nota breve sobre lo que avanzaste y pulsa **Terminar y guardar**.
 4. Las estadísticas y el mapa de actividad se actualizan con las sesiones guardadas.
 5. En **Actividad de trabajo**, puedes fijar una meta diaria de entre 15 minutos y 10 horas, en incrementos de 15 minutos.
+6. Asigna un **día para estudiar** a las tareas que quieras planificar. En **Plan de estudio · próximos 7 días** puedes revisar la carga por día e iniciar una tarea directamente desde ese panel. La fecha planificada no cambia la fecha límite de entrega.
 
 Solo puede haber una sesión de trabajo activa a la vez. El servidor evita iniciar trabajo sobre una tarea completada y no permite eliminar una tarea mientras tiene una sesión activa. Si cierras el navegador o la aplicación durante una sesión, vuelve a abrir FocusFlow para retomar y finalizar esa sesión.
 
@@ -99,7 +102,7 @@ Usa un secreto largo, privado y único. En un despliegue HTTPS, configura ademá
 
 ## Archivos principales
 
-- app.py: rutas Flask, validación, consultas, asignaturas y reglas del registro de trabajo.
+- app.py: rutas Flask, validación, consultas, asignaturas, planificación semanal y reglas del registro de trabajo.
 - templates/index.html: estructura de la pantalla principal y los widgets.
 - templates/error.html: pantalla de error coherente con la aplicación.
 - static/style.css: temas, diseño responsive, paneles y widgets.

@@ -76,6 +76,7 @@ def init_db():
                 title TEXT NOT NULL,
                 priority TEXT NOT NULL DEFAULT 'Media',
                 due_date TEXT,
+                planned_date TEXT,
                 completed INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 subject_id INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
@@ -89,6 +90,8 @@ def init_db():
             db.execute("ALTER TABLE tasks ADD COLUMN subject_id INTEGER REFERENCES subjects(id) ON DELETE SET NULL")
         if "estimated_minutes" not in task_columns:
             db.execute("ALTER TABLE tasks ADD COLUMN estimated_minutes INTEGER NOT NULL DEFAULT 30")
+        if "planned_date" not in task_columns:
+            db.execute("ALTER TABLE tasks ADD COLUMN planned_date TEXT")
         db.execute(
             """
             CREATE TABLE IF NOT EXISTS work_sessions (
@@ -312,6 +315,28 @@ def index():
             cursor_day -= timedelta(days=1)
         task_streaks[task["id"]] = streak
 
+    weekday_names = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    week_plan_days = []
+    week_plan_count = 0
+    for offset in range(7):
+        plan_date = today_date + timedelta(days=offset)
+        day_tasks = [
+            task for task in tasks
+            if not task["completed"] and task["planned_date"] == plan_date.isoformat()
+        ]
+        day_tasks.sort(key=lambda task: (
+            {"Alta": 0, "Media": 1, "Baja": 2}.get(task["priority"], 1),
+            task["due_date"] or "9999-12-31",
+            task["title"].casefold(),
+        ))
+        week_plan_count += len(day_tasks)
+        week_plan_days.append({
+            "date": plan_date.isoformat(),
+            "label": "Hoy" if offset == 0 else f"{weekday_names[plan_date.weekday()].capitalize()} {plan_date.strftime('%d/%m')}",
+            "is_today": offset == 0,
+            "tasks": day_tasks,
+        })
+
     activity_days = []
     for offset in range(34, -1, -1):
         day = today_date - timedelta(days=offset)
@@ -361,6 +386,8 @@ def index():
         today_session_count=today_session_count,
         subjects=all_subjects,
         subject_summaries=subject_summaries,
+        week_plan_days=week_plan_days,
+        week_plan_count=week_plan_count,
         study_goal_minutes=study_goal_minutes,
         goal_progress_percent=goal_progress_percent,
         active_session=active_session,
@@ -375,6 +402,7 @@ def add_task():
     priority = request.form.get("priority", "Media")
     raw_due_date = request.form.get("due_date", "").strip()
     due_date = valid_due_date(raw_due_date)
+    planned_date = valid_due_date(request.form.get("planned_date", "").strip())
     subject_name = normalize_subject_name(request.form.get("subject", ""))
     estimated_minutes = parse_estimated_minutes(request.form.get("estimated_minutes", 30))
 
@@ -384,15 +412,17 @@ def add_task():
         priority = "Media"
     if due_date is False:
         due_date = None
+    if planned_date is False:
+        planned_date = None
     if estimated_minutes is None:
         estimated_minutes = 30
 
     with get_db() as db:
         subject_id = get_or_create_subject(db, subject_name)
         db.execute(
-            """INSERT INTO tasks (title, priority, due_date, subject_id, estimated_minutes)
-               VALUES (?, ?, ?, ?, ?)""",
-            (title, priority, due_date, subject_id, estimated_minutes),
+            """INSERT INTO tasks (title, priority, due_date, planned_date, subject_id, estimated_minutes)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (title, priority, due_date, planned_date, subject_id, estimated_minutes),
         )
     return redirect(url_for("index"))
 
@@ -431,6 +461,7 @@ def edit_task(task_id):
     title = str(payload.get("title", "")).strip()[:160]
     priority = payload.get("priority", "Media")
     due_date = valid_due_date(str(payload.get("due_date", "")).strip())
+    planned_date = valid_due_date(str(payload.get("planned_date", "")).strip())
     subject_name = normalize_subject_name(payload.get("subject", ""))
     estimated_minutes = parse_estimated_minutes(payload.get("estimated_minutes", 30))
 
@@ -440,6 +471,8 @@ def edit_task(task_id):
         return jsonify({"ok": False, "message": "Selecciona una prioridad válida."}), 400
     if due_date is False:
         return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
+    if planned_date is False:
+        return jsonify({"ok": False, "message": "La fecha planificada no es válida."}), 400
     if estimated_minutes is None:
         return jsonify({"ok": False, "message": "Selecciona una estimación válida."}), 400
 
@@ -449,9 +482,9 @@ def edit_task(task_id):
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
         subject_id = get_or_create_subject(db, subject_name)
         db.execute(
-            """UPDATE tasks SET title = ?, priority = ?, due_date = ?, subject_id = ?,
-               estimated_minutes = ? WHERE id = ?""",
-            (title, priority, due_date, subject_id, estimated_minutes, task_id),
+            """UPDATE tasks SET title = ?, priority = ?, due_date = ?, planned_date = ?,
+               subject_id = ?, estimated_minutes = ? WHERE id = ?""",
+            (title, priority, due_date, planned_date, subject_id, estimated_minutes, task_id),
         )
         subject = db.execute(
             "SELECT name FROM subjects WHERE id = ?", (subject_id,)
@@ -464,6 +497,7 @@ def edit_task(task_id):
             "title": title,
             "priority": priority,
             "due_date": due_date,
+            "planned_date": planned_date,
             "subject": subject["name"] if subject else "",
             "estimated_minutes": estimated_minutes,
         },
@@ -642,7 +676,7 @@ def export_csv():
     with get_db() as db:
         rows = db.execute(
             """
-            SELECT t.id, t.title, t.priority, t.due_date, t.completed, t.created_at,
+            SELECT t.id, t.title, t.priority, t.due_date, t.planned_date, t.completed, t.created_at,
                    t.estimated_minutes, s.name AS subject_name,
                    ws.started_at, ws.ended_at, ws.duration_seconds, ws.comment
             FROM tasks t
@@ -655,9 +689,9 @@ def export_csv():
     output = io.StringIO(newline="")
     writer = csv.writer(output)
     writer.writerow([
-        "ID tarea", "Tarea", "Asignatura", "Estimación (minutos)", "Prioridad",
-        "Fecha límite", "Completada", "Creada el", "Inicio sesión", "Fin sesión",
-        "Duración (segundos)", "Comentario de sesión",
+        "ID tarea", "Tarea", "Asignatura", "Estimación (minutos)", "Fecha planificada",
+        "Prioridad", "Fecha límite", "Completada", "Creada el", "Inicio sesión",
+        "Fin sesión", "Duración (segundos)", "Comentario de sesión",
     ])
     for row in rows:
         writer.writerow([
@@ -665,6 +699,7 @@ def export_csv():
             spreadsheet_safe(row["title"]),
             spreadsheet_safe(row["subject_name"] or ""),
             row["estimated_minutes"],
+            row["planned_date"] or "",
             spreadsheet_safe(row["priority"]),
             row["due_date"] or "",
             "Sí" if row["completed"] else "No",
