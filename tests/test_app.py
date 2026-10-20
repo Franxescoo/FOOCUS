@@ -228,7 +228,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="weekly-planner"', page)
         self.assertIn(b"Estudiar hoy", page)
         self.assertIn(b"Repasar ma", page)
-        self.assertIn(b"Planificada", page)
+        self.assertIn(b"planificada", page)
 
         self.client.post(
             f"/tasks/{today_task_id}/toggle",
