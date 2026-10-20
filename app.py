@@ -558,7 +558,7 @@ def check_for_updates():
         "changes": release_change_items(release.get("body", "")),
         "release_url": repository_url + "/releases/latest",
         # Keep the asset name stable so existing installations can upgrade.
-        "download_url": repository_url + "/releases/latest/download/FocusFlow-Setup.exe",
+        "download_url": repository_url + "/releases/latest/download/FOOCUS-Setup.exe",
     })
 
 

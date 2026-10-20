@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "fix/**", "patch/**"]
   pull_request:
     branches: [main]
 
@@ -14,9 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@
+        uses: actions/checkout@v7
         with:
-          persist-credentials: falsev7
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v7
         with:

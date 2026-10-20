@@ -102,6 +102,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["checkable"])
         self.assertEqual(payload["latest_version"], "V1.0.1")
+        self.assertEqual(payload["download_url"], "https://github.com/Franxescoo/FOOCUS/releases/latest/download/FOOCUS-Setup.exe")
         self.assertTrue(payload["available"])
         request = github_request.call_args.args[0]
         self.assertEqual(request.full_url, "https://api.github.com/repos/Franxescoo/FOOCUS/releases/latest")
