@@ -49,7 +49,7 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 
 6. Abre http://127.0.0.1:5000 en el navegador.
 
-La base de datos focusflow.db se crea automáticamente junto a app.py. Mantén la aplicación en ejecución mientras la usas.
+La base de datos focusflow.db se crea automáticamente junto a app.py. Si necesitas ubicarla en otra carpeta, configura la variable de entorno FOCUSFLOW_DATABASE con su ruta absoluta. Mantén la aplicación en ejecución mientras la usas.
 
 ## Ejecutar pruebas
 
