@@ -34,6 +34,7 @@ except ImportError:
 app = Flask(__name__)
 app.config.update(
     SECRET_KEY=os.environ.get("FOCUSFLOW_SECRET_KEY") or secrets.token_hex(32),
+    DESKTOP_MODE=False,
     TEMPLATES_AUTO_RELOAD=True,
     SEND_FILE_MAX_AGE_DEFAULT=0,
     SESSION_COOKIE_HTTPONLY=True,
@@ -417,6 +418,7 @@ def index():
         study_goal_minutes=study_goal_minutes,
         goal_progress_percent=goal_progress_percent,
         active_session=active_session,
+        desktop_mode=app.config["DESKTOP_MODE"],
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
