@@ -49,6 +49,19 @@ FocusFlow es una aplicación de productividad personal construida con Python, Fl
 
 La base de datos `focusflow.db` se crea automáticamente junto a `app.py`. Mantén la aplicación en ejecución mientras la uses.
 
+
+## Seguimiento del trabajo por tarea
+
+- Cada tarea tiene el botón **Empezar a trabajar**. FocusFlow inicia una sesión y muestra un cronómetro que sigue contando aunque recargues la página.
+- Solo se permite una sesión activa a la vez para evitar contabilizar dos tareas simultáneamente.
+- Al pulsar **Terminar y guardar**, puedes escribir un comentario con lo que avanzaste. Se guardan la hora de inicio, la hora de término, la duración y el comentario en SQLite.
+- **Ver sesiones** muestra el historial reciente de tiempo y notas de esa tarea.
+- Cada tarea muestra el tiempo total registrado y una racha de días consecutivos en los que guardaste al menos una sesión.
+- El panel de actividad representa los últimos 35 días con un mapa de intensidad inspirado en el calendario de contribuciones de GitHub. Es actividad de FocusFlow, no datos conectados a GitHub.
+- Las estadísticas se calculan con las sesiones que se han terminado y guardado. Si cierras el navegador con una sesión activa, vuelve a abrir la aplicación para retomarla y finalizarla.
+
+Las sesiones se almacenan en la tabla local `work_sessions` dentro de `focusflow.db`. No se necesita instalar una dependencia adicional para esta función.
+
 ## FocusFlow Music
 
 El panel consulta resultados mediante `ytmusicapi`, una biblioteca comunitaria que interactúa con una interfaz de YouTube Music que no es una API oficial estable. Por ello, la búsqueda puede dejar de funcionar si el servicio cambia o limita las solicitudes.
