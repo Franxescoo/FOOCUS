@@ -1,4 +1,4 @@
-name: Windows desktop installer
+name: FOOCUS Windows desktop installer
 
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
           $installerScript = Get-Content -Path "installer/FocusFlow.iss" -Raw
           $installerScript = [regex]::Replace($installerScript, '(?m)^#define MyAppVersion ".*"$', ('#define MyAppVersion "' + $appVersion + '"'))
           Set-Content -Path "installer/FocusFlow.iss" -Value $installerScript -Encoding utf8
-      - name: Package FocusFlow for Windows
+      - name: Package FOOCUS for Windows
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
@@ -96,13 +96,13 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: FocusFlow-Windows-Installer
+          name: FOOCUS-Windows-Installer
           path: dist-installer/FocusFlow-Setup.exe
           if-no-files-found: error
           retention-days: 30
 
   publish-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore: update FOOCUS release branding') }}
     needs: build-installer
     runs-on: ubuntu-latest
     permissions:
@@ -111,16 +111,16 @@ jobs:
       - name: Download Windows installer artifact
         uses: actions/download-artifact@v4
         with:
-          name: FocusFlow-Windows-Installer
+          name: FOOCUS-Windows-Installer
           path: dist-installer
 
       - name: Publish latest Windows release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.build-installer.outputs.release_version }}
-          name: FocusFlow V${{ needs.build-installer.outputs.release_version }}
+          name: FOOCUS V${{ needs.build-installer.outputs.release_version }}
           body: |
-            FocusFlow V${{ needs.build-installer.outputs.release_version }}
+            FOOCUS V${{ needs.build-installer.outputs.release_version }}
 
             Instalador generado automáticamente desde el commit ${{ github.sha }}. Las novedades aparecen en la sección What's Changed.
           files: dist-installer/FocusFlow-Setup.exe
