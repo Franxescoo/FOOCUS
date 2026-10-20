@@ -32,6 +32,8 @@ app.config.update(
 )
 DATABASE = Path(os.environ.get("FOCUSFLOW_DATABASE", str(Path(__file__).with_name("focusflow.db")))).expanduser()
 VALID_PRIORITIES = {"Baja", "Media", "Alta"}
+ALLOWED_ESTIMATED_MINUTES = {15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600}
+MAX_SUBJECT_NAME_LENGTH = 60
 DEFAULT_STUDY_GOAL_MINUTES = 120
 MIN_STUDY_GOAL_MINUTES = 15
 MAX_STUDY_GOAL_MINUTES = 600
@@ -60,16 +62,33 @@ def init_db():
     with get_db() as db:
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS subjects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 priority TEXT NOT NULL DEFAULT 'Media',
                 due_date TEXT,
                 completed INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                subject_id INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+                estimated_minutes INTEGER NOT NULL DEFAULT 30
             )
             """
         )
+        # Keep existing installations and their task history intact.
+        task_columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)").fetchall()}
+        if "subject_id" not in task_columns:
+            db.execute("ALTER TABLE tasks ADD COLUMN subject_id INTEGER REFERENCES subjects(id) ON DELETE SET NULL")
+        if "estimated_minutes" not in task_columns:
+            db.execute("ALTER TABLE tasks ADD COLUMN estimated_minutes INTEGER NOT NULL DEFAULT 30")
         db.execute(
             """
             CREATE TABLE IF NOT EXISTS work_sessions (
@@ -101,6 +120,9 @@ def init_db():
         )
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_tasks_state_due ON tasks(completed, due_date, id)"
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_subject ON tasks(subject_id, completed)"
         )
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_task_started ON work_sessions(task_id, started_at DESC)"
@@ -183,6 +205,31 @@ def valid_due_date(value):
     except (TypeError, ValueError):
         return False
 
+def normalize_subject_name(value):
+    """Normalize a user-entered subject label and cap its size."""
+    return " ".join(str(value or "").split())[:MAX_SUBJECT_NAME_LENGTH]
+
+
+def get_or_create_subject(db, value):
+    """Resolve a subject name to a stable ID, case-insensitively."""
+    name = normalize_subject_name(value)
+    if not name:
+        return None
+    db.execute("INSERT OR IGNORE INTO subjects (name) VALUES (?)", (name,))
+    row = db.execute(
+        "SELECT id FROM subjects WHERE name = ? COLLATE NOCASE", (name,)
+    ).fetchone()
+    return row["id"] if row else None
+
+
+def parse_estimated_minutes(value):
+    try:
+        minutes = int(value)
+    except (TypeError, ValueError):
+        return None
+    return minutes if minutes in ALLOWED_ESTIMATED_MINUTES else None
+
+
 
 def get_study_goal_minutes(db):
     row = db.execute(
@@ -202,20 +249,23 @@ def index():
 
     with get_db() as db:
         tasks = db.execute(
-            "SELECT * FROM tasks ORDER BY completed ASC, "
-            "CASE WHEN due_date IS NULL OR due_date = '' THEN 1 ELSE 0 END, "
-            "due_date ASC, id DESC"
+            """SELECT t.*, s.name AS subject_name
+               FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id
+               ORDER BY t.completed ASC,
+               CASE WHEN t.due_date IS NULL OR t.due_date = '' THEN 1 ELSE 0 END,
+               t.due_date ASC, t.id DESC"""
         ).fetchall()
         sessions = db.execute(
-            """SELECT ws.*, t.title AS task_title FROM work_sessions ws
+            """SELECT ws.*, t.title AS task_title, t.subject_id FROM work_sessions ws
                JOIN tasks t ON t.id = ws.task_id
                WHERE ws.ended_at IS NOT NULL ORDER BY ws.started_at DESC"""
         ).fetchall()
         active_session = db.execute(
-            """SELECT ws.*, t.title AS task_title FROM work_sessions ws
+            """SELECT ws.*, t.title AS task_title, t.subject_id FROM work_sessions ws
                JOIN tasks t ON t.id = ws.task_id
                WHERE ws.ended_at IS NULL ORDER BY ws.id DESC LIMIT 1"""
         ).fetchone()
+        all_subjects = db.execute("SELECT id, name FROM subjects ORDER BY name COLLATE NOCASE").fetchall()
         study_goal_minutes = get_study_goal_minutes(db)
 
     total = len(tasks)
@@ -227,6 +277,7 @@ def index():
     today_work_seconds = 0
     week_work_seconds = 0
     today_session_count = 0
+    subject_work_seconds = {}
 
     for work_session in sessions:
         started = datetime.fromisoformat(work_session["started_at"])
@@ -240,6 +291,9 @@ def index():
         if started.date() >= week_start:
             week_work_seconds += seconds
 
+        subject_id = work_session["subject_id"]
+        if subject_id is not None:
+            subject_work_seconds[subject_id] = subject_work_seconds.get(subject_id, 0) + seconds
         task_id = work_session["task_id"]
         work_stats.setdefault(task_id, {"seconds": 0, "sessions": 0, "last_comment": ""})
         work_stats[task_id]["seconds"] += seconds
@@ -276,6 +330,19 @@ def index():
             ),
         })
 
+    subject_summaries = []
+    for subject in all_subjects:
+        subject_tasks = [task for task in tasks if task["subject_id"] == subject["id"]]
+        pending_tasks = [task for task in subject_tasks if not task["completed"]]
+        subject_summaries.append({
+            "id": subject["id"],
+            "name": subject["name"],
+            "task_count": len(subject_tasks),
+            "pending_count": len(pending_tasks),
+            "pending_estimated_minutes": sum(int(task["estimated_minutes"] or 30) for task in pending_tasks),
+            "actual_seconds": subject_work_seconds.get(subject["id"], 0),
+        })
+
     goal_seconds = study_goal_minutes * 60
     goal_progress_percent = min(100, round(today_work_seconds / goal_seconds * 100)) if goal_seconds else 0
     response = make_response(render_template(
@@ -292,6 +359,8 @@ def index():
         week_work_seconds=week_work_seconds,
         total_session_count=len(sessions),
         today_session_count=today_session_count,
+        subjects=all_subjects,
+        subject_summaries=subject_summaries,
         study_goal_minutes=study_goal_minutes,
         goal_progress_percent=goal_progress_percent,
         active_session=active_session,
@@ -306,6 +375,8 @@ def add_task():
     priority = request.form.get("priority", "Media")
     raw_due_date = request.form.get("due_date", "").strip()
     due_date = valid_due_date(raw_due_date)
+    subject_name = normalize_subject_name(request.form.get("subject", ""))
+    estimated_minutes = parse_estimated_minutes(request.form.get("estimated_minutes", 30))
 
     if not title:
         return redirect(url_for("index"))
@@ -313,11 +384,15 @@ def add_task():
         priority = "Media"
     if due_date is False:
         due_date = None
+    if estimated_minutes is None:
+        estimated_minutes = 30
 
     with get_db() as db:
+        subject_id = get_or_create_subject(db, subject_name)
         db.execute(
-            "INSERT INTO tasks (title, priority, due_date) VALUES (?, ?, ?)",
-            (title, priority, due_date),
+            """INSERT INTO tasks (title, priority, due_date, subject_id, estimated_minutes)
+               VALUES (?, ?, ?, ?, ?)""",
+            (title, priority, due_date, subject_id, estimated_minutes),
         )
     return redirect(url_for("index"))
 
@@ -356,6 +431,8 @@ def edit_task(task_id):
     title = str(payload.get("title", "")).strip()[:160]
     priority = payload.get("priority", "Media")
     due_date = valid_due_date(str(payload.get("due_date", "")).strip())
+    subject_name = normalize_subject_name(payload.get("subject", ""))
+    estimated_minutes = parse_estimated_minutes(payload.get("estimated_minutes", 30))
 
     if not title:
         return jsonify({"ok": False, "message": "El nombre de la tarea no puede estar vacío."}), 400
@@ -363,18 +440,32 @@ def edit_task(task_id):
         return jsonify({"ok": False, "message": "Selecciona una prioridad válida."}), 400
     if due_date is False:
         return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
+    if estimated_minutes is None:
+        return jsonify({"ok": False, "message": "Selecciona una estimación válida."}), 400
 
     with get_db() as db:
+        subject_id = get_or_create_subject(db, subject_name)
         cursor = db.execute(
-            "UPDATE tasks SET title = ?, priority = ?, due_date = ? WHERE id = ?",
-            (title, priority, due_date, task_id),
+            """UPDATE tasks SET title = ?, priority = ?, due_date = ?, subject_id = ?,
+               estimated_minutes = ? WHERE id = ?""",
+            (title, priority, due_date, subject_id, estimated_minutes, task_id),
         )
         if cursor.rowcount == 0:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+        subject = db.execute(
+            "SELECT name FROM subjects WHERE id = ?", (subject_id,)
+        ).fetchone() if subject_id else None
 
     return jsonify({
         "ok": True,
-        "task": {"id": task_id, "title": title, "priority": priority, "due_date": due_date},
+        "task": {
+            "id": task_id,
+            "title": title,
+            "priority": priority,
+            "due_date": due_date,
+            "subject": subject["name"] if subject else "",
+            "estimated_minutes": estimated_minutes,
+        },
     })
 
 
@@ -551,8 +642,10 @@ def export_csv():
         rows = db.execute(
             """
             SELECT t.id, t.title, t.priority, t.due_date, t.completed, t.created_at,
+                   t.estimated_minutes, s.name AS subject_name,
                    ws.started_at, ws.ended_at, ws.duration_seconds, ws.comment
             FROM tasks t
+            LEFT JOIN subjects s ON s.id = t.subject_id
             LEFT JOIN work_sessions ws ON ws.task_id = t.id AND ws.ended_at IS NOT NULL
             ORDER BY t.id ASC, ws.started_at ASC
             """
@@ -561,13 +654,16 @@ def export_csv():
     output = io.StringIO(newline="")
     writer = csv.writer(output)
     writer.writerow([
-        "ID tarea", "Tarea", "Prioridad", "Fecha límite", "Completada",
-        "Creada el", "Inicio sesión", "Fin sesión", "Duración (segundos)", "Comentario de sesión",
+        "ID tarea", "Tarea", "Asignatura", "Estimación (minutos)", "Prioridad",
+        "Fecha límite", "Completada", "Creada el", "Inicio sesión", "Fin sesión",
+        "Duración (segundos)", "Comentario de sesión",
     ])
     for row in rows:
         writer.writerow([
             row["id"],
             spreadsheet_safe(row["title"]),
+            spreadsheet_safe(row["subject_name"] or ""),
+            row["estimated_minutes"],
             spreadsheet_safe(row["priority"]),
             row["due_date"] or "",
             "Sí" if row["completed"] else "No",
