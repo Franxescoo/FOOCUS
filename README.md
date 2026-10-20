@@ -10,6 +10,7 @@ FocusFlow es una aplicación de productividad personal construida con Python, Fl
 - Ordenar las tareas pendientes por fecha límite.
 - Mostrar avisos visuales para tareas que vencen hoy o están atrasadas.
 - Buscar y filtrar tareas por estado o texto.
+- Exportar tareas y sesiones de trabajo a CSV para abrirlas en Excel u otra hoja de cálculo.
 - Guardar tareas en una base de datos SQLite local.
 - Temporizador de enfoque con bloques de 25, 15 y 5 minutos.
 - Contador diario de sesiones de concentración.
@@ -79,7 +80,7 @@ FocusFlow no solicita la contraseña de Google ni intenta saltarse las restricci
 
 ## Archivos principales
 
-- `app.py`: aplicación Flask, base de datos, rutas de tareas y búsqueda musical.
+- `app.py`: aplicación Flask, base de datos, rutas de tareas, exportación CSV y búsqueda musical.
 - `templates/index.html`: estructura HTML/Jinja y componentes de la interfaz.
 - `static/style.css`: diseño adaptable y estilos.
 - `static/music.js`: búsqueda musical, colección guardada y reproductor.
