@@ -564,3 +564,56 @@ html[data-theme="dark"] .utility-card[open] > summary { border-color: var(--line
 }
 
 .utility-card-content .active-work-panel[hidden] { display: none !important; }
+
+
+/* Actividad de trabajo visible en el espacio principal */
+.work-dashboard-main {
+  margin: 0 0 20px;
+  padding: clamp(18px, 2.5vw, 26px);
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: 0 8px 26px #24204408;
+}
+.work-dashboard-main .section-heading {
+  margin-bottom: 18px;
+}
+.work-dashboard-main .section-heading .notes-hint {
+  max-width: 620px;
+}
+.work-dashboard-main .work-metrics {
+  margin: 18px 0 22px;
+}
+.work-dashboard-main .work-metrics article {
+  background: var(--surface-soft, var(--surface));
+}
+.work-dashboard-main .activity-grid {
+  grid-template-columns: repeat(5, minmax(12px, 1fr));
+  grid-template-rows: repeat(7, 14px);
+  gap: 5px;
+  max-width: 390px;
+  overflow: visible;
+}
+.work-dashboard-main .activity-cell {
+  width: 100%;
+  height: 14px;
+  border-radius: 4px;
+}
+@media (max-width: 620px) {
+  .work-dashboard-main .work-metrics {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .work-dashboard-main .work-metrics article {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .work-dashboard-main .work-metrics article strong {
+    text-align: right;
+  }
+  .work-dashboard-main .activity-grid {
+    max-width: 100%;
+    grid-template-columns: repeat(5, minmax(10px, 1fr));
+  }
+}
