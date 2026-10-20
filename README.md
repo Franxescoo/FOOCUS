@@ -1,95 +1,114 @@
 # FocusFlow
 
-FocusFlow es una aplicación de productividad personal construida con Python, Flask, SQLite, HTML, CSS y JavaScript. Incluye gestión de tareas, un temporizador de concentración, notas rápidas y un panel musical.
+FocusFlow es una aplicación local de productividad para estudiar y organizar tareas. Está construida con Python, Flask, SQLite, Jinja, CSS y JavaScript. La interfaz busca mantener el trabajo importante a la vista sin convertir la página en un tablero saturado.
 
-## Funciones
+## Funciones actuales
 
-- Crear tareas con nombre, prioridad y fecha límite.
-- Marcar tareas como completadas o pendientes y eliminarlas.
-- Editar el nombre, la prioridad y la fecha de una tarea sin tener que volver a crearla.
-- Ordenar las tareas pendientes por fecha límite.
-- Mostrar avisos visuales para tareas que vencen hoy o están atrasadas.
-- Buscar y filtrar tareas por estado o texto.
-- Exportar tareas y sesiones de trabajo a CSV para abrirlas en Excel u otra hoja de cálculo.
-- Guardar tareas en una base de datos SQLite local.
+### Organización de estudios
+- Crear, editar, completar y eliminar tareas con prioridades y fechas límite.
+- Buscar tareas y filtrarlas por estado.
+- Avisos visuales para tareas vencidas o que vencen hoy.
+- Registro de sesiones de trabajo por tarea, con tiempo transcurrido y comentarios al cerrar.
+- Historial de sesiones y tiempo total registrado por tarea.
+- Estadísticas de tiempo de hoy, esta semana y el historial completo.
+- Mapa de actividad de los últimos 35 días.
+- Meta diaria de estudio configurable, guardada en SQLite y comparada con las sesiones finalizadas.
+- Sistema anti-procrastinación para elegir una tarea y definir un primer paso de cinco minutos.
 - Temporizador de enfoque con bloques de 25, 15 y 5 minutos.
-- Alternancia entre modo claro y oscuro, con preferencia guardada en el navegador.
-- Sistema anti-procrastinación para elegir una tarea pendiente según prioridad y fecha límite, definir un primer paso de cinco minutos e iniciar el temporizador y el registro de trabajo desde el mismo panel.
-- Contador diario de sesiones de concentración.
+
+### Herramientas personales
 - Notas rápidas guardadas en el almacenamiento local del navegador.
-- FocusFlow Music: búsqueda de canciones con `ytmusicapi`, colección de canciones guardadas y controles para el reproductor integrado de YouTube cuando el video admite reproducción incrustada.
+- Modo claro y oscuro.
+- Exportación CSV de tareas y sesiones.
+- Panel musical con búsqueda mediante ytmusicapi, colección local y reproductor integrado de YouTube cuando el video permite reproducción incrustada.
 
 ## Requisitos
 
 - Python 3.10 o posterior.
-- Conexión a internet para la búsqueda musical y el reproductor de YouTube.
 - Navegador actualizado.
+- Conexión a internet solo para la búsqueda musical y la reproducción de YouTube.
 
 ## Ejecutar en Windows
 
 1. Abre la carpeta del repositorio en VS Code.
 2. Abre **Terminal > Nueva terminal**.
-3. (Recomendado) crea y activa un entorno virtual:
+3. Crea y activa un entorno virtual.
 
-   ```powershell
-   py -m venv .venv
-   .venv\Scripts\Activate.ps1
-   ```
+   PowerShell:
+
+       py -m venv .venv
+       .venv\Scripts\Activate.ps1
 
 4. Instala las dependencias:
 
-   ```bash
-   python -m pip install -r requirements.txt
-   ```
+       python -m pip install -r requirements.txt
 
-5. Inicia la aplicación:
+5. Inicia FocusFlow:
 
-   ```bash
-   python app.py
-   ```
+       python app.py
 
 6. Abre http://127.0.0.1:5000 en el navegador.
 
-La base de datos `focusflow.db` se crea automáticamente junto a `app.py`. Mantén la aplicación en ejecución mientras la uses.
+La base de datos focusflow.db se crea automáticamente junto a app.py. Mantén la aplicación en ejecución mientras la usas.
 
+## Ejecutar pruebas
 
-## Seguimiento del trabajo por tarea
+Desde la carpeta raíz del proyecto:
 
-- Cada tarea tiene el botón **Empezar a trabajar**. FocusFlow inicia una sesión y muestra un cronómetro que sigue contando aunque recargues la página.
-- Solo se permite una sesión activa a la vez para evitar contabilizar dos tareas simultáneamente.
-- Al pulsar **Terminar y guardar**, puedes escribir un comentario con lo que avanzaste. Se guardan la hora de inicio, la hora de término, la duración y el comentario en SQLite.
-- **Ver sesiones** muestra el historial reciente de tiempo y notas de esa tarea.
-- Cada tarea muestra el tiempo total registrado y una racha de días consecutivos en los que guardaste al menos una sesión.
-- El panel de actividad representa los últimos 35 días con un mapa de intensidad inspirado en el calendario de contribuciones de GitHub. Es actividad de FocusFlow, no datos conectados a GitHub.
-- El panel **Actividad de trabajo** está visible directamente en la página principal, debajo del resumen de tareas; no hace falta abrir una tarjeta lateral para consultar el tiempo y la constancia.
-- Las estadísticas se calculan con las sesiones que se han terminado y guardado. Si cierras el navegador con una sesión activa, vuelve a abrir la aplicación para retomarla y finalizarla.
+    python -m unittest discover -s tests -v
 
-Las sesiones se almacenan en la tabla local `work_sessions` dentro de `focusflow.db`. No se necesita instalar una dependencia adicional para esta función.
+Las pruebas usan una base de datos temporal; no deberían modificar tu base de datos personal. GitHub Actions también ejecuta esta suite cuando hay cambios en ramas de desarrollo o pull requests hacia main.
 
-## FocusFlow Music
+## Seguimiento del trabajo
 
-El panel consulta resultados mediante `ytmusicapi`, una biblioteca comunitaria que interactúa con una interfaz de YouTube Music que no es una API oficial estable. Por ello, la búsqueda puede dejar de funcionar si el servicio cambia o limita las solicitudes.
+1. En una tarea pendiente, pulsa **Empezar a trabajar**.
+2. FocusFlow registra la hora de inicio y muestra el cronómetro de la sesión.
+3. Cuando termines, añade una nota breve sobre lo que avanzaste y pulsa **Terminar y guardar**.
+4. Las estadísticas y el mapa de actividad se actualizan con las sesiones guardadas.
+5. En **Actividad de trabajo**, puedes fijar una meta diaria de entre 15 minutos y 10 horas, en incrementos de 15 minutos.
 
-La reproducción integrada utiliza el reproductor oficial de YouTube. No todos los videos permiten reproducción fuera de YouTube; si el propietario bloquea la inserción o YouTube rechaza la reproducción, usa el enlace para abrir la canción en YouTube Music. Los controles de pausa y volumen solo pueden controlar la reproducción integrada que sí haya cargado.
+Solo puede haber una sesión de trabajo activa a la vez. El servidor evita iniciar trabajo sobre una tarea completada y no permite eliminar una tarea mientras tiene una sesión activa. Si cierras el navegador o la aplicación durante una sesión, vuelve a abrir FocusFlow para retomar y finalizar esa sesión.
 
-FocusFlow no solicita la contraseña de Google ni intenta saltarse las restricciones de reproducción. No es una API propia de YouTube Music ni garantiza acceso a todas las funciones de una suscripción.
+El temporizador de enfoque es una herramienta independiente del registro de trabajo por tarea. Su contador de bloques completados se guarda en el navegador y no equivale al número de sesiones de trabajo guardadas en SQLite.
 
-## Privacidad y almacenamiento
+## Datos y privacidad
 
-- Las tareas se guardan en el archivo local `focusflow.db`.
-- Las notas rápidas, la colección de música, el tema visual y el primer paso del sistema anti-procrastinación se guardan en el almacenamiento local del navegador. En otro navegador o perfil no aparecerán automáticamente.
-- No hay cuentas ni sincronización entre dispositivos implementadas actualmente.
-- No publiques claves, contraseñas ni datos personales en el repositorio.
+- Las tareas, sesiones de trabajo y la meta diaria se guardan en focusflow.db.
+- Las notas, los ajustes de tema, la música guardada y el contador del temporizador se almacenan en el navegador en el que se usaron.
+- Actualmente no hay cuentas de usuario ni sincronización entre dispositivos.
+- No compartas contraseñas, claves ni datos personales en el repositorio.
+- La exportación CSV antepone un apóstrofo a los textos que podrían interpretarse como fórmulas por aplicaciones de hojas de cálculo.
+
+## Seguridad y configuración
+
+Las solicitudes que cambian información utilizan tokens CSRF de sesión y la aplicación establece encabezados de seguridad básicos. Esto reduce algunos riesgos, pero no hace que la app sea apta por sí sola para un despliegue público o multiusuario.
+
+La clave de sesión se genera al iniciar la aplicación cuando no se configura una. Para mantener sesiones estables entre reinicios, define una clave persistente como variable de entorno:
+
+PowerShell:
+
+    $env:FOCUSFLOW_SECRET_KEY = "reemplaza-esto-por-un-valor-aleatorio-largo"
+    python app.py
+
+Usa un secreto largo, privado y único. En un despliegue HTTPS, configura además FOCUSFLOW_SECURE_COOKIE como true. FLASK_DEBUG puede activarse durante desarrollo con valor 1; mantenlo desactivado en un servidor público.
+
+**No expongas esta versión directamente a internet.** Todavía no cuenta con autenticación, autorización ni aislamiento de datos por usuario, y no tiene un proceso de despliegue de producción. Los encabezados CSRF no reemplazan esas protecciones.
 
 ## Archivos principales
 
-- `app.py`: aplicación Flask, base de datos, rutas de tareas, exportación CSV y búsqueda musical.
-- `templates/index.html`: estructura HTML/Jinja y componentes de la interfaz.
-- `static/style.css`: diseño adaptable, temas claro/oscuro y estilos.
-- `static/music.js`: búsqueda musical, colección guardada y reproductor.
-- `requirements.txt`: dependencias de Python.
-- `focusflow.db`: base de datos local creada al iniciar la aplicación.
+- app.py: rutas Flask, validación, consultas y reglas del registro de trabajo.
+- templates/index.html: estructura de la pantalla principal y los widgets.
+- templates/error.html: pantalla de error coherente con la aplicación.
+- static/style.css: temas, diseño responsive, paneles y widgets.
+- static/music.js: búsqueda, colección musical y reproducción.
+- tests/test_app.py: pruebas de rutas, sesión, meta diaria, CSRF y exportación.
+- docs/ROADMAP.md: decisiones y pasos recomendados para el crecimiento futuro.
+- .github/workflows/tests.yml: ejecución automática de pruebas en GitHub Actions.
+- requirements.txt: dependencias de Python.
 
-## Limitaciones actuales
+## Limitaciones conocidas
 
-FocusFlow está pensado como proyecto local. Antes de publicarlo en internet habría que añadir protección CSRF para formularios, autenticación si se necesitan usuarios, configuración de producción de Flask y pruebas automatizadas. La música depende de servicios externos y puede tener restricciones por canción, navegador o región.
+- Es una aplicación local de un solo usuario; una instancia compartida no separa los datos por persona.
+- Las notas rápidas y algunos ajustes viven solo en el navegador y no se incluyen en la exportación CSV actual.
+- La búsqueda musical depende de una interfaz comunitaria no oficial y puede dejar de funcionar si cambia el servicio o restringe solicitudes.
+- Antes de sumar cuentas, sincronización o publicación web hacen falta autenticación, autorización, migraciones de base de datos, respaldos y una configuración de servidor de producción.
