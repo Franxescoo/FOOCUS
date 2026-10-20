@@ -102,6 +102,8 @@ def main() -> int:
 
         from werkzeug.serving import make_server
         import webview
+        # External installer links must open in the default browser, not the embedded webview.
+        webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
         from app import app as flask_app
 
         port = load_saved_port(data_dir)

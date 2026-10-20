@@ -25,7 +25,7 @@
         <ul class="update-center-changes" id="update-center-changes" hidden></ul>
       </div>
       <div class="update-center-actions">
-        <a class="primary-button update-center-download" id="update-center-download" href="#" hidden>Descargar actualización</a>
+        <a class="primary-button update-center-download" id="update-center-download" href="https://github.com/Franxescoo/FOOCUS/releases/latest/download/FOOCUS-Setup.exe" target="_blank" rel="noopener noreferrer" hidden>Descargar actualización</a>
         <button class="focus-reset" id="update-center-retry" type="button" hidden>Reintentar</button>
         <button class="focus-reset" id="update-center-close" type="button">Ocultar</button>
       </div>
@@ -1109,6 +1109,9 @@
           if (data.available) {
             message.textContent = "Hay una actualización disponible: " + data.latest_version;
             download.href = data.download_url;
+            // Open the installer URL outside the embedded desktop webview.
+            download.target = "_blank";
+            download.rel = "noopener noreferrer";
             download.textContent = "Descargar " + data.latest_version;
             download.hidden = false;
             retry.hidden = true;
