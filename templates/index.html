@@ -145,9 +145,24 @@
                 <h3>{{ task.title }}</h3>
                 <div class="task-meta">
                   <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
-                  {% if task.due_date %}<span class="due-date">Fecha límite: {{ task.due_date }}</span>{% else %}<span>Sin fecha límite</span>{% endif %}
+                  {% if task.due_date %}<span class="due-date" data-due-date="{{ task.due_date }}">Fecha límite: {{ task.due_date }}</span>{% else %}<span class="due-date">Sin fecha límite</span>{% endif %}
                 </div>
               </div>
+              <button class="task-edit-button" type="button" aria-label="Editar tarea" aria-expanded="false">Editar</button>
+              <form class="task-inline-editor" hidden>
+                <label class="field">Nombre
+                  <input class="edit-title" type="text" maxlength="160" value="{{ task.title }}" required>
+                </label>
+                <div class="form-row">
+                  <label class="field">Prioridad
+                    <select class="edit-priority"><option {% if task.priority == 'Baja' %}selected{% endif %}>Baja</option><option {% if task.priority == 'Media' %}selected{% endif %}>Media</option><option {% if task.priority == 'Alta' %}selected{% endif %}>Alta</option></select>
+                  </label>
+                  <label class="field">Fecha límite
+                    <input class="edit-due-date" type="date" value="{{ task.due_date or '' }}">
+                  </label>
+                </div>
+                <div class="editor-actions"><button class="primary-button" type="submit">Guardar</button><button class="focus-reset editor-cancel" type="button">Cancelar</button><span class="editor-status" role="status"></span></div>
+              </form>
               <form action="{{ url_for('delete_task', task_id=task.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta tarea?');">
                 <button class="delete-button" type="submit" aria-label="Eliminar tarea">×</button>
               </form>
@@ -301,6 +316,63 @@
       });
     }
     if (taskSearch) taskSearch.addEventListener("input", updateTaskVisibility);
+  </script>
+  <script>
+    (() => {
+      document.querySelectorAll(".task-item").forEach(card => {
+        const editButton = card.querySelector(".task-edit-button");
+        const editor = card.querySelector(".task-inline-editor");
+        if (!editButton || !editor) return;
+        const titleInput = editor.querySelector(".edit-title");
+        const priorityInput = editor.querySelector(".edit-priority");
+        const dateInput = editor.querySelector(".edit-due-date");
+        const status = editor.querySelector(".editor-status");
+        editButton.addEventListener("click", () => {
+          const opening = editor.hidden;
+          editor.hidden = !opening;
+          editButton.setAttribute("aria-expanded", String(opening));
+          editButton.textContent = opening ? "Cerrar edición" : "Editar";
+          if (opening) titleInput.focus();
+        });
+        editor.querySelector(".editor-cancel").addEventListener("click", () => {
+          editor.hidden = true;
+          editButton.setAttribute("aria-expanded", "false");
+          editButton.textContent = "Editar";
+          status.textContent = "";
+        });
+        editor.addEventListener("submit", async event => {
+          event.preventDefault();
+          const save = editor.querySelector('button[type="submit"]');
+          save.disabled = true;
+          status.textContent = "Guardando...";
+          try {
+            const response = await fetch("/api/tasks/{{ task.id }}", {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({title:titleInput.value, priority:priorityInput.value, due_date:dateInput.value})});
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar.");
+            window.location.reload();
+          } catch (error) {
+            status.textContent = error.message || "No se pudo guardar. Inténtalo de nuevo.";
+            save.disabled = false;
+          }
+        });
+      });
+      document.querySelectorAll(".due-date[data-due-date]").forEach(label => {
+        const due = label.dataset.dueDate;
+        if (!due) return;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const deadline = new Date(due + "T00:00:00");
+        if (Number.isNaN(deadline.getTime())) return;
+        const card = label.closest(".task-item");
+        if (card && card.dataset.state !== "completed" && deadline < today) {
+          label.classList.add("due-overdue");
+          label.textContent = "Atrasada · " + due;
+        } else if (card && card.dataset.state !== "completed" && deadline.getTime() === today.getTime()) {
+          label.classList.add("due-today");
+          label.textContent = "Vence hoy · " + due;
+        }
+      });
+    })();
   </script>
   <script>
     document.querySelectorAll("[data-filter]").forEach(button => {
