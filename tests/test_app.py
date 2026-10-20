@@ -79,25 +79,43 @@ class FocusFlowTaskTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 focusflow_desktop.save_server_port(data_dir, 80)
 
-    def test_update_check_requires_a_server_side_private_repo_token(self):
-        with patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": ""}):
+    def test_public_update_check_works_without_a_github_token(self):
+        release = {
+            "tag_name": "v1.0.1",
+            "name": "FOOCUS V1.0.1",
+            "published_at": "2026-10-20T12:00:00Z",
+            "body": "## What's Changed\\n* Public update check\\n",
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {
+                "FOOCUS_GITHUB_REPOSITORY": "Franxescoo/FOOCUS",
+                "FOOCUS_GITHUB_TOKEN": "",
+                "FOCUSFLOW_GITHUB_TOKEN": "",
+            }),
+            patch("app.urllib.request.urlopen", return_value=fake_response) as github_request,
+        ):
             response = self.client.get("/api/updates")
-        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
         payload = response.get_json()
-        self.assertFalse(payload["checkable"])
-        self.assertIn("FOCUSFLOW_GITHUB_TOKEN", payload["message"])
+        self.assertTrue(payload["checkable"])
+        self.assertEqual(payload["latest_version"], "V1.0.1")
+        self.assertTrue(payload["available"])
+        request = github_request.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.github.com/repos/Franxescoo/FOOCUS/releases/latest")
+        self.assertIsNone(request.get_header("Authorization"))
 
     def test_update_check_detects_new_semantic_version_and_extracts_changes(self):
         release = {
             "tag_name": "v1.0.1",
-            "name": "FocusFlow V1.0.1",
+            "name": "FOOCUS V1.0.1",
             "published_at": "2026-10-20T12:00:00Z",
-            "html_url": "https://github.com/Franxescoo/FocusFlow/releases/tag/v1.0.1",
+            "html_url": "https://github.com/Franxescoo/FOOCUS/releases/tag/v1.0.1",
             "body": (
                 "## What's Changed\n"
-                "* Add update notifications [#13](https://github.com/Franxescoo/FocusFlow/pull/13) "
-                "by @Franxescoo in https://github.com/Franxescoo/FocusFlow/pull/13\n"
+                "* Add update notifications [#13](https://github.com/Franxescoo/FOOCUS/pull/13) "
+                "by @Franxescoo in https://github.com/Franxescoo/FOOCUS/pull/13\n"
                 "* Show semantic version in the installer\n"
                 "## New Contributors\n* Nobody\n"
             ),
@@ -125,7 +143,7 @@ class FocusFlowTaskTests(unittest.TestCase):
     def test_update_check_reports_current_semantic_version_as_up_to_date(self):
         release = {
             "tag_name": "v1.0.0",
-            "name": "FocusFlow V1.0.0",
+            "name": "FOOCUS V1.0.0",
             "published_at": "2026-10-20T12:00:00Z",
             "body": "## What's Changed\n* Initial release\n",
         }
@@ -158,8 +176,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="update-notice" aria-labelledby="update-notice-title" aria-live="polite" hidden', response.data)
         self.assertIn('Actualización detectada'.encode(), response.data)
         self.assertIn(b'fetch("/api/updates"', response.data)
-        self.assertNotIn(b"api.github.com/repos/Franxescoo/FocusFlow/releases/latest", response.data)
-        self.assertIn(b'https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe', response.data)
+        self.assertNotIn(b"api.github.com/repos/Franxescoo/FOOCUS/releases/latest", response.data)
+        self.assertIn(b'https://github.com/Franxescoo/FOOCUS/releases/latest/download/FocusFlow-Setup.exe', response.data)
         self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
 

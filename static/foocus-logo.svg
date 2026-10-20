@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="90" viewBox="0 0 360 90" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">FOOCUS — Estudia, organiza, avanza</title>
+  <defs><linearGradient id="infinity" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs>
+  <g font-family="Manrope, Inter, Arial, sans-serif" font-size="58" font-weight="800" fill="#202238" letter-spacing="-2"><text x="8" y="59">F</text><text x="193" y="59">CUS</text></g>
+  <path d="M112 37 C94 10 69 12 58 31 C47 51 68 68 87 49 L127 25 C147 5 170 25 159 45 C148 67 124 64 112 37 C100 12 77 9 58 31" fill="none" stroke="url(#infinity)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="10" y="82" font-family="Arial, sans-serif" font-size="10" fill="#777b91" letter-spacing="2">ESTUDIA · ORGANIZA · AVANZA</text>
+</svg>

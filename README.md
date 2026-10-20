@@ -1,154 +1,77 @@
-# FocusFlow
+# FOOCUS
 
-FocusFlow es una aplicación local de productividad para estudiar y organizar tareas. Está construida con Python, Flask, SQLite, Jinja, CSS y JavaScript. La interfaz busca mantener el trabajo importante a la vista sin convertir la página en un tablero saturado.
+![Logotipo de FOOCUS](static/foocus-logo.svg)
 
-## Funciones actuales
+**Estudia · Organiza · Avanza**
 
-### Organización de estudios
-- Crear, editar, completar y eliminar tareas con prioridades, asignaturas y fechas límite.
-- Reutilizar asignaturas escritas desde el formulario de tareas; FocusFlow las normaliza para evitar duplicados por mayúsculas y espacios.
-- Definir el tiempo estimado por tarea, comparar la estimación con el tiempo registrado y filtrar la lista por asignatura.
-- Consultar un resumen plegable por asignatura con pendientes, tiempo estimado pendiente y tiempo registrado.
-- Planificar cada tarea para un día de estudio y revisar los próximos siete días en un calendario plegable, separado de la fecha límite.
-- Identificar tareas con planificación pasada para reprogramarlas sin perder la fecha límite original.
-- Buscar tareas y filtrarlas por estado.
-- Avisos visuales para tareas vencidas o que vencen hoy.
-- Registro de sesiones de trabajo por tarea, con tiempo transcurrido, resumen del avance y siguiente paso al cerrar.
-- Ventana emergente de sesión al empezar una tarea, con opción de minimizar y retomarla desde un indicador flotante sin detener el cronómetro.
-- Mostrar el siguiente paso guardado en la tarjeta de la tarea para retomar el trabajo más rápido.
-- Historial de sesiones y tiempo total registrado por tarea.
-- Estadísticas de tiempo de hoy, esta semana y el historial completo.
-- Mapa de actividad de los últimos 35 días.
-- Meta diaria de estudio configurable, guardada en SQLite y comparada con las sesiones finalizadas.
-- Sistema anti-procrastinación para elegir una tarea y definir un primer paso de cinco minutos.
-- Temporizador de enfoque con bloques de 25, 15 y 5 minutos.
+FOOCUS es una aplicación local de escritorio y navegador para organizar tareas de estudio, planificar la semana y registrar el tiempo dedicado a cada tarea. Está desarrollada con Python, Flask, SQLite, Jinja, HTML, CSS y JavaScript.
 
-### Herramientas personales
-- Notas rápidas guardadas en el almacenamiento local del navegador.
-- Modo claro y oscuro.
-- Exportación CSV de tareas y sesiones, incluyendo asignatura, estimación, día planificado y siguiente paso registrado.
-- Panel musical con búsqueda mediante ytmusicapi, colección local y reproductor integrado de YouTube cuando el video permite reproducción incrustada.
+> **Proyecto realizado con asistencia de Inteligencia Artificial.** Se utilizó IA generativa como apoyo para implementar y mejorar funcionalidades, generar y revisar código, resolver problemas técnicos y redactar documentación. El desarrollo asistido por IA no sustituye las pruebas ni la revisión de los cambios.
+
+## Funciones principales
+
+- Crear, editar, completar, buscar, filtrar y eliminar tareas.
+- Organizar tareas por asignatura, prioridad y fecha límite.
+- Estimar el tiempo de cada tarea y planificar el día de estudio.
+- Revisar la carga de trabajo de los próximos siete días.
+- Registrar sesiones de trabajo, cronómetro, avances y siguientes pasos.
+- Consultar historial de sesiones, estadísticas, meta diaria y mapa de actividad.
+- Usar temporizadores de enfoque de 5, 15 o 25 minutos.
+- Guardar notas rápidas, cambiar entre modo claro y oscuro y exportar tareas/sesiones a CSV.
+- Buscar música y reproducir contenido integrado cuando el servicio externo lo permite.
+
+Las tareas, las sesiones y la meta diaria se almacenan en SQLite. Las notas rápidas, el tema, la colección musical y el estado del temporizador se almacenan en el navegador utilizado. Esta versión es local y de un solo usuario; no incluye cuentas ni sincronización entre dispositivos.
 
 ## Requisitos
 
 - Python 3.10 o posterior.
-- Navegador actualizado.
-- Conexión a internet solo para la búsqueda musical y la reproducción de YouTube.
+- Navegador actualizado para la versión web local.
+- Conexión a internet para música y comprobación de nuevas versiones.
 
-## Ejecutar en Windows
+## Ejecutar desde el código fuente en Windows
 
-1. Abre la carpeta del repositorio en VS Code.
-2. Abre **Terminal > Nueva terminal**.
-3. Crea y activa un entorno virtual.
+Abre PowerShell en la carpeta del repositorio y ejecuta:
 
-   PowerShell:
+    py -m venv .venv
+    .venv\Scripts\Activate.ps1
+    python -m pip install -r requirements.txt
+    python app.py
 
-       py -m venv .venv
-       .venv\Scripts\Activate.ps1
+Luego abre http://127.0.0.1:5000 en el navegador. La base de datos focusflow.db se crea junto a app.py. Para cambiar su ubicación, configura FOCUSFLOW_DATABASE. Haz una copia de seguridad antes de actualizar datos importantes.
 
-4. Instala las dependencias:
+## Instalar FOOCUS para Windows
 
-       python -m pip install -r requirements.txt
+1. Abre [Releases](https://github.com/Franxescoo/FOOCUS/releases/latest).
+2. Descarga FocusFlow-Setup.exe y ejecútalo.
+3. Para actualizar una instalación anterior, cierra la app y ejecuta el instalador más reciente.
 
-5. Inicia FocusFlow:
+El identificador del instalador, el ejecutable interno, la carpeta de instalación y la carpeta de datos existentes se conservan por compatibilidad. El nombre de descarga también se mantiene como FocusFlow-Setup.exe para que las instalaciones anteriores sigan encontrando el archivo.
 
-       python app.py
+## Actualizaciones
 
-6. Abre http://127.0.0.1:5000 en el navegador.
+La aplicación consulta la última publicación semántica de GitHub al abrirse y periódicamente mientras está abierta. Cuando detecta una versión más reciente, muestra el número de versión y los cambios, y permite descargar el instalador. La instalación se realiza manualmente ejecutando el archivo descargado; la app no se reemplaza silenciosamente mientras está en uso.
 
-La base de datos focusflow.db se crea automáticamente junto a app.py. Si necesitas ubicarla en otra carpeta, configura la variable de entorno FOCUSFLOW_DATABASE con su ruta absoluta. Mantén la aplicación en ejecución mientras la usas. Las nuevas instalaciones crean las tablas de asignaturas, las estimaciones y las fechas planificadas; las instalaciones anteriores reciben columnas nuevas de forma aditiva y conservan sus tareas y sesiones. Haz una copia de seguridad antes de actualizar una base de datos importante.
+Las compilaciones correctas de la rama main ejecutan las pruebas, generan el instalador y publican automáticamente el siguiente parche (V1.0.1, V1.0.2, etc.). Los cambios en ramas de desarrollo y pull requests no se publican como versiones estables.
 
-## Instalar como aplicación de escritorio en Windows
+Para que la comprobación y descarga funcionen para cualquier persona sin un token personal, el repositorio FOOCUS que contiene las Releases debe ser público. El actualizador consulta las Releases públicas de forma anónima. El programa distribuido no incluye tokens privados. En un despliegue privado, el token opcional debe configurarse como variable de entorno del servidor, nunca dentro del código o instalador.
 
-FocusFlow se puede instalar como una aplicación de escritorio con su propia ventana, sin abrir el navegador manualmente.
+## Pruebas
 
-### Descargar desde la página
-
-1. En la pantalla principal de FocusFlow, busca **FocusFlow para Windows** o pulsa el enlace de descarga del encabezado.
-2. La sección consulta la publicación más reciente de GitHub y compara su número de compilación con el de la aplicación instalada.
-3. Pulsa **Descargar instalador** y, cuando termine la descarga de `FocusFlow-Setup.exe`, ábrelo para instalar o actualizar FocusFlow.
-4. Cierra FocusFlow antes de actualizar. El instalador utiliza el mismo identificador de aplicación para actualizar la carpeta del programa.
-
-El botón apunta al instalador de la publicación más reciente, por lo que no hay que cambiar el enlace de la página para cada versión. Como el repositorio es privado, debes iniciar sesión en GitHub con una cuenta que tenga acceso a FocusFlow para descargar el archivo. El panel de actualización consulta la versión publicada y muestra el número de versión y los cambios detectados.
-
-### Publicación automática
-
-Cada compilación correcta provocada por un cambio en `main` publica una nueva versión de Windows en **GitHub Releases**, además de mantener el artefacto temporal de Actions por 30 días. El primer lanzamiento semántico será `V1.0.0`; cada actualización posterior incrementa el parche (`V1.0.1`, `V1.0.2`, etc.). Las compilaciones de ramas de desarrollo y pull requests no se publican como versiones estables. La página revisa si hay una nueva versión al abrirse y vuelve a comprobar cada 30 minutos; cuando detecta una versión superior, muestra **Actualización detectada**, el número de versión y hasta ocho entradas del registro de cambios de GitHub.
-
-El instalador instala el componente Microsoft Edge WebView2 necesario para la ventana de escritorio. FocusFlow guarda sus datos en `%LOCALAPPDATA%\FocusFlow`; la base de datos y la clave de sesión quedan fuera de la carpeta de instalación, por lo que actualizar el programa no debería borrar el historial. La música requiere conexión a internet.
-
-
-### Configurar la comprobación de actualizaciones del repositorio privado
-
-Como GitHub no permite consultar las publicaciones de un repositorio privado de forma anónima, la API local `/api/updates` necesita la variable de entorno `FOCUSFLOW_GITHUB_TOKEN`. Crea un token de acceso personal de tipo *fine-grained* limitado al repositorio `Franxescoo/FocusFlow`, con permiso **Contents: Read-only**. Configura el token como secreto/variable de entorno en el servidor donde se ejecuta FocusFlow o en el equipo donde se ejecuta la app de escritorio.
-
-En Windows, abre **Editar las variables de entorno de la cuenta**, crea una variable de usuario llamada `FOCUSFLOW_GITHUB_TOKEN` con el valor del token y reinicia FocusFlow. En un servicio alojado, guárdalo en el panel de secretos/variables del proveedor. Para probar desde una terminal PowerShell solo durante esa sesión, puedes establecerlo con `$env:FOCUSFLOW_GITHUB_TOKEN = "tu_token"` antes de iniciar la aplicación desde esa misma terminal.
-
-No pegues el token en el código, HTML, archivos versionados, ni en el workflow de publicación. No lo incluyas dentro del instalador: cualquier secreto empaquetado en una app distribuida puede extraerse. Si el token falta o no tiene permiso, la aplicación mostrará un aviso y continuará funcionando, pero no podrá detectar nuevas versiones. La descarga del instalador seguirá requiriendo iniciar sesión en GitHub con una cuenta autorizada para el repositorio privado.
-
-**Importante si ya usas la versión de desarrollo:** la base `focusflow.db` ubicada junto al repositorio no se copia automáticamente. Para conservar esos datos en la versión de escritorio, cierra FocusFlow, crea la carpeta `%LOCALAPPDATA%\FocusFlow` si no existe y copia allí tu `focusflow.db` antes de iniciar la aplicación instalada por primera vez. Haz primero una copia de seguridad.
-
-## Ejecutar pruebas
-
-Desde la carpeta raíz del proyecto:
+Desde la raíz del proyecto:
 
     python -m unittest discover -s tests -v
 
-Las pruebas usan una base de datos temporal; no deberían modificar tu base de datos personal. GitHub Actions también ejecuta esta suite cuando hay cambios en ramas de desarrollo o pull requests hacia main.
+GitHub Actions ejecuta la suite automáticamente en los cambios configurados del repositorio.
 
-## Seguimiento del trabajo
+## Seguridad y limitaciones
 
-1. En una tarea pendiente, pulsa **Empezar a trabajar**.
-2. FocusFlow registra la hora de inicio y abre una ventana emergente con el cronómetro y los campos de revisión.
-2a. Puedes minimizar la ventana; la sesión continúa contando y queda un indicador flotante para volver a abrirla. Si recargas la página con una sesión activa, la ventana se recupera automáticamente.
-3. Cuando termines, anota lo que avanzaste y define el siguiente paso concreto antes de pulsar **Terminar y guardar**.
-4. Las estadísticas y el mapa de actividad se actualizan con las sesiones guardadas.
-5. En **Actividad de trabajo**, puedes fijar una meta diaria de entre 15 minutos y 10 horas, en incrementos de 15 minutos.
-6. El siguiente paso aparece en la tarjeta de la tarea y en su historial de sesiones para que puedas retomar desde ahí en la próxima sesión.
-6. Asigna un **día para estudiar** a las tareas que quieras planificar. En **Plan de estudio · próximos 7 días** puedes revisar la carga por día e iniciar una tarea directamente desde ese panel. La fecha planificada no cambia la fecha límite de entrega.
+- No publiques esta versión como servicio web multiusuario sin autenticación, autorización, aislamiento de datos por usuario y una configuración de producción.
+- La protección CSRF y los encabezados de seguridad existentes no sustituyen autenticación ni autorización.
+- La búsqueda de música depende de una biblioteca comunitaria no oficial y puede cambiar si el servicio externo modifica su comportamiento.
+- Haz una copia de seguridad de la base de datos antes de actualizar o mover los datos.
 
-Solo puede haber una sesión de trabajo activa a la vez. El servidor evita iniciar trabajo sobre una tarea completada y no permite eliminar una tarea mientras tiene una sesión activa. Si cierras el navegador o la aplicación durante una sesión, vuelve a abrir FocusFlow para retomar y finalizar esa sesión.
+## Tecnologías
 
-El temporizador de enfoque es una herramienta independiente del registro de trabajo por tarea. Su contador de bloques completados se guarda en el navegador y no equivale al número de sesiones de trabajo guardadas en SQLite.
+Python · Flask · SQLite · Jinja · HTML · CSS · JavaScript · ytmusicapi · PyInstaller · Inno Setup
 
-## Datos y privacidad
-
-- Las tareas, sesiones de trabajo y la meta diaria se guardan en focusflow.db.
-- Las notas, los ajustes de tema, la música guardada y el contador del temporizador se almacenan en el navegador en el que se usaron.
-- Actualmente no hay cuentas de usuario ni sincronización entre dispositivos.
-- No compartas contraseñas, claves ni datos personales en el repositorio.
-- La exportación CSV antepone un apóstrofo a los textos que podrían interpretarse como fórmulas por aplicaciones de hojas de cálculo.
-
-## Seguridad y configuración
-
-Las solicitudes que cambian información utilizan tokens CSRF de sesión y la aplicación establece encabezados de seguridad básicos. Esto reduce algunos riesgos, pero no hace que la app sea apta por sí sola para un despliegue público o multiusuario.
-
-La clave de sesión se genera al iniciar la aplicación cuando no se configura una. Para mantener sesiones estables entre reinicios, define una clave persistente como variable de entorno:
-
-PowerShell:
-
-    $env:FOCUSFLOW_SECRET_KEY = "reemplaza-esto-por-un-valor-aleatorio-largo"
-    python app.py
-
-Usa un secreto largo, privado y único. En un despliegue HTTPS, configura además FOCUSFLOW_SECURE_COOKIE como true. FLASK_DEBUG puede activarse durante desarrollo con valor 1; mantenlo desactivado en un servidor público.
-
-**No expongas esta versión directamente a internet.** Todavía no cuenta con autenticación, autorización ni aislamiento de datos por usuario, y no tiene un proceso de despliegue de producción. Los encabezados CSRF no reemplazan esas protecciones.
-
-## Archivos principales
-
-- app.py: rutas Flask, validación, consultas, asignaturas, planificación semanal y reglas del registro de trabajo.
-- templates/index.html: estructura de la pantalla principal y los widgets.
-- templates/error.html: pantalla de error coherente con la aplicación.
-- static/style.css: temas, diseño responsive, paneles y widgets.
-- static/music.js: búsqueda, colección musical y reproducción.
-- tests/test_app.py: pruebas de rutas, ventana de sesión, recuperación al recargar, meta diaria, CSRF y exportación.
-- docs/ROADMAP.md: decisiones y pasos recomendados para el crecimiento futuro.
-- .github/workflows/tests.yml: ejecución automática de pruebas en GitHub Actions.
-- requirements.txt: dependencias de Python.
-
-## Limitaciones conocidas
-
-- Es una aplicación local de un solo usuario; una instancia compartida no separa los datos por persona.
-- Las notas rápidas y algunos ajustes viven solo en el navegador y no se incluyen en la exportación CSV actual.
-- La búsqueda musical depende de una interfaz comunitaria no oficial y puede dejar de funcionar si cambia el servicio o restringe solicitudes.
-- Antes de sumar cuentas, sincronización o publicación web hacen falta autenticación, autorización, migraciones de base de datos, respaldos y una configuración de servidor de producción.
+Repositorio: [Franxescoo/FOOCUS](https://github.com/Franxescoo/FOOCUS)
