@@ -67,6 +67,12 @@
           <div class="music-results" id="music-results" aria-live="polite"></div>
           <div class="music-player-wrap" id="music-player-wrap" hidden>
             <div class="player-topline"><span>REPRODUCTOR</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
+            <div class="player-controls" aria-label="Controles de reproducción">
+              <button type="button" id="music-play-pause" class="player-control primary-control" aria-label="Pausar música" title="Pausar o reanudar">Ⅱ <span>Pausar</span></button>
+              <button type="button" id="music-volume-down" class="player-control" aria-label="Bajar volumen" title="Bajar volumen">−</button>
+              <label class="volume-control" for="music-volume"><span>Volumen</span><input id="music-volume" type="range" min="0" max="100" value="50" step="5"><output id="music-volume-value" for="music-volume">50%</output></label>
+              <button type="button" id="music-volume-up" class="player-control" aria-label="Subir volumen" title="Subir volumen">＋</button>
+            </div>
             <div id="youtube-player"></div>
             <p class="player-note">Si YouTube bloquea una pista, prueba otra canción disponible para reproducción integrada.</p>
           </div>
