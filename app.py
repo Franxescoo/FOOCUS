@@ -1,15 +1,12 @@
 from datetime import date
-import json
-import os
 import sqlite3
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import urlopen
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for, make_response
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 DATABASE = Path(__file__).with_name("focusflow.db")
 
 
@@ -44,13 +41,15 @@ def index():
 
     total = len(tasks)
     completed = sum(task["completed"] for task in tasks)
-    return render_template(
+    response = make_response(render_template(
         "index.html",
         tasks=tasks,
         total=total,
         completed=completed,
         today=date.today().isoformat(),
-    )
+    ))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
 
 
 @app.route("/tasks", methods=["POST"])
