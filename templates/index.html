@@ -146,7 +146,7 @@
           </div>
         </section>
         <section class="tasks-section" id="tasks-area">
-          <div class="section-heading task-heading"><div><p class="eyebrow">MANTÉN EL RITMO</p><h2>Mis tareas</h2></div><span class="count">{{ total }} en total</span></div>
+          <div class="section-heading task-heading"><div><p class="eyebrow">MANTÉN EL RITMO</p><h2>Mis tareas</h2></div><div class="task-heading-actions"><a class="export-button" href="{{ url_for('export_csv') }}" download>↓ Exportar CSV</a><span class="count">{{ total }} en total</span></div></div>
           <div class="progress-card">
             <div class="progress-copy"><span>Progreso general</span><strong>{{ ((completed / total * 100)|round|int) if total else 0 }}%</strong></div>
             <div class="progress-track"><div class="progress-fill" style="width: {{ ((completed / total * 100)|round|int) if total else 0 }}%"></div></div>
