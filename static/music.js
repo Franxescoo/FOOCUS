@@ -13,6 +13,42 @@
   let player = null;
   let pendingVideo = null;
   let apiLoading = false;
+  let isPlaying = false;
+  const playPauseButton = document.getElementById("music-play-pause");
+  const volumeDownButton = document.getElementById("music-volume-down");
+  const volumeUpButton = document.getElementById("music-volume-up");
+  const volumeSlider = document.getElementById("music-volume");
+  const volumeValue = document.getElementById("music-volume-value");
+
+  function updatePlayPause(playing) {
+    isPlaying = playing;
+    playPauseButton.innerHTML = playing ? "Ⅱ <span>Pausar</span>" : "▶ <span>Reanudar</span>";
+    playPauseButton.setAttribute("aria-label", playing ? "Pausar música" : "Reanudar música");
+    playPauseButton.title = playing ? "Pausar música" : "Reanudar música";
+  }
+
+  function setVolume(value) {
+    const volume = Math.max(0, Math.min(100, Number(value)));
+    volumeSlider.value = String(volume);
+    volumeValue.value = volume + "%";
+    volumeValue.textContent = volume + "%";
+    if (player && typeof player.setVolume === "function") player.setVolume(volume);
+    if (player && volume === 0 && typeof player.mute === "function") player.mute();
+    else if (player && typeof player.unMute === "function") player.unMute();
+  }
+
+  playPauseButton.addEventListener("click", () => {
+    if (!player || typeof player.getPlayerState !== "function") {
+      status.textContent = "Primero selecciona una canción para reproducirla.";
+      return;
+    }
+    const state = player.getPlayerState();
+    if (state === YT.PlayerState.PLAYING) player.pauseVideo();
+    else player.playVideo();
+  });
+  volumeDownButton.addEventListener("click", () => setVolume(Number(volumeSlider.value) - 10));
+  volumeUpButton.addEventListener("click", () => setVolume(Number(volumeSlider.value) + 10));
+  volumeSlider.addEventListener("input", () => setVolume(volumeSlider.value));
 
   function loadSaved() {
     try { return JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"); }
@@ -118,7 +154,12 @@
       playerVars: { playsinline: 1, rel: 0, origin: window.location.origin },
       events: {
         onReady: event => {
+          event.target.setVolume(Number(volumeSlider.value));
           if (pendingVideo) event.target.loadVideoById(pendingVideo.id);
+        },
+        onStateChange: event => {
+          if (event.data === YT.PlayerState.PLAYING) updatePlayPause(true);
+          else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) updatePlayPause(false);
         },
         onError: event => {
           const video = pendingVideo;
@@ -161,6 +202,7 @@
     }
     const node = playerContainer();
     node.replaceChildren();
+    updatePlayPause(false);
     status.textContent = "Intentando reproducir: " + video.title;
     loadPlayerApi();
     playerWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
