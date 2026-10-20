@@ -363,3 +363,12 @@ footer { padding: 28px 0 24px; color: #9b9bad; font-size: 10px; text-align: cent
   .task-item > form:last-child { grid-column: 3; grid-row: 3; justify-self: end; }
   .task-item > .task-inline-editor { grid-column: 1 / -1; grid-row: 4; }
 }
+
+
+.task-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.export-button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 7px 10px; border: 1px solid #ded8fb; border-radius: 8px; background: #fff; color: var(--purple-dark); font-size: 10px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.export-button:hover { background: var(--soft-purple); border-color: #cfc6ff; }
+@media (max-width: 460px) {
+  .task-heading-actions { align-items: flex-end; flex-direction: column; }
+  .export-button { min-height: 30px; padding: 6px 8px; }
+}
