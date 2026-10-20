@@ -39,6 +39,7 @@
         <p class="side-label">TU ESPACIO</p>
         <a class="side-link active" href="#tasks-area"><span>▦</span> Mis tareas <span class="side-count">{{ total }}</span></a>
         <a class="side-link" href="#focus-area"><span>◷</span> Concentración</a>
+        <a class="side-link" href="#notes-area"><span>✎</span> Notas rápidas</a>
         <button class="side-link side-music-button" id="sidebar-music-launcher" type="button"><span>♫</span> FocusFlow Music <span class="side-arrow">↗</span></button>
         <div class="side-tip"><span class="tip-icon">✦</span><strong>Un paso a la vez</strong><p>El progreso se construye con pequeñas acciones constantes.</p></div>
         <div class="side-bottom"><span class="online-dot"></span> Tu espacio personal</div>
@@ -99,10 +100,17 @@
         </section>
 
 
+        <section class="quick-notes panel" id="notes-area" aria-label="Notas rápidas">
+          <div class="section-heading"><div><p class="eyebrow">CAPTURA RÁPIDA</p><h2>Notas rápidas</h2></div><span class="section-icon">✎</span></div>
+          <p class="notes-hint">Anota una idea o algo que no quieras olvidar. Se guarda en este navegador.</p>
+          <textarea id="quick-notes" rows="3" maxlength="2000" placeholder="Escribe aquí una idea, recordatorio o próximo paso..."></textarea>
+          <div class="notes-footer"><span id="notes-status" role="status">Tus notas se guardan automáticamente.</span><button type="button" class="focus-reset" id="clear-notes">Borrar notas</button></div>
+        </section>
+
         <section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
           <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
           <div class="focus-controls">
-            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div>
+            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div><div class="session-counter">Sesiones completadas hoy: <strong id="sessions-today">0</strong></div>
             <div class="focus-buttons"><button type="button" class="primary-button" id="focus-start">Comenzar</button><button type="button" class="focus-reset" id="focus-reset">Reiniciar</button></div>
             <div class="focus-presets"><button type="button" data-minutes="25" class="focus-preset active">25 min</button><button type="button" data-minutes="15" class="focus-preset">15 min</button><button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
           </div>
@@ -175,6 +183,35 @@
     })();
   </script>
   <script>
+
+    (() => {
+      const notes = document.getElementById("quick-notes");
+      const notesStatus = document.getElementById("notes-status");
+      const clearNotes = document.getElementById("clear-notes");
+      const notesKey = "focusflow_quick_notes_v1";
+      try { notes.value = localStorage.getItem(notesKey) || ""; }
+      catch (error) { notesStatus.textContent = "El navegador no permitió cargar las notas guardadas."; }
+      let saveTimeout = null;
+      notes.addEventListener("input", () => {
+        notesStatus.textContent = "Guardando...";
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          try {
+            localStorage.setItem(notesKey, notes.value);
+            notesStatus.textContent = "Guardado en este navegador.";
+          } catch (error) {
+            notesStatus.textContent = "No se pudieron guardar las notas en este navegador.";
+          }
+        }, 250);
+      });
+      clearNotes.addEventListener("click", () => {
+        if (!notes.value.trim() || confirm("¿Borrar todas tus notas rápidas?")) {
+          notes.value = "";
+          try { localStorage.removeItem(notesKey); } catch (error) {}
+          notesStatus.textContent = "Notas borradas.";
+        }
+      });
+    })();
     (() => {
       const display = document.getElementById("focus-time");
       const start = document.getElementById("focus-start");
@@ -183,6 +220,11 @@
       let totalSeconds = 25 * 60;
       let remaining = totalSeconds;
       let interval = null;
+      const sessionDisplay = document.getElementById("sessions-today");
+      const sessionKey = "focusflow_sessions_" + new Date().toLocaleDateString("en-CA");
+      let sessions = 0;
+      try { sessions = Number(localStorage.getItem(sessionKey) || 0); } catch (error) {}
+      sessionDisplay.textContent = String(sessions);
       function draw() {
         display.textContent = String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0");
       }
@@ -203,6 +245,9 @@
             remaining = 0;
             draw();
             start.textContent = "Terminado";
+            sessions += 1;
+            sessionDisplay.textContent = String(sessions);
+            try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
             statusNotice();
           }
         }, 1000);
