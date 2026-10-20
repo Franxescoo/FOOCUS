@@ -14,6 +14,13 @@ import desktop_launcher as focusflow_desktop
 
 class FocusFlowTaskTests(unittest.TestCase):
     def setUp(self):
+        with focusflow.UPDATE_DOWNLOAD_LOCK:
+            focusflow.UPDATE_DOWNLOAD_STATE.update({
+                "status": "idle", "progress": 0, "downloaded_bytes": 0, "total_bytes": 0,
+                "filename": "FOOCUS-Setup.exe", "version": "",
+                "message": "Preparado para descargar una actualización.",
+                "verified": False, "verification": "", "path": "",
+            })
         self.temp_dir = tempfile.TemporaryDirectory()
         focusflow.DATABASE = Path(self.temp_dir.name) / "test-focusflow.db"
         focusflow.init_db()
@@ -175,17 +182,85 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="work-minimize-button"', response.data)
         self.assertIn(b'id="update-center"', response.data)
         self.assertIn(b'id="update-center-download"', response.data)
-        self.assertIn(b'target="_blank" rel="noopener noreferrer"', response.data)
-        self.assertIn(b'href="https://github.com/Franxescoo/FOOCUS/releases/latest/download/FOOCUS-Setup.exe"', response.data)
         self.assertIn(b'id="update-center-message"', response.data)
         self.assertIn(b'id="update-center-retry"', response.data)
+        self.assertIn(b'id="update-download-panel"', response.data)
+        self.assertIn(b'id="update-download-track"', response.data)
+        self.assertIn(b'id="update-download-percent"', response.data)
+        self.assertIn(b'id="update-center-open-installer"', response.data)
         self.assertIn(b'fetch("/api/updates"', response.data)
-        self.assertIn(b'download.target = "_blank"', response.data)
-        self.assertIn(b'download.rel = "noopener noreferrer"', response.data)
+        self.assertIn(b'fetch("/api/updates/download"', response.data)
+        self.assertIn(b'fetch("/api/updates/download/status"', response.data)
+        self.assertIn(b'fetch("/api/updates/download/open"', response.data)
+        self.assertIn(b'SHA-256', response.data)
+        self.assertNotIn(b'download.target = "_blank"', response.data)
+        self.assertNotIn(b'FocusFlow-Setup.exe', response.data)
         self.assertNotIn(b"api.github.com/repos/Franxescoo/FOOCUS/releases/latest", response.data)
         self.assertIn("FOOCUS".encode(), response.data)
         self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
+
+    def test_download_status_is_not_cached_and_does_not_expose_local_path(self):
+        with focusflow.UPDATE_DOWNLOAD_LOCK:
+            focusflow.UPDATE_DOWNLOAD_STATE.update({
+                "status": "complete",
+                "progress": 100,
+                "downloaded_bytes": 1024,
+                "total_bytes": 1024,
+                "filename": "FOOCUS-Setup.exe",
+                "version": "V1.0.8",
+                "message": "Descarga completa y verificada.",
+                "verified": True,
+                "verification": "SHA-256",
+                "path": str(Path(self.temp_dir.name) / "secret" / "FOOCUS-Setup.exe"),
+            })
+        response = self.client.get("/api/updates/download/status")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "complete")
+        self.assertEqual(payload["progress"], 100)
+        self.assertTrue(payload["verified"])
+        self.assertNotIn("path", payload)
+        self.assertNotIn("secret", response.get_data(as_text=True))
+
+    def test_start_update_download_requires_csrf_token(self):
+        response = self.client.post("/api/updates/download", json={"version": "V1.0.8"})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json["ok"])
+
+    def test_start_update_download_starts_one_background_worker(self):
+        with patch("app.threading.Thread") as worker:
+            response = self.client.post(
+                "/api/updates/download",
+                json={"version": "V1.0.8"},
+                headers=self.csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(response.json["ok"])
+        self.assertEqual(response.json["status"], "starting")
+        worker.assert_called_once()
+        worker.return_value.start.assert_called_once()
+
+    def test_start_update_download_prevents_duplicate_concurrent_downloads(self):
+        with focusflow.UPDATE_DOWNLOAD_LOCK:
+            focusflow.UPDATE_DOWNLOAD_STATE["status"] = "downloading"
+        response = self.client.post(
+            "/api/updates/download",
+            json={"version": "V1.0.8"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(response.json["ok"])
+
+    def test_open_installer_requires_a_completed_verified_download(self):
+        response = self.client.post(
+            "/api/updates/download/open",
+            json={},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(response.json["ok"])
 
     def test_task_filters_include_live_count_and_empty_results(self):
         self.create_task(title="Estudiar Django", subject="Programación")

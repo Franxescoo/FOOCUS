@@ -18,17 +18,42 @@
       <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo oscuro</span></button></div>
     </header>
 
-    <section class="update-center" id="update-center" aria-live="polite" aria-atomic="true" hidden>
-      <div class="update-center-copy">
-        <p class="eyebrow">ACTUALIZACIONES DE FOOCUS</p>
-        <p class="update-center-message" id="update-center-message">Comprobando la versión más reciente...</p>
-        <ul class="update-center-changes" id="update-center-changes" hidden></ul>
+    <section class="update-center" id="update-center" aria-live="polite" aria-atomic="false" hidden>
+      <div class="update-center-header">
+        <div class="update-center-copy">
+          <p class="eyebrow">ACTUALIZACIONES DE FOOCUS</p>
+          <p class="update-center-message" id="update-center-message">Comprobando la versión más reciente...</p>
+          <ul class="update-center-changes" id="update-center-changes" hidden></ul>
+        </div>
+        <div class="update-center-actions">
+          <button class="primary-button update-center-download" id="update-center-download" type="button" hidden>Descargar actualización</button>
+          <button class="focus-reset" id="update-center-retry" type="button" hidden>Reintentar</button>
+          <button class="focus-reset" id="update-center-close" type="button">Ocultar</button>
+        </div>
       </div>
-      <div class="update-center-actions">
-        <a class="primary-button update-center-download" id="update-center-download" href="https://github.com/Franxescoo/FOOCUS/releases/latest/download/FOOCUS-Setup.exe" target="_blank" rel="noopener noreferrer" hidden>Descargar actualización</a>
-        <button class="focus-reset" id="update-center-retry" type="button" hidden>Reintentar</button>
-        <button class="focus-reset" id="update-center-close" type="button">Ocultar</button>
-      </div>
+      <section class="update-download-panel" id="update-download-panel" aria-label="Progreso de descarga" hidden>
+        <div class="update-download-heading">
+          <span class="update-download-symbol" aria-hidden="true">↓</span>
+          <div class="update-download-copy">
+            <p class="eyebrow">DESCARGA OFICIAL · WINDOWS</p>
+            <strong id="update-download-title">Preparando FOOCUS</strong>
+            <span id="update-download-subtitle">FOOCUS-Setup.exe · Instalador oficial</span>
+          </div>
+          <strong class="update-download-percent" id="update-download-percent">—</strong>
+        </div>
+        <div class="update-download-track" id="update-download-track" role="progressbar" aria-label="Progreso real de descarga" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="update-download-fill" id="update-download-fill"></div>
+        </div>
+        <div class="update-download-details">
+          <span id="update-download-status" role="status" aria-live="polite">Esperando para descargar…</span>
+          <span id="update-download-size">Calculando tamaño</span>
+        </div>
+        <div class="update-download-actions">
+          <button class="primary-button update-download-install" id="update-center-open-installer" type="button" hidden>Abrir instalador</button>
+          <button class="focus-reset" id="update-center-download-retry" type="button" hidden>Reintentar descarga</button>
+        </div>
+        <p class="update-download-trust"><span aria-hidden="true">✓</span> Se descarga desde la publicación oficial de GitHub y se comprueba su tamaño y huella digital cuando está disponible. FOOCUS no se instalará sin que tú abras el instalador.</p>
+      </section>
     </section>
     <section class="welcome">
       <div class="welcome-copy">
@@ -1078,12 +1103,32 @@
       const download = document.getElementById("update-center-download");
       const retry = document.getElementById("update-center-retry");
       const close = document.getElementById("update-center-close");
-      if (!panel || !message || !changes || !download || !retry || !close) return;
+      const progressPanel = document.getElementById("update-download-panel");
+      const progressTitle = document.getElementById("update-download-title");
+      const progressSubtitle = document.getElementById("update-download-subtitle");
+      const progressPercent = document.getElementById("update-download-percent");
+      const progressTrack = document.getElementById("update-download-track");
+      const progressFill = document.getElementById("update-download-fill");
+      const progressStatus = document.getElementById("update-download-status");
+      const progressSize = document.getElementById("update-download-size");
+      const openInstaller = document.getElementById("update-center-open-installer");
+      const downloadRetry = document.getElementById("update-center-download-retry");
+      if (![panel, message, changes, download, retry, close, progressPanel, progressTitle,
+            progressSubtitle, progressPercent, progressTrack, progressFill, progressStatus,
+            progressSize, openInstaller, downloadRetry].every(Boolean)) return;
 
       let dismissed = false;
       let timer = null;
+      let downloadPollTimer = null;
+      let latestVersion = "";
       const show = () => { dismissed = false; panel.hidden = false; };
       const clearChanges = () => { changes.replaceChildren(); changes.hidden = true; };
+      const formatBytes = value => {
+        const bytes = Math.max(0, Number(value) || 0);
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+      };
       const showError = text => {
         message.textContent = text || "No se pudo comprobar si hay una nueva versión.";
         download.hidden = true;
@@ -1091,10 +1136,138 @@
         retry.hidden = false;
         show();
       };
+      const stopDownloadPolling = () => {
+        if (downloadPollTimer !== null) window.clearTimeout(downloadPollTimer);
+        downloadPollTimer = null;
+      };
+
+      function renderDownloadState(state) {
+        const active = state.status === "starting" || state.status === "downloading";
+        const complete = state.status === "complete";
+        const failed = state.status === "failed";
+        const total = Number(state.total_bytes) || 0;
+        const received = Number(state.downloaded_bytes) || 0;
+        const progress = total > 0 ? Math.max(0, Math.min(100, Number(state.progress) || 0)) : 0;
+
+        progressPanel.hidden = state.status === "idle";
+        progressPanel.classList.toggle("is-downloading", active);
+        progressPanel.classList.toggle("is-complete", complete);
+        progressPanel.classList.toggle("is-error", failed);
+        progressTrack.classList.toggle("is-indeterminate", active && total <= 0);
+        progressTrack.setAttribute("aria-valuenow", String(progress));
+        progressFill.style.width = total > 0 ? progress + "%" : "28%";
+        progressPercent.textContent = total > 0 ? progress + "%" : (active ? "…" : "—");
+        progressTitle.textContent = active ? "Descargando FOOCUS" : complete ? "Descarga lista" : failed ? "No se pudo completar" : "Preparando FOOCUS";
+        progressSubtitle.textContent = (state.filename || "FOOCUS-Setup.exe") + (state.version ? " · " + state.version : "");
+        progressStatus.textContent = state.message || (active ? "Descargando el instalador oficial…" : "");
+        progressSize.textContent = total > 0
+          ? formatBytes(received) + " de " + formatBytes(total)
+          : (active ? "Calculando tamaño" : "");
+        download.disabled = active;
+        download.hidden = complete;
+        download.textContent = failed ? "Reintentar descarga" : (active ? "Descargando…" : "Descargar " + (latestVersion || "actualización"));
+        openInstaller.hidden = !complete;
+        downloadRetry.hidden = !failed;
+        if (complete) {
+          message.textContent = "La actualización " + (state.version || latestVersion) + " está lista. Revisa la descarga y pulsa «Abrir instalador» para continuar.";
+          progressStatus.textContent = state.verified
+            ? state.message
+            : "Descarga terminada; revisa el archivo antes de abrirlo.";
+        }
+        if (failed) {
+          message.textContent = state.message || "No se pudo completar la descarga.";
+        }
+        if (active) scheduleDownloadPoll();
+        else stopDownloadPolling();
+      }
+
+      async function pollDownloadStatus() {
+        try {
+          const response = await fetch("/api/updates/download/status", {
+            method: "GET",
+            cache: "no-store",
+            headers: {"Accept": "application/json"}
+          });
+          const state = await response.json();
+          if (!response.ok || !state.ok) throw new Error(state.message || "No se pudo leer el progreso.");
+          if (state.status !== "idle" && !dismissed) show();
+          renderDownloadState(state);
+        } catch (error) {
+          progressStatus.textContent = "No se pudo actualizar el estado. Reintenta para comprobarlo.";
+        }
+      }
+
+      function scheduleDownloadPoll() {
+        if (downloadPollTimer !== null) return;
+        downloadPollTimer = window.setTimeout(() => {
+          downloadPollTimer = null;
+          pollDownloadStatus();
+        }, 450);
+      }
+
+      async function startDownload() {
+        if (download.disabled) return;
+        dismissed = false;
+        show();
+        progressPanel.hidden = false;
+        progressPanel.classList.remove("is-error", "is-complete");
+        progressTitle.textContent = "Preparando FOOCUS";
+        progressSubtitle.textContent = "FOOCUS-Setup.exe · " + (latestVersion || "actualización oficial");
+        progressStatus.textContent = "Conectando con la publicación oficial…";
+        progressSize.textContent = "Calculando tamaño";
+        progressPercent.textContent = "…";
+        progressTrack.classList.add("is-indeterminate");
+        progressFill.style.width = "28%";
+        download.disabled = true;
+        try {
+          const response = await fetch("/api/updates/download", {
+            method: "POST",
+            cache: "no-store",
+            headers: {"Accept": "application/json", "Content-Type": "application/json", "X-CSRF-Token": csrfToken},
+            body: JSON.stringify({version: latestVersion})
+          });
+          const state = await response.json();
+          if (!response.ok && state.status !== "starting" && state.status !== "downloading") {
+            throw new Error(state.message || "No se pudo iniciar la descarga.");
+          }
+          if (state.status) renderDownloadState(state);
+          if (state.status === "idle" || !state.status) throw new Error(state.message || "No se pudo iniciar la descarga.");
+          pollDownloadStatus();
+        } catch (error) {
+          download.disabled = false;
+          download.hidden = false;
+          progressPanel.classList.add("is-error");
+          progressTitle.textContent = "Descarga interrumpida";
+          progressStatus.textContent = error.message || "No se pudo iniciar la descarga. Inténtalo de nuevo.";
+          progressPercent.textContent = "—";
+          downloadRetry.hidden = false;
+        }
+      }
+
+      async function launchInstaller() {
+        openInstaller.disabled = true;
+        openInstaller.textContent = "Abriendo instalador…";
+        try {
+          const response = await fetch("/api/updates/download/open", {
+            method: "POST",
+            cache: "no-store",
+            headers: {"Accept": "application/json", "Content-Type": "application/json", "X-CSRF-Token": csrfToken},
+            body: "{}"
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo abrir el instalador.");
+          progressStatus.textContent = data.message;
+        } catch (error) {
+          progressStatus.textContent = error.message || "No se pudo abrir el instalador.";
+        } finally {
+          openInstaller.disabled = false;
+          openInstaller.textContent = "Abrir instalador";
+        }
+      }
 
       async function checkUpdates() {
         retry.disabled = true;
-        retry.textContent = "Comprobando...";
+        retry.textContent = "Comprobando…";
         try {
           const response = await fetch("/api/updates", {
             method: "GET",
@@ -1107,11 +1280,8 @@
             return;
           }
           if (data.available) {
+            latestVersion = data.latest_version;
             message.textContent = "Hay una actualización disponible: " + data.latest_version;
-            download.href = data.download_url;
-            // Open the installer URL outside the embedded desktop webview.
-            download.target = "_blank";
-            download.rel = "noopener noreferrer";
             download.textContent = "Descargar " + data.latest_version;
             download.hidden = false;
             retry.hidden = true;
@@ -1124,8 +1294,12 @@
             changes.hidden = changes.childElementCount === 0;
             show();
           } else {
-            panel.hidden = true;
-            dismissed = false;
+            // Keep an active or completed download visible until the user closes it.
+            const currentStatus = await fetch("/api/updates/download/status", {cache:"no-store"}).then(result => result.json());
+            if (!currentStatus.ok || currentStatus.status === "idle") {
+              panel.hidden = true;
+              dismissed = false;
+            }
           }
         } catch (error) {
           showError("No se pudo conectar con GitHub para comprobar actualizaciones. Revisa tu conexión e inténtalo de nuevo.");
@@ -1135,14 +1309,19 @@
         }
       }
 
+      download.addEventListener("click", startDownload);
+      downloadRetry.addEventListener("click", startDownload);
+      openInstaller.addEventListener("click", launchInstaller);
       retry.addEventListener("click", checkUpdates);
       close.addEventListener("click", () => { dismissed = true; panel.hidden = true; });
       checkUpdates();
+      pollDownloadStatus();
       timer = window.setInterval(() => {
         if (document.visibilityState === "visible" && !dismissed) checkUpdates();
       }, 30 * 60 * 1000);
       window.addEventListener("beforeunload", () => {
         if (timer !== null) window.clearInterval(timer);
+        stopDownloadPolling();
       }, {once: true});
     })();
   </script>

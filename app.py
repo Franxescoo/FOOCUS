@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 import csv
+import hashlib
 import hmac
 import io
 import json
@@ -9,6 +10,7 @@ import re
 from pathlib import Path
 import secrets
 import sqlite3
+import threading
 import urllib.error
 import urllib.request
 
@@ -44,6 +46,19 @@ app.config.update(
     in {"1", "true", "yes"},
 )
 DATABASE = Path(os.environ.get("FOCUSFLOW_DATABASE", str(Path(__file__).with_name("focusflow.db")))).expanduser()
+UPDATE_DOWNLOAD_LOCK = threading.Lock()
+UPDATE_DOWNLOAD_STATE = {
+    "status": "idle",
+    "progress": 0,
+    "downloaded_bytes": 0,
+    "total_bytes": 0,
+    "filename": "FOOCUS-Setup.exe",
+    "version": "",
+    "message": "Preparado para descargar una actualización.",
+    "verified": False,
+    "verification": "",
+    "path": "",
+}
 VALID_PRIORITIES = {"Baja", "Media", "Alta"}
 ALLOWED_ESTIMATED_MINUTES = {15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600}
 MAX_SUBJECT_NAME_LENGTH = 60
@@ -188,7 +203,7 @@ def protect_state_changing_requests():
 
 @app.after_request
 def add_security_headers(response):
-    if request.path == "/api/updates":
+    if request.path.startswith("/api/updates"):
         response.headers["Cache-Control"] = "no-store"
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -560,6 +575,268 @@ def check_for_updates():
         # Keep the asset name stable so existing installations can upgrade.
         "download_url": repository_url + "/releases/latest/download/FOOCUS-Setup.exe",
     })
+
+
+def _update_download_snapshot():
+    with UPDATE_DOWNLOAD_LOCK:
+        return dict(UPDATE_DOWNLOAD_STATE)
+
+
+def _update_download_response():
+    state = _update_download_snapshot()
+    # Never expose the full local path or private checksum data through the API.
+    return {
+        "ok": True,
+        "status": state["status"],
+        "progress": state["progress"],
+        "downloaded_bytes": state["downloaded_bytes"],
+        "total_bytes": state["total_bytes"],
+        "filename": state["filename"],
+        "version": state["version"],
+        "message": state["message"],
+        "verified": state["verified"],
+        "verification": state["verification"],
+        "save_location": "Descargas / FOOCUS",
+    }
+
+
+def _latest_installer_metadata():
+    repository = os.environ.get("FOOCUS_GITHUB_REPOSITORY", "Franxescoo/FOOCUS").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise RuntimeError("La configuración del repositorio de FOOCUS no es válida.")
+
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "FOOCUS-updater",
+    }
+    token = (
+        os.environ.get("FOOCUS_GITHUB_TOKEN")
+        or os.environ.get("FOCUSFLOW_GITHUB_TOKEN")
+        or ""
+    ).strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    api_url = f"https://api.github.com/repos/{repository}/releases/latest"
+    try:
+        with urllib.request.urlopen(urllib.request.Request(api_url, headers=headers), timeout=15) as response:
+            release = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise RuntimeError("No se pudo consultar la publicación oficial de FOOCUS. Comprueba tu conexión.") from error
+
+    tag = str(release.get("tag_name") or "").strip()
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", tag, re.IGNORECASE):
+        raise RuntimeError("La publicación más reciente no tiene una versión válida.")
+
+    latest_version = tag[1:] if tag[:1].lower() == "v" else tag
+    latest_semver = parse_semantic_version(latest_version)
+    current_semver = parse_semantic_version(APP_VERSION)
+    if latest_semver is None:
+        raise RuntimeError("No se pudo validar la versión publicada.")
+    if current_semver is not None and latest_semver <= current_semver:
+        raise RuntimeError("Esta instalación de FOOCUS ya está actualizada.")
+
+    asset = next(
+        (
+            item for item in release.get("assets", [])
+            if isinstance(item, dict) and item.get("name") == "FOOCUS-Setup.exe"
+        ),
+        None,
+    )
+    if not asset:
+        raise RuntimeError("La publicación oficial no contiene FOOCUS-Setup.exe.")
+
+    expected_url = f"https://github.com/{repository}/releases/download/{tag}/FOOCUS-Setup.exe"
+    if asset.get("browser_download_url") != expected_url:
+        raise RuntimeError("El enlace del instalador no coincide con la publicación oficial.")
+
+    try:
+        expected_size = int(asset.get("size") or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("La publicación no informa un tamaño válido para el instalador.") from error
+    if expected_size <= 0:
+        raise RuntimeError("La publicación no informa el tamaño del instalador.")
+
+    digest = str(asset.get("digest") or "").strip().lower()
+    if digest and not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise RuntimeError("La publicación informa una huella digital no válida.")
+
+    return {
+        "version": "V" + latest_version,
+        "url": expected_url,
+        "size": expected_size,
+        "sha256": digest.removeprefix("sha256:") if digest else "",
+    }
+
+
+def _download_latest_installer():
+    partial_path = None
+    try:
+        metadata = _latest_installer_metadata()
+        with UPDATE_DOWNLOAD_LOCK:
+            UPDATE_DOWNLOAD_STATE.update({
+                "status": "downloading",
+                "progress": 0,
+                "downloaded_bytes": 0,
+                "total_bytes": metadata["size"],
+                "version": metadata["version"],
+                "message": "Conectando con la publicación oficial de FOOCUS…",
+                "verified": False,
+                "verification": "",
+                "path": "",
+            })
+
+        configured_dir = os.environ.get("FOOCUS_DOWNLOAD_DIR", "").strip()
+        download_dir = (
+            Path(configured_dir).expanduser()
+            if configured_dir
+            else Path.home() / "Downloads" / "FOOCUS"
+        )
+        download_dir.mkdir(parents=True, exist_ok=True)
+        installer_path = download_dir / "FOOCUS-Setup.exe"
+        partial_path = download_dir / "FOOCUS-Setup.exe.part"
+
+        request_headers = {
+            "Accept": "application/octet-stream",
+            "User-Agent": "FOOCUS-updater",
+        }
+        installer_request = urllib.request.Request(metadata["url"], headers=request_headers)
+        digest = hashlib.sha256()
+        downloaded_bytes = 0
+        with urllib.request.urlopen(installer_request, timeout=30) as response:
+            raw_length = response.headers.get("Content-Length")
+            content_length = int(raw_length) if raw_length and raw_length.isdigit() else 0
+            if content_length and content_length != metadata["size"]:
+                raise RuntimeError("El tamaño del archivo no coincide con el publicado por GitHub.")
+
+            with partial_path.open("wb") as installer_file:
+                while True:
+                    chunk = response.read(256 * 1024)
+                    if not chunk:
+                        break
+                    installer_file.write(chunk)
+                    digest.update(chunk)
+                    downloaded_bytes += len(chunk)
+                    percentage = min(99, int(downloaded_bytes * 100 / metadata["size"]))
+                    with UPDATE_DOWNLOAD_LOCK:
+                        UPDATE_DOWNLOAD_STATE.update({
+                            "progress": percentage,
+                            "downloaded_bytes": downloaded_bytes,
+                            "total_bytes": metadata["size"],
+                            "message": "Descargando el instalador oficial…",
+                        })
+
+        if downloaded_bytes != metadata["size"]:
+            raise RuntimeError("La descarga quedó incompleta. No se conservará el archivo.")
+
+        actual_digest = digest.hexdigest()
+        if metadata["sha256"] and actual_digest != metadata["sha256"]:
+            raise RuntimeError("La huella SHA-256 no coincide. El archivo se descartó por seguridad.")
+
+        os.replace(partial_path, installer_path)
+        verification = "SHA-256" if metadata["sha256"] else "tamaño"
+        message = (
+            "Descarga completa y verificada mediante SHA-256."
+            if metadata["sha256"]
+            else "Descarga completa; el tamaño coincide con la publicación oficial."
+        )
+        with UPDATE_DOWNLOAD_LOCK:
+            UPDATE_DOWNLOAD_STATE.update({
+                "status": "complete",
+                "progress": 100,
+                "downloaded_bytes": downloaded_bytes,
+                "total_bytes": metadata["size"],
+                "filename": "FOOCUS-Setup.exe",
+                "version": metadata["version"],
+                "message": message,
+                "verified": True,
+                "verification": verification,
+                "path": str(installer_path),
+            })
+    except Exception as error:
+        app.logger.warning("FOOCUS installer download failed: %s", error, exc_info=True)
+        if partial_path is not None:
+            try:
+                partial_path.unlink(missing_ok=True)
+            except OSError:
+                app.logger.warning("Could not remove partial FOOCUS installer", exc_info=True)
+        if isinstance(error, RuntimeError):
+            user_message = str(error)
+        else:
+            user_message = "No se pudo completar la descarga. Comprueba tu conexión y el espacio disponible, y vuelve a intentarlo."
+        with UPDATE_DOWNLOAD_LOCK:
+            UPDATE_DOWNLOAD_STATE.update({
+                "status": "failed",
+                "progress": 0,
+                "message": user_message,
+                "verified": False,
+                "verification": "",
+                "path": "",
+            })
+
+
+@app.route("/api/updates/download/status")
+def update_download_status():
+    return jsonify(_update_download_response())
+
+
+@app.route("/api/updates/download", methods=["POST"])
+def start_update_download():
+    with UPDATE_DOWNLOAD_LOCK:
+        if UPDATE_DOWNLOAD_STATE["status"] in {"starting", "downloading"}:
+            return jsonify(_update_download_response()), 409
+        UPDATE_DOWNLOAD_STATE.update({
+            "status": "starting",
+            "progress": 0,
+            "downloaded_bytes": 0,
+            "total_bytes": 0,
+            "filename": "FOOCUS-Setup.exe",
+            "version": "",
+            "message": "Preparando una descarga segura…",
+            "verified": False,
+            "verification": "",
+            "path": "",
+        })
+
+    worker = threading.Thread(
+        target=_download_latest_installer,
+        name="FOOCUS-installer-download",
+        daemon=True,
+    )
+    worker.start()
+    return jsonify(_update_download_response()), 202
+
+
+@app.route("/api/updates/download/open", methods=["POST"])
+def open_downloaded_installer():
+    with UPDATE_DOWNLOAD_LOCK:
+        path_value = UPDATE_DOWNLOAD_STATE.get("path", "")
+        completed = UPDATE_DOWNLOAD_STATE.get("status") == "complete"
+        verified = bool(UPDATE_DOWNLOAD_STATE.get("verified"))
+    if not completed or not verified or not path_value or not Path(path_value).is_file():
+        return jsonify({
+            "ok": False,
+            "message": "Primero termina y verifica la descarga del instalador.",
+        }), 409
+    if os.name != "nt" or not hasattr(os, "startfile"):
+        return jsonify({
+            "ok": False,
+            "message": "El instalador se guardó en Descargas / FOOCUS. Ábrelo desde esa carpeta en Windows.",
+        }), 501
+    try:
+        getattr(os, "startfile")(path_value)
+    except OSError:
+        app.logger.warning("Could not open FOOCUS installer", exc_info=True)
+        return jsonify({
+            "ok": False,
+            "message": "No se pudo abrir el instalador. Encuéntralo en Descargas / FOOCUS e inténtalo manualmente.",
+        }), 500
+    return jsonify({
+        "ok": True,
+        "message": "Se abrió el instalador oficial de FOOCUS. Revisa los pasos del asistente para actualizar.",
+    })
+
 
 
 @app.route("/tasks", methods=["POST"])

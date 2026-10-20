@@ -92,18 +92,14 @@ jobs:
             throw "Inno Setup failed with exit code $LASTEXITCODE."
           }
           if (-not (Test-Path "dist-installer/FOOCUS-Setup.exe")) {
-            throw "FocusFlow installer was not created."
+            throw "FOOCUS installer was not created."
           }
-          # Keep the previous asset name available so installed V1.0.4 clients can update.
-          Copy-Item -Path "dist-installer/FOOCUS-Setup.exe" -Destination "dist-installer/FocusFlow-Setup.exe"
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: FOOCUS-Windows-Installer
-          path: |
-            dist-installer/FOOCUS-Setup.exe
-            dist-installer/FocusFlow-Setup.exe
+          path: dist-installer/FOOCUS-Setup.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -129,9 +125,7 @@ jobs:
             FOOCUS V${{ needs.build-installer.outputs.release_version }}
 
             Instalador generado automáticamente desde el commit ${{ github.sha }}. Las novedades aparecen en la sección What's Changed.
-          files: |
-            dist-installer/FOOCUS-Setup.exe
-            dist-installer/FocusFlow-Setup.exe
+          files: dist-installer/FOOCUS-Setup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
           make_latest: true
