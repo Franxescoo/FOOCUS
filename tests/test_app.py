@@ -1,6 +1,10 @@
+import io
+import json
+import os
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -74,6 +78,65 @@ class FocusFlowTaskTests(unittest.TestCase):
             self.assertEqual(focusflow_desktop.load_saved_port(data_dir), 0)
             with self.assertRaises(ValueError):
                 focusflow_desktop.save_server_port(data_dir, 80)
+
+    def test_update_check_requires_a_server_side_private_repo_token(self):
+        with patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": ""}):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 503)
+        payload = response.get_json()
+        self.assertFalse(payload["checkable"])
+        self.assertIn("FOCUSFLOW_GITHUB_TOKEN", payload["message"])
+
+    def test_update_check_detects_new_semantic_version_and_extracts_changes(self):
+        release = {
+            "tag_name": "v1.0.1",
+            "name": "FocusFlow V1.0.1",
+            "published_at": "2026-10-20T12:00:00Z",
+            "html_url": "https://github.com/Franxescoo/FocusFlow/releases/tag/v1.0.1",
+            "body": (
+                "## What's Changed\\n"
+                "* Add update notifications [#13](https://github.com/Franxescoo/FocusFlow/pull/13) "
+                "by @Franxescoo in https://github.com/Franxescoo/FocusFlow/pull/13\\n"
+                "* Show semantic version in the installer\\n"
+                "## New Contributors\\n* Nobody\\n"
+            ),
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": "test-read-only-token"}),
+            patch.object(focusflow, "APP_VERSION", "V1.0.0"),
+            patch("app.urllib.request.urlopen", return_value=fake_response) as github_request,
+        ):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["checkable"])
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["current_version"], "V1.0.0")
+        self.assertEqual(payload["latest_version"], "V1.0.1")
+        self.assertEqual(
+            payload["changes"],
+            ["Add update notifications #13", "Show semantic version in the installer"],
+        )
+        request = github_request.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-read-only-token")
+
+    def test_update_check_reports_current_semantic_version_as_up_to_date(self):
+        release = {
+            "tag_name": "v1.0.0",
+            "name": "FocusFlow V1.0.0",
+            "published_at": "2026-10-20T12:00:00Z",
+            "body": "## What's Changed\\n* Initial release\\n",
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": "test-read-only-token"}),
+            patch.object(focusflow, "APP_VERSION", "V1.0.0"),
+            patch("app.urllib.request.urlopen", return_value=fake_response),
+        ):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["available"])
 
     def test_home_loads_when_empty(self):
         response = self.client.get("/")
