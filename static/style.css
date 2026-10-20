@@ -129,3 +129,21 @@ body.music-open{overflow:hidden}
 .volume-control input{width:100%;min-width:30px;accent-color:var(--purple);cursor:pointer}
 .volume-control output{min-width:31px;text-align:right;color:var(--purple-dark);font-weight:700}
 @media(max-width:420px){.player-controls{gap:5px;padding:7px}.player-control{min-width:32px;padding:0 7px}.primary-control{font-size:0}.primary-control span{font-size:11px}.volume-control{gap:4px}}
+
+
+/* Task management improvements: inline editing, due-date warnings and focus states */
+.task-edit-button{flex:0 0 auto;padding:7px 10px;border:1px solid #e2def7;border-radius:8px;background:#fff;color:var(--purple-dark);font:700 10px 'DM Sans',sans-serif;cursor:pointer}
+.task-edit-button:hover{background:#f0edff;border-color:#cfc6ff}
+.task-inline-editor{display:grid;grid-column:2 / -1;gap:12px;width:100%;padding:14px;margin-top:4px;border:1px solid #e2def7;border-radius:12px;background:#faf9ff}
+.task-inline-editor .form-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+.editor-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.editor-actions .primary-button{min-height:34px}
+.editor-status{color:var(--muted);font-size:10px}
+.due-overdue{padding:4px 7px;border-radius:6px;background:#fff0ed;color:#bf4034!important;font-weight:700}
+.due-today{padding:4px 7px;border-radius:6px;background:#fff5dc;color:#96620b!important;font-weight:700}
+.task-item form{flex:0 0 auto}
+.task-item .task-inline-editor{flex:1 0 100%}
+.task-item .task-info{overflow-wrap:anywhere}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #a79cff;outline-offset:2px}
+button:disabled{opacity:.6;cursor:wait}
+@media(max-width:520px){.task-edit-button{padding:7px 8px}.task-inline-editor{grid-column:1 / -1}.task-inline-editor .form-row{grid-template-columns:1fr}.task-item{flex-wrap:wrap}.task-item .task-info{flex:1 1 45%}}
