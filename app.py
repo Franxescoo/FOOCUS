@@ -30,7 +30,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("FOCUSFLOW_SECURE_COOKIE", "").lower()
     in {"1", "true", "yes"},
 )
-DATABASE = Path(__file__).with_name("focusflow.db")
+DATABASE = Path(os.environ.get("FOCUSFLOW_DATABASE", str(Path(__file__).with_name("focusflow.db")))).expanduser()
 VALID_PRIORITIES = {"Baja", "Media", "Alta"}
 DEFAULT_STUDY_GOAL_MINUTES = 120
 MIN_STUDY_GOAL_MINUTES = 15
@@ -40,6 +40,7 @@ MAX_STUDY_GOAL_MINUTES = 600
 @contextmanager
 def get_db():
     """Open one SQLite connection per operation and always close it."""
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DATABASE, timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
