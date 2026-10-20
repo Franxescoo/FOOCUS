@@ -442,7 +442,7 @@ def release_change_items(body):
         if not stripped.startswith(("-", "*")):
             continue
         item = stripped[1:].strip()
-        item = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\\1", item)
+        item = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", item)
         item = re.sub(r"\s+by @[^ ]+ in https?://\S+", "", item).strip()
         item = re.sub(r"\s+", " ", item)
         if item and item not in items:
