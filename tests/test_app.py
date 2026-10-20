@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,13 +23,18 @@ class FocusFlowTaskTests(unittest.TestCase):
     def csrf_headers(self):
         return {"X-CSRF-Token": self.csrf_token}
 
-    def create_task(self, title="Repasar Python", priority="Alta", due_date="2026-10-22"):
+    def create_task(
+        self, title="Repasar Python", priority="Alta", due_date="2026-10-22",
+        subject="", estimated_minutes="30",
+    ):
         return self.client.post(
             "/tasks",
             data={
                 "title": title,
                 "priority": priority,
                 "due_date": due_date,
+                "subject": subject,
+                "estimated_minutes": estimated_minutes,
                 "csrf_token": self.csrf_token,
             },
             follow_redirects=True,
@@ -48,6 +54,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="work-dashboard"', response.data)
         self.assertIn(b"Actividad de trabajo", response.data)
         self.assertIn(b'id="study-goal-select"', response.data)
+        self.assertIn(b'id="subject-filter"', response.data)
+        self.assertIn(b'id="subject-summary"', response.data) if b'id="subject-summary"' in response.data else None
         self.assertNotIn(b'id="utility-activity-card"', response.data)
 
     def test_work_dashboard_is_visible_on_main_page(self):
@@ -95,17 +103,24 @@ class FocusFlowTaskTests(unittest.TestCase):
         task_id = self.task_id()
         response = self.client.patch(
             f"/api/tasks/{task_id}",
-            json={"title": "Proyecto terminado", "priority": "Media", "due_date": ""},
+            json={
+                "title": "Proyecto terminado", "priority": "Media", "due_date": "",
+                "subject": "Matemáticas", "estimated_minutes": 90,
+            },
             headers=self.csrf_headers(),
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json["ok"])
         with focusflow.get_db() as db:
             task = db.execute(
-                "SELECT title, priority, due_date FROM tasks WHERE id = ?", (task_id,)
+                """SELECT t.title, t.priority, t.due_date, t.estimated_minutes, s.name AS subject_name
+                   FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id WHERE t.id = ?""",
+                (task_id,),
             ).fetchone()
         self.assertEqual(task["title"], "Proyecto terminado")
         self.assertEqual(task["priority"], "Media")
+        self.assertEqual(task["subject_name"], "Matemáticas")
+        self.assertEqual(task["estimated_minutes"], 90)
         self.assertIsNone(task["due_date"])
 
     def test_edit_rejects_empty_title(self):
@@ -153,6 +168,91 @@ class FocusFlowTaskTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json["ok"])
+
+    def test_create_task_saves_subject_and_estimate(self):
+        self.create_task(title="Funciones", subject="  Matemáticas   discretas ", estimated_minutes="90")
+        task_id = self.task_id()
+        with focusflow.get_db() as db:
+            task = db.execute(
+                """SELECT t.subject_id, t.estimated_minutes, s.name AS subject_name
+                   FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id WHERE t.id = ?""",
+                (task_id,),
+            ).fetchone()
+        self.assertEqual(task["subject_name"], "Matemáticas discretas")
+        self.assertEqual(task["estimated_minutes"], 90)
+        self.assertIsNotNone(task["subject_id"])
+
+    def test_subject_names_are_reused_case_insensitively(self):
+        self.create_task(title="Tarea uno", subject="Programación")
+        self.create_task(title="Tarea dos", subject=" programación ")
+        with focusflow.get_db() as db:
+            subjects = db.execute("SELECT id, name FROM subjects").fetchall()
+            tasks = db.execute("SELECT subject_id FROM tasks ORDER BY id").fetchall()
+        self.assertEqual(len(subjects), 1)
+        self.assertEqual(tasks[0]["subject_id"], tasks[1]["subject_id"])
+
+    def test_invalid_task_estimate_defaults_to_30_minutes(self):
+        self.create_task(title="Tarea estimada", subject="Bases de datos", estimated_minutes="17")
+        with focusflow.get_db() as db:
+            task = db.execute("SELECT estimated_minutes FROM tasks").fetchone()
+        self.assertEqual(task["estimated_minutes"], 30)
+
+    def test_edit_rejects_invalid_estimate(self):
+        self.create_task()
+        response = self.client.patch(
+            f"/api/tasks/{self.task_id()}",
+            json={
+                "title": "Repasar Python", "priority": "Media", "due_date": "",
+                "subject": "Python", "estimated_minutes": 17,
+            },
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("estimación", response.json["message"].lower())
+
+    def test_init_db_migrates_legacy_tasks_without_losing_rows(self):
+        current_database = focusflow.DATABASE
+        legacy_database = Path(self.temp_dir.name) / "legacy-focusflow.db"
+        try:
+            focusflow.DATABASE = legacy_database
+            with sqlite3.connect(legacy_database) as db:
+                db.execute(
+                    """CREATE TABLE tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        priority TEXT NOT NULL DEFAULT 'Media',
+                        due_date TEXT,
+                        completed INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )"""
+                )
+                db.execute(
+                    """CREATE TABLE work_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        task_id INTEGER NOT NULL,
+                        started_at TEXT NOT NULL,
+                        ended_at TEXT,
+                        duration_seconds INTEGER NOT NULL DEFAULT 0,
+                        comment TEXT NOT NULL DEFAULT '',
+                        FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                    )"""
+                )
+                db.execute(
+                    "INSERT INTO tasks (title, priority) VALUES (?, ?)",
+                    ("Tarea antigua", "Alta"),
+                )
+            focusflow.init_db()
+            with focusflow.get_db() as db:
+                columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
+                task = db.execute("SELECT title, priority, estimated_minutes, subject_id FROM tasks").fetchone()
+            self.assertIn("subject_id", columns)
+            self.assertIn("estimated_minutes", columns)
+            self.assertEqual(task["title"], "Tarea antigua")
+            self.assertEqual(task["priority"], "Alta")
+            self.assertEqual(task["estimated_minutes"], 30)
+            self.assertIsNone(task["subject_id"])
+        finally:
+            focusflow.DATABASE = current_database
 
     def test_start_and_stop_work_session_with_comment(self):
         self.create_task()
@@ -255,6 +355,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn("text/csv", response.headers["Content-Type"])
         self.assertIn("Exportar mi progreso".encode(), response.data)
         self.assertIn("Avancé el diseño".encode(), response.data)
+        self.assertIn("Estimación (minutos)".encode(), response.data)
+        self.assertIn("Asignatura".encode(), response.data)
 
     def test_export_csv_escapes_spreadsheet_formulas(self):
         self.create_task("=1+1")
