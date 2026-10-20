@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import app as focusflow
+import desktop_launcher as focusflow_desktop
 
 
 class FocusFlowTaskTests(unittest.TestCase):
@@ -46,6 +47,33 @@ class FocusFlowTaskTests(unittest.TestCase):
         with focusflow.get_db() as db:
             row = db.execute("SELECT id FROM tasks ORDER BY id LIMIT 1").fetchone()
         return row["id"]
+
+    def test_desktop_data_directory_uses_local_appdata(self):
+        with tempfile.TemporaryDirectory() as local_app_data:
+            data_dir = focusflow_desktop.get_user_data_dir({"LOCALAPPDATA": local_app_data})
+            self.assertEqual(data_dir, Path(local_app_data) / "FocusFlow")
+            self.assertTrue(data_dir.is_dir())
+
+    def test_desktop_secret_and_port_are_stable_between_launches(self):
+        with tempfile.TemporaryDirectory() as local_app_data:
+            data_dir = Path(local_app_data) / "FocusFlow"
+            data_dir.mkdir()
+
+            first_key = focusflow_desktop.load_or_create_secret_key(data_dir)
+            second_key = focusflow_desktop.load_or_create_secret_key(data_dir)
+            self.assertEqual(first_key, second_key)
+            self.assertGreaterEqual(len(first_key), 64)
+
+            focusflow_desktop.save_server_port(data_dir, 53184)
+            self.assertEqual(focusflow_desktop.load_saved_port(data_dir), 53184)
+
+    def test_desktop_port_loader_rejects_invalid_values(self):
+        with tempfile.TemporaryDirectory() as local_app_data:
+            data_dir = Path(local_app_data)
+            (data_dir / "server.port").write_text("not-a-port", encoding="ascii")
+            self.assertEqual(focusflow_desktop.load_saved_port(data_dir), 0)
+            with self.assertRaises(ValueError):
+                focusflow_desktop.save_server_port(data_dir, 80)
 
     def test_home_loads_when_empty(self):
         response = self.client.get("/")
