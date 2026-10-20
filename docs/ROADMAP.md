@@ -17,6 +17,7 @@ FocusFlow es una aplicación **local y de un solo usuario** construida con Flask
 ### 1. Consolidar la experiencia local
 
 - Mantener las métricas principales visibles y sin sobrecargar la pantalla.
+- Mantener asignaturas, estimaciones, filtro y resumen de carga de estudio cubiertos por pruebas.
 - Probar creación, edición, cierre y eliminación de tareas con fechas límite.
 - Probar sesiones activas, recargas, errores de red y sesiones que quedan abiertas.
 - Añadir pruebas de regresión para las estadísticas, la meta diaria y la exportación.
