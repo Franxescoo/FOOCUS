@@ -15,7 +15,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'DM San
 .layout { width: min(100% - 36px, 980px); margin: 0 auto; }
 .topbar { height: 84px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font: 800 20px 'Manrope', sans-serif; letter-spacing: -.7px; }
-.brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: var(--purple); color: white; box-shadow: 0 6px 14px #6756d933; }
+.brand-mark { width: 42px; height: 32px; display: grid; place-items: center; flex: 0 0 auto; }
 .today, .eyebrow, .stat-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 1.35px; }
 .welcome { padding: 48px 0 30px; }
 .eyebrow { margin: 0 0 11px; }
@@ -76,3 +76,37 @@ footer { padding: 35px 0 28px; color: #9b9bad; text-align: center; font-size: 11
   .task-form { grid-template-columns: 1fr; }
   .task-title, .primary-button { grid-column: auto; }
 }
+
+
+/* FocusFlow Music */
+.brand-mark svg { display:block; width:42px; height:24px; overflow:visible; }
+.music-section { margin-top:26px; padding:25px; border:1px solid var(--line); border-radius:16px; background:radial-gradient(ellipse at top right,#f0edff 0,#fff 55%); }
+.music-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:20px; }
+.music-heading h2 { margin:0; font:700 21px 'Manrope',sans-serif; letter-spacing:-.6px; }
+.music-heading h2 span { color:var(--purple); }
+.music-description { margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.6; }
+.music-note { display:grid; place-items:center; width:48px; height:48px; border-radius:15px; background:#eeecff; color:var(--purple); font-size:27px; }
+.music-search { display:flex; gap:10px; }
+.music-search input { flex:1; }
+.music-shortcuts { display:flex; flex-wrap:wrap; gap:8px; margin-top:13px; }
+.music-chip { border:1px solid #e4e0fb; border-radius:20px; background:#fff; padding:8px 11px; color:#5547b9; font:600 11px 'DM Sans',sans-serif; cursor:pointer; }
+.music-chip:hover { background:#f0edff; }
+.music-status { margin:17px 0 0; color:var(--muted); font-size:12px; line-height:1.6; }
+.music-results { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.music-result { display:flex; align-items:center; gap:11px; min-width:0; padding:10px; border:1px solid var(--line); border-radius:12px; background:#fff; text-align:left; cursor:pointer; }
+.music-result:hover,.music-result[aria-pressed="true"] { border-color:var(--purple); background:#faf9ff; }
+.music-result img { width:76px; height:54px; border-radius:7px; object-fit:cover; background:#efedf8; }
+.music-result-copy { min-width:0; }
+.music-result-title { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; margin:0 0 5px; color:var(--ink); font-size:12px; font-weight:700; line-height:1.4; }
+.music-result-channel { overflow:hidden; color:var(--muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.music-player-wrap { margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
+.player-topline,.music-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--muted); font-size:10px; }
+.player-topline span { font-weight:700; letter-spacing:.8px; }
+.player-topline a,.music-footer a { color:var(--purple-dark); font-weight:700; text-decoration:none; }
+#youtube-player { margin-top:12px; overflow:hidden; border-radius:12px; background:#171622; aspect-ratio:16/9; }
+#youtube-player iframe { display:block; width:100%; height:100%; border:0; }
+.player-note { margin:8px 0 0; color:var(--muted); font-size:10px; line-height:1.5; }
+.music-footer { margin-top:17px; padding-top:14px; border-top:1px solid var(--line); }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+[hidden] { display:none !important; }
+@media(max-width:600px) { .music-section{padding:19px 14px}.music-results{grid-template-columns:1fr}.music-search{flex-direction:column}.music-search .primary-button{width:100%}.player-topline,.music-footer{align-items:flex-start;flex-direction:column} }
