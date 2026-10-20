@@ -185,6 +185,8 @@ def protect_state_changing_requests():
 
 @app.after_request
 def add_security_headers(response):
+    if request.path == "/api/updates":
+        response.headers["Cache-Control"] = "no-store"
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
