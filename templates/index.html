@@ -1188,8 +1188,8 @@
           return;
         }
 
-        const installedBuild = currentVersion.match(/^build-(\\d+)$/i);
-        const latestBuild = tag.match(/^build-(\\d+)$/i);
+        const installedBuild = currentVersion.match(/^build-(\d+)$/i);
+        const latestBuild = tag.match(/^build-(\d+)$/i);
         if (installedBuild && latestBuild) {
           const difference = Number(latestBuild[1]) - Number(installedBuild[1]);
           if (difference > 0) {
