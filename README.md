@@ -13,6 +13,8 @@ FocusFlow es una aplicación de productividad personal construida con Python, Fl
 - Exportar tareas y sesiones de trabajo a CSV para abrirlas en Excel u otra hoja de cálculo.
 - Guardar tareas en una base de datos SQLite local.
 - Temporizador de enfoque con bloques de 25, 15 y 5 minutos.
+- Alternancia entre modo claro y oscuro, con preferencia guardada en el navegador.
+- Sistema anti-procrastinación para elegir una tarea pendiente según prioridad y fecha límite, definir un primer paso de cinco minutos e iniciar el temporizador y el registro de trabajo desde el mismo panel.
 - Contador diario de sesiones de concentración.
 - Notas rápidas guardadas en el almacenamiento local del navegador.
 - FocusFlow Music: búsqueda de canciones con `ytmusicapi`, colección de canciones guardadas y controles para el reproductor integrado de YouTube cuando el video admite reproducción incrustada.
@@ -74,7 +76,7 @@ FocusFlow no solicita la contraseña de Google ni intenta saltarse las restricci
 ## Privacidad y almacenamiento
 
 - Las tareas se guardan en el archivo local `focusflow.db`.
-- Las notas rápidas y la colección de música se guardan en el almacenamiento local del navegador. En otro navegador o perfil no aparecerán automáticamente.
+- Las notas rápidas, la colección de música, el tema visual y el primer paso del sistema anti-procrastinación se guardan en el almacenamiento local del navegador. En otro navegador o perfil no aparecerán automáticamente.
 - No hay cuentas ni sincronización entre dispositivos implementadas actualmente.
 - No publiques claves, contraseñas ni datos personales en el repositorio.
 
@@ -82,7 +84,7 @@ FocusFlow no solicita la contraseña de Google ni intenta saltarse las restricci
 
 - `app.py`: aplicación Flask, base de datos, rutas de tareas, exportación CSV y búsqueda musical.
 - `templates/index.html`: estructura HTML/Jinja y componentes de la interfaz.
-- `static/style.css`: diseño adaptable y estilos.
+- `static/style.css`: diseño adaptable, temas claro/oscuro y estilos.
 - `static/music.js`: búsqueda musical, colección guardada y reproductor.
 - `requirements.txt`: dependencias de Python.
 - `focusflow.db`: base de datos local creada al iniciar la aplicación.
