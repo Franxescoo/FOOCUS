@@ -25,6 +25,7 @@
         <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
         <h1>Haz espacio para<br><span>lo importante.</span></h1>
         <p class="subtitle">Organiza tus tareas, avanza a tu ritmo y mantén el foco.</p>
+        <p class="welcome-download-link"><a href="#download-focusflow">Descargar FocusFlow para Windows <span aria-hidden="true">↓</span></a></p>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div>
@@ -351,6 +352,25 @@
         </aside>
       </div>
     </div>
+    <section class="download-section panel" id="download-focusflow" aria-labelledby="download-focusflow-title" data-current-version="{{ app_version }}">
+      <div class="download-section-copy">
+        <p class="eyebrow">FOCUSFLOW PARA WINDOWS</p>
+        <h2 id="download-focusflow-title">Tu espacio de enfoque, también en el escritorio.</h2>
+        <p class="download-description">Instala FocusFlow en Windows y ábrelo en su propia ventana. Esta sección consulta GitHub para mostrar la versión publicada más reciente.</p>
+        <div class="download-meta">
+          <span class="download-platform">Windows · 64 bits</span>
+          <span class="download-current-version" id="download-current-version">Versión instalada: {{ app_version }}</span>
+        </div>
+        <p class="download-status" id="download-status" role="status" aria-live="polite">Consultando la última versión publicada en GitHub…</p>
+      </div>
+      <div class="download-section-action">
+        <a class="primary-button download-button" id="download-installer" href="https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe">
+          Descargar instalador <span aria-hidden="true">↓</span>
+        </a>
+        <a class="download-release-link" id="download-release-link" href="https://github.com/Franxescoo/FocusFlow/releases/latest" target="_blank" rel="noopener noreferrer">Ver publicación y notas en GitHub ↗</a>
+        <p class="download-hint">La página descarga el instalador; debes abrir el archivo descargado para instalar o actualizar. Tus tareas se guardan fuera de la carpeta del programa.</p>
+      </div>
+    </section>
     <footer>FocusFlow · Un paso a la vez.</footer>
   </main>
 <dialog class="active-work-dialog" id="active-work-dialog" tabindex="-1" aria-modal="true" aria-labelledby="active-work-title" aria-describedby="active-work-subtitle">
@@ -1120,5 +1140,75 @@
       });
     })();
   </script>
+<script>
+  (() => {
+    const card = document.getElementById("download-focusflow");
+    if (!card) return;
+
+    const status = document.getElementById("download-status");
+    const currentVersionLabel = document.getElementById("download-current-version");
+    const downloadButton = document.getElementById("download-installer");
+    const releaseLink = document.getElementById("download-release-link");
+    const currentVersion = card.dataset.currentVersion || "dev";
+    const releaseEndpoint = "https://api.github.com/repos/Franxescoo/FocusFlow/releases/latest";
+
+    const formatPublishedDate = (value) => {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("es-CL", { dateStyle: "medium" }).format(date);
+    };
+
+    currentVersionLabel.textContent = currentVersion === "dev"
+      ? "Versión actual: desarrollo local"
+      : "Versión instalada: " + currentVersion;
+
+    fetch(releaseEndpoint, {
+      headers: { "Accept": "application/vnd.github+json" },
+      cache: "no-store"
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("GitHub no respondió con una versión publicada.");
+        return response.json();
+      })
+      .then((release) => {
+        const tag = String(release.tag_name || "versión sin etiqueta");
+        const publishedDate = formatPublishedDate(release.published_at);
+        const dateSuffix = publishedDate ? " · publicada el " + publishedDate : "";
+        const assets = Array.isArray(release.assets) ? release.assets : [];
+        const installerExists = assets.some((asset) => asset.name === "FocusFlow-Setup.exe");
+
+        if (release.html_url) releaseLink.href = release.html_url;
+        if (!installerExists) {
+          status.textContent = "GitHub tiene una publicación, pero todavía no contiene el instalador esperado. Puedes revisar los detalles en GitHub.";
+          downloadButton.setAttribute("aria-disabled", "true");
+          downloadButton.classList.add("download-button-unavailable");
+          downloadButton.href = release.html_url || "https://github.com/Franxescoo/FocusFlow/releases";
+          downloadButton.textContent = "Ver publicación en GitHub ↗";
+          return;
+        }
+
+        const installedBuild = currentVersion.match(/^build-(\d+)$/i);
+        const latestBuild = tag.match(/^build-(\d+)$/i);
+        if (installedBuild && latestBuild) {
+          const difference = Number(latestBuild[1]) - Number(installedBuild[1]);
+          if (difference > 0) {
+            status.textContent = "Hay una actualización disponible (" + tag + "). Descarga el instalador para actualizar.";
+            status.classList.add("is-update-available");
+          } else {
+            status.textContent = "Tienes la última versión publicada (" + tag + ")" + dateSuffix + ".";
+            status.classList.add("is-up-to-date");
+          }
+        } else {
+          status.textContent = "Última versión publicada en GitHub: " + tag + dateSuffix + ".";
+        }
+      })
+      .catch(() => {
+        status.textContent = "No pudimos consultar GitHub ahora. Se necesita conexión a internet para comprobar la versión; vuelve a intentarlo más tarde.";
+      });
+  })();
+</script>
+
+
 </body>
 </html>
