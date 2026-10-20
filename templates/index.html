@@ -9,94 +9,121 @@
 <body>
   <main class="layout">
     <header class="topbar">
-      <a class="brand" href="{{ url_for('index') }}" aria-label="FocusFlow, inicio"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 32"><defs><linearGradient id="infinity-gradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#6756d9"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient></defs><path d="M16 6C7 6 3 13 8 21c5 8 12 6 24-5 12-11 19-13 24-5s1 15-8 15c-7 0-12-7-16-11C28 11 23 6 16 6Z" fill="none" stroke="url(#infinity-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> FocusFlow</a>
+      <a class="brand" href="{{ url_for('index') }}" aria-label="FocusFlow, inicio">
+        <span class="brand-mark" aria-hidden="true">∞</span> FocusFlow
+      </a>
       <span class="today">HOY · {{ today }}</span>
     </header>
 
-    <div class="workspace-grid">
-      <div class="main-column">
     <section class="welcome">
       <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
-      <h1>Haz espacio para<br><span>lo importante.</span></h1>
+      <h1>Haz espacio para <span>lo importante.</span></h1>
       <p class="subtitle">Organiza tus tareas, avanza a tu ritmo y mantén el foco.</p>
     </section>
 
-    <section class="stats" aria-label="Resumen de tareas">
-      <article class="stat-card"><span class="stat-label">TAREAS EN TOTAL</span><strong>{{ total }}</strong></article>
-      <article class="stat-card"><span class="stat-label">COMPLETADAS</span><strong>{{ completed }}</strong></article>
-      <article class="stat-card"><span class="stat-label">POR HACER</span><strong>{{ total - completed }}</strong></article>
-    </section>
-
-    <section class="panel">
-      <div class="section-heading">
-        <div><p class="eyebrow">PLANIFICA</p><h2>Agregar una tarea</h2></div>
-      </div>
-      <form class="task-form" action="{{ url_for('add_task') }}" method="post">
-        <label class="field task-title">¿Qué necesitas hacer?
-          <input type="text" name="title" maxlength="160" placeholder="Ej. Estudiar Python durante 30 minutos" required>
-        </label>
-        <label class="field">Prioridad
-          <select name="priority"><option>Media</option><option>Alta</option><option>Baja</option></select>
-        </label>
-        <label class="field">Fecha límite
-          <input type="date" name="due_date">
-        </label>
-        <button class="primary-button" type="submit">+ Añadir tarea</button>
-      </form>
-    </section>
-
-
-
-
-    <section class="tasks-section">
-      <div class="section-heading task-heading">
-        <div><p class="eyebrow">TU PROGRESO</p><h2>Mis tareas</h2></div>
-        <span class="count">{{ total }} en total</span>
-      </div>
-
-      {% if tasks %}
-      <div class="task-list">
-        {% for task in tasks %}
-        <article class="task-item {% if task.completed %}is-complete{% endif %}">
-          <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="post">
-            <button class="check-button" type="submit" aria-label="{% if task.completed %}Marcar pendiente{% else %}Marcar completada{% endif %}">{% if task.completed %}✓{% endif %}</button>
-          </form>
-          <div class="task-info">
-            <h3>{{ task.title }}</h3>
-            <div class="task-meta">
-              <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
-              {% if task.due_date %}<span>Fecha límite: {{ task.due_date }}</span>{% endif %}
-            </div>
-          </div>
-          <form action="{{ url_for('delete_task', task_id=task.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta tarea?');">
-            <button class="delete-button" type="submit" aria-label="Eliminar tarea">×</button>
-          </form>
-        </article>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="empty-state">
-        <div class="empty-icon">✦</div>
-        <h3>Tu espacio está listo</h3>
-        <p>Añade tu primera tarea y empieza a organizar tu día.</p>
-      </div>
-      {% endif %}
-    </section>
-      </div>
+    <div class="workspace-grid">
       <aside class="music-sidebar" aria-label="Panel de música">
-    <section class="music-section" id="focusflow-music">
-      <div class="music-heading"><div><p class="eyebrow">TU BANDA SONORA</p><h2>FocusFlow <span>Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div><div class="music-note" aria-hidden="true">♫</div></div>
-      <form class="music-search" id="music-search-form"><label class="sr-only" for="music-query">Buscar música</label><input id="music-query" type="search" maxlength="120" placeholder="Busca lo-fi, música instrumental, un artista..." autocomplete="off"><button class="primary-button" type="submit">Buscar música</button></form>
-      <div class="music-shortcuts"><button type="button" class="music-chip" data-query="lofi hip hop radio study">Lo-fi para estudiar</button><button type="button" class="music-chip" data-query="instrumental music for concentration">Concentración</button><button type="button" class="music-chip" data-query="ambient music coding">Ambient para programar</button><button type="button" class="music-chip" data-query="piano relaxing music">Piano relajante</button></div>
-      <p class="music-status" id="music-status" role="status">Busca canciones con YouTube Music. Si una pista no permite reproducción incrustada, podrás abrirla directamente.</p>
-      <div class="music-results" id="music-results" aria-live="polite"></div>
-      <div class="music-player-wrap" id="music-player-wrap" hidden><div class="player-topline"><span>REPRODUCTOR DE YOUTUBE</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div><div id="youtube-player"></div><p class="player-note">Algunos videos pueden no permitir reproducción incrustada. Puedes abrirlos en YouTube.</p></div>
-      <div class="music-footer"><span>Contenido y reproducción sujetos a las condiciones de YouTube.</span><a id="youtube-search-link" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
-    </section>
+        <section class="music-section" id="focusflow-music">
+          <div class="music-heading">
+            <div><p class="eyebrow">TU BANDA SONORA</p><h2><span>FocusFlow Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div>
+            <div class="music-note" aria-hidden="true">♫</div>
+          </div>
+          <form class="music-search" id="music-search-form">
+            <label class="sr-only" for="music-query">Buscar música</label>
+            <input id="music-query" type="search" maxlength="120" placeholder="Busca una canción o artista..." autocomplete="off">
+            <button class="primary-button" type="submit">Buscar</button>
+          </form>
+          <div class="music-shortcuts">
+            <button type="button" class="music-chip" data-query="lofi hip hop radio study">Lo-fi</button>
+            <button type="button" class="music-chip" data-query="instrumental music for concentration">Concentración</button>
+            <button type="button" class="music-chip" data-query="ambient music coding">Ambient</button>
+            <button type="button" class="music-chip" data-query="piano relaxing music">Piano</button>
+          </div>
+          <p class="music-status" id="music-status" role="status">Busca música y selecciona un resultado para intentar reproducirlo aquí.</p>
+          <div class="music-results" id="music-results" aria-live="polite"></div>
+          <div class="music-player-wrap" id="music-player-wrap" hidden>
+            <div class="player-topline"><span>REPRODUCTOR</span><a id="open-youtube" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
+            <div id="youtube-player"></div>
+            <p class="player-note">Algunos videos no admiten reproducción incrustada; en ese caso puedes abrirlos en YouTube.</p>
+          </div>
+          <div class="music-footer"><a id="youtube-search-link" href="https://music.youtube.com/" target="_blank" rel="noopener noreferrer">Abrir YouTube Music ↗</a></div>
+        </section>
       </aside>
+
+      <div class="main-column">
+        <section class="stats" aria-label="Resumen de tareas">
+          <article class="stat-card"><span class="stat-label">TAREAS TOTALES</span><strong>{{ total }}</strong><span class="stat-detail">En tu lista</span></article>
+          <article class="stat-card"><span class="stat-label">COMPLETADAS</span><strong>{{ completed }}</strong><span class="stat-detail">Buen trabajo</span></article>
+          <article class="stat-card"><span class="stat-label">PENDIENTES</span><strong>{{ total - completed }}</strong><span class="stat-detail">Paso a paso</span></article>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading"><div><p class="eyebrow">PLANIFICA TU DÍA</p><h2>Agregar una tarea</h2></div><span class="section-icon">＋</span></div>
+          <form class="task-form" action="{{ url_for('add_task') }}" method="post">
+            <label class="field task-title">Nombre de la tarea
+              <input type="text" name="title" maxlength="160" placeholder="Ej. Estudiar Python 30 minutos" required>
+            </label>
+            <div class="form-row">
+              <label class="field">Prioridad
+                <select name="priority"><option>Media</option><option>Alta</option><option>Baja</option></select>
+              </label>
+              <label class="field">Fecha límite
+                <input type="date" name="due_date">
+              </label>
+            </div>
+            <button class="primary-button add-button" type="submit">＋ Añadir tarea</button>
+          </form>
+        </section>
+
+        <section class="tasks-section">
+          <div class="section-heading task-heading"><div><p class="eyebrow">MANTÉN EL RITMO</p><h2>Mis tareas</h2></div><span class="count">{{ total }} en total</span></div>
+          <div class="progress-card">
+            <div class="progress-copy"><span>Progreso general</span><strong>{{ ((completed / total * 100)|round|int) if total else 0 }}%</strong></div>
+            <div class="progress-track"><div class="progress-fill" style="width: {{ ((completed / total * 100)|round|int) if total else 0 }}%"></div></div>
+          </div>
+          <div class="task-filters" role="group" aria-label="Filtrar tareas">
+            <button type="button" class="filter-button active" data-filter="all">Todas</button>
+            <button type="button" class="filter-button" data-filter="pending">Pendientes</button>
+            <button type="button" class="filter-button" data-filter="completed">Completadas</button>
+          </div>
+          {% if tasks %}
+          <div class="task-list" id="task-list">
+            {% for task in tasks %}
+            <article class="task-item {% if task.completed %}is-complete{% endif %}" data-state="{% if task.completed %}completed{% else %}pending{% endif %}">
+              <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="post">
+                <button class="check-button" type="submit" aria-label="{% if task.completed %}Marcar pendiente{% else %}Marcar completada{% endif %}">{% if task.completed %}✓{% endif %}</button>
+              </form>
+              <div class="task-info">
+                <h3>{{ task.title }}</h3>
+                <div class="task-meta">
+                  <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
+                  {% if task.due_date %}<span class="due-date">Fecha límite: {{ task.due_date }}</span>{% else %}<span>Sin fecha límite</span>{% endif %}
+                </div>
+              </div>
+              <form action="{{ url_for('delete_task', task_id=task.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta tarea?');">
+                <button class="delete-button" type="submit" aria-label="Eliminar tarea">×</button>
+              </form>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state"><div class="empty-icon">✦</div><h3>Tu espacio está listo</h3><p>Añade tu primera tarea y empieza a organizar tu día.</p></div>
+          {% endif %}
+        </section>
+      </div>
     </div>
     <footer>FocusFlow · Un paso a la vez.</footer>
   </main>
   <script src="{{ url_for('static', filename='music.js') }}" defer></script>
+  <script>
+    document.querySelectorAll("[data-filter]").forEach(button => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-filter]").forEach(item => item.classList.toggle("active", item === button));
+        document.querySelectorAll(".task-item").forEach(task => {
+          task.hidden = button.dataset.filter !== "all" && task.dataset.state !== button.dataset.filter;
+        });
+      });
+    });
+  </script>
 </body>
 </html>
