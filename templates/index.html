@@ -87,6 +87,30 @@
           <article class="stat-card"><span class="stat-label">PENDIENTES</span><strong>{{ total - completed }}</strong><span class="stat-detail">Paso a paso</span></article>
         </section>
 
+        <section class="work-dashboard panel" id="work-dashboard">
+          <div class="section-heading"><div><p class="eyebrow">TU CONSTANCIA, EN DATOS</p><h2>Actividad de trabajo</h2><p class="notes-hint">Registra el tiempo real que dedicas a tus tareas y deja un resumen de cada sesión.</p></div><span class="section-icon">◷</span></div>
+          <div class="work-metrics">
+            <article><span>Hoy</span><strong id="today-work-total">{{ (today_work_seconds // 3600) }} h {{ ((today_work_seconds % 3600) // 60) }} min</strong></article>
+            <article><span>Tiempo registrado</span><strong id="all-work-total">{{ (total_work_seconds // 3600) }} h {{ ((total_work_seconds % 3600) // 60) }} min</strong></article>
+            <article><span>Sesiones</span><strong>{{ work_stats.values()|sum(attribute='sessions') if work_stats else 0 }}</strong></article>
+          </div>
+          <div class="activity-heading"><div><strong>Tu actividad · últimos 35 días</strong><span class="activity-legend"><i></i> Menos <i></i><i></i><i></i><i></i> Más</span></div></div>
+          <div class="activity-grid" role="img" aria-label="Mapa de actividad diaria de trabajo">
+            {% for day in activity_days %}
+            <span class="activity-cell level-{{ day.level }}" title="{{ day.date }} · {{ day.minutes }} minutos registrados" aria-label="{{ day.date }}: {{ day.minutes }} minutos"></span>
+            {% endfor %}
+          </div>
+          <div class="activity-months"><span>{{ activity_days[0].label }}</span><span>{{ activity_days[17].label }}</span><span>{{ activity_days[-1].label }}</span></div>
+          <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FocusFlow.</p>
+        </section>
+        <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
+          <div class="active-work-copy"><span class="live-dot"></span><div><p class="eyebrow">SESIÓN EN CURSO</p><h2 id="active-work-title">{% if active_session %}{{ active_session.task_title }}{% else %}Sin sesión activa{% endif %}</h2><p id="active-work-subtitle">El tiempo se está contando mientras trabajas.</p></div></div>
+          <div class="active-work-clock" id="active-work-clock" data-started-at="{{ active_session.started_at if active_session else '' }}">00:00:00</div>
+          <label class="field work-comment-field" for="work-comment">¿Qué avanzaste en esta sesión?</label>
+          <textarea id="work-comment" rows="2" maxlength="1000" placeholder="Ej. Terminé el diseño de la pantalla y corregí dos errores..."></textarea>
+          <div class="active-work-actions"><span id="work-session-status" role="status">Guarda una nota al terminar para recordar tu progreso.</span><button class="primary-button" id="stop-work-button" type="button">■ Terminar y guardar</button></div>
+        </section>
+
         <section class="panel">
           <div class="section-heading"><div><p class="eyebrow">PLANIFICA TU DÍA</p><h2>Agregar una tarea</h2></div><span class="section-icon">＋</span></div>
           <form class="task-form" action="{{ url_for('add_task') }}" method="post">
@@ -147,6 +171,13 @@
                   <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
                   {% if task.due_date %}<span class="due-date" data-due-date="{{ task.due_date }}">Fecha límite: {{ task.due_date }}</span>{% else %}<span class="due-date">Sin fecha límite</span>{% endif %}
                 </div>
+              </div>
+              <div class="task-work-summary">
+                <span class="task-streak" title="Días consecutivos con tiempo de trabajo registrado">🔥 {{ task_streaks.get(task.id, 0) }} día{% if task_streaks.get(task.id, 0) != 1 %}s{% endif %} de racha</span>
+                <span class="task-time-total">⏱ {% set task_seconds = work_stats.get(task.id, {}).get('seconds', 0) %}{{ task_seconds // 3600 }} h {{ (task_seconds % 3600) // 60 }} min</span>
+                <button class="start-task-work" type="button" data-start-task="{{ task.id }}" data-task-title="{{ task.title }}">▶ Empezar a trabajar</button>
+                <button class="task-history-button" type="button" aria-expanded="false">Ver sesiones</button>
+                <div class="task-history" hidden aria-live="polite"></div>
               </div>
               <button class="task-edit-button" type="button" aria-label="Editar tarea" aria-expanded="false">Editar</button>
               <form class="task-inline-editor" hidden>
@@ -382,6 +413,113 @@
         updateTaskVisibility();
       });
     });
+  </script>
+  <script>
+    (() => {
+      const activePanel = document.getElementById("active-work-panel");
+      const activeTitle = document.getElementById("active-work-title");
+      const clock = document.getElementById("active-work-clock");
+      const comment = document.getElementById("work-comment");
+      const stopButton = document.getElementById("stop-work-button");
+      const sessionStatus = document.getElementById("work-session-status");
+      let activeTaskId = {{ active_session.task_id if active_session else 'null' }};
+      let startedAt = clock.dataset.startedAt || "";
+      let ticker = null;
+      const formatDuration = seconds => {
+        seconds = Math.max(0, Math.floor(seconds));
+        const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
+        const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+        const s = String(seconds % 60).padStart(2, "0");
+        return h + ":" + m + ":" + s;
+      };
+      function drawClock() {
+        if (!startedAt) return;
+        const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+        clock.textContent = formatDuration(elapsed);
+      }
+      function startTicker() {
+        if (ticker) clearInterval(ticker);
+        drawClock();
+        ticker = setInterval(drawClock, 1000);
+      }
+      function setWorking(taskId, title, start) {
+        activeTaskId = taskId;
+        startedAt = start;
+        clock.dataset.startedAt = start;
+        activeTitle.textContent = title;
+        activePanel.hidden = false;
+        sessionStatus.textContent = "Tiempo contando. Puedes dejar el comentario al terminar.";
+        document.querySelectorAll("[data-start-task]").forEach(button => {
+          button.disabled = true;
+          button.textContent = Number(button.dataset.startTask) === Number(taskId) ? "● Trabajando..." : "Otra sesión está activa";
+        });
+        startTicker();
+        activePanel.scrollIntoView({behavior:"smooth", block:"center"});
+      }
+      if (activeTaskId && startedAt) setWorking(activeTaskId, activeTitle.textContent, startedAt);
+      document.querySelectorAll("[data-start-task]").forEach(button => button.addEventListener("click", async () => {
+        button.disabled = true;
+        const original = button.textContent;
+        button.textContent = "Iniciando...";
+        try {
+          const response = await fetch("/api/work/start", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task_id:Number(button.dataset.startTask)})});
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar la sesión.");
+          setWorking(data.task_id, data.task_title, data.started_at);
+        } catch(error) {
+          sessionStatus.textContent = error.message;
+          button.disabled = false;
+          button.textContent = original;
+        }
+      }));
+      stopButton.addEventListener("click", async () => {
+        stopButton.disabled = true;
+        sessionStatus.textContent = "Guardando tiempo y comentario...";
+        try {
+          const response = await fetch("/api/work/stop", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({comment:comment.value})});
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar la sesión.");
+          sessionStatus.textContent = "Sesión guardada: " + formatDuration(data.duration_seconds) + ". Actualizando estadísticas...";
+          window.location.reload();
+        } catch(error) {
+          sessionStatus.textContent = error.message;
+          stopButton.disabled = false;
+        }
+      });
+      document.querySelectorAll(".task-history-button").forEach(button => button.addEventListener("click", async () => {
+        const card = button.closest(".task-item");
+        const history = card.querySelector(".task-history");
+        const opening = history.hidden;
+        history.hidden = !opening;
+        button.setAttribute("aria-expanded", String(opening));
+        button.textContent = opening ? "Ocultar sesiones" : "Ver sesiones";
+        if (!opening) return;
+        if (history.dataset.loaded === "true") return;
+        history.textContent = "Cargando historial...";
+        try {
+          const response = await fetch("/api/tasks/" + encodeURIComponent(card.dataset.taskId) + "/work-log");
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo cargar el historial.");
+          history.replaceChildren();
+          if (!data.sessions.length) {
+            history.textContent = "Todavía no hay sesiones registradas para esta tarea.";
+          } else {
+            data.sessions.forEach(session => {
+              const item = document.createElement("article");
+              item.className = "work-log-item";
+              const meta = document.createElement("strong");
+              const date = new Date(session.started_at);
+              meta.textContent = date.toLocaleString() + " · " + formatDuration(session.duration_seconds);
+              const note = document.createElement("p");
+              note.textContent = session.comment || "Sin comentario guardado.";
+              item.append(meta, note);
+              history.append(item);
+            });
+          }
+          history.dataset.loaded = "true";
+        } catch(error) { history.textContent = error.message; }
+      }));
+    })();
   </script>
 </body>
 </html>
