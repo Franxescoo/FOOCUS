@@ -370,6 +370,9 @@ class FocusFlowTaskTests(unittest.TestCase):
                     "INSERT INTO work_sessions (task_id, started_at, comment) VALUES (?, ?, ?)",
                     (1, "2026-10-19T08:00:00+00:00", "Avance anterior"),
                 )
+            # sqlite3.Connection's context manager commits but does not close.
+            # Explicitly close it so Windows can remove the temporary database.
+            db.close()
             focusflow.init_db()
             with focusflow.get_db() as db:
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
