@@ -106,3 +106,13 @@ body.music-open{overflow:hidden}
   .online-dot{width:7px;height:7px;border-radius:50%;background:#3bb782}
 }
 @media(max-width:1099px){.product-sidebar{display:none}}
+
+/* Quick notes and focus-session progress */
+.quick-notes{margin-top:18px;padding:22px 24px}
+.notes-hint{margin:-7px 0 12px;color:var(--muted);font-size:12px;line-height:1.6}
+.quick-notes textarea{display:block;width:100%;min-height:92px;padding:12px 13px;resize:vertical;border:1px solid #e2e1ed;border-radius:10px;background:#fff;color:var(--ink);font:13px/1.6 'DM Sans',sans-serif;outline:none}
+.quick-notes textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px #6756d91a}
+.notes-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:var(--muted);font-size:10px}
+.session-counter{margin-top:8px;color:var(--muted);font-size:10px;text-align:center}
+.session-counter strong{color:var(--purple-dark);font-size:12px}
+@media(max-width:600px){.quick-notes{padding:17px 13px}.notes-footer{align-items:flex-start;flex-direction:column}}
