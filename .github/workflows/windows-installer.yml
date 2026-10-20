@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   build-installer:
-    runs-on: windows-latest
     outputs:
       release_version: ${{ steps.version.outputs.release_version }}
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,8 +44,19 @@ jobs:
               $version = "1.0.0"
             } else {
               $parts = $latestTag.TrimStart("v").Split(".")
-              if ($parts.Count -ne 3 -or $parts[0] -notmatch '^\d+
-
+              if ($parts.Count -ne 3 -or $parts[0] -notmatch '^\d+$' -or $parts[1] -notmatch '^\d+$' -or $parts[2] -notmatch '^\d+$') {
+                throw "Latest semantic version tag is invalid: $latestTag"
+              }
+              $parts[2] = ([int]$parts[2] + 1).ToString()
+              $version = "$($parts[0]).$($parts[1]).$($parts[2])"
+            }
+            "release_version=$version" | Add-Content -Path $env:GITHUB_OUTPUT
+            $appVersion = "V$version"
+          } else {
+            "release_version=" | Add-Content -Path $env:GITHUB_OUTPUT
+            $appVersion = "dev-$env:GITHUB_RUN_NUMBER"
+          }
+          "APP_VERSION = '$appVersion'" | Set-Content -Path focusflow_build.py -Encoding ascii
       - name: Package FocusFlow for Windows
         shell: pwsh
         run: |
@@ -86,6 +97,7 @@ jobs:
           path: dist-installer/FocusFlow-Setup.exe
           if-no-files-found: error
           retention-days: 30
+
 
   publish-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -109,225 +121,6 @@ jobs:
             FocusFlow V${{ needs.build-installer.outputs.release_version }}
 
             Instalador generado automáticamente desde el commit ${{ github.sha }}. Las novedades aparecen en la sección What's Changed.
-          files: dist-installer/FocusFlow-Setup.exe
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-          make_latest: true
- -or $parts[1] -notmatch '^\d+
-
-      - name: Package FocusFlow for Windows
-        shell: pwsh
-        run: |
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
-
-      - name: Download Microsoft Edge WebView2 bootstrapper
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer | Out-Null
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer/MicrosoftEdgeWebView2Setup.exe"
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --yes --no-progress
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $compiler)) {
-            $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          }
-          if (-not (Test-Path $compiler)) {
-            throw "Inno Setup compiler was not found."
-          }
-          & $compiler "installer/FocusFlow.iss"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup failed with exit code $LASTEXITCODE."
-          }
-          if (-not (Test-Path "dist-installer/FocusFlow-Setup.exe")) {
-            throw "FocusFlow installer was not created."
-          }
-
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: FocusFlow-Windows-Installer
-          path: dist-installer/FocusFlow-Setup.exe
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-installer
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download Windows installer artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: FocusFlow-Windows-Installer
-          path: dist-installer
-
-      - name: Publish latest Windows release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: FocusFlow para Windows · build ${{ github.run_number }}
-          body: |
-            Instalador de Windows generado automáticamente desde el commit ${{ github.sha }}.
-
-            Descarga FocusFlow-Setup.exe para instalar FocusFlow o actualizar una instalación existente.
-          files: dist-installer/FocusFlow-Setup.exe
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-          make_latest: true
- -or $parts[2] -notmatch '^\d+
-
-      - name: Package FocusFlow for Windows
-        shell: pwsh
-        run: |
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
-
-      - name: Download Microsoft Edge WebView2 bootstrapper
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer | Out-Null
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer/MicrosoftEdgeWebView2Setup.exe"
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --yes --no-progress
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $compiler)) {
-            $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          }
-          if (-not (Test-Path $compiler)) {
-            throw "Inno Setup compiler was not found."
-          }
-          & $compiler "installer/FocusFlow.iss"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup failed with exit code $LASTEXITCODE."
-          }
-          if (-not (Test-Path "dist-installer/FocusFlow-Setup.exe")) {
-            throw "FocusFlow installer was not created."
-          }
-
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: FocusFlow-Windows-Installer
-          path: dist-installer/FocusFlow-Setup.exe
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-installer
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download Windows installer artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: FocusFlow-Windows-Installer
-          path: dist-installer
-
-      - name: Publish latest Windows release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: FocusFlow para Windows · build ${{ github.run_number }}
-          body: |
-            Instalador de Windows generado automáticamente desde el commit ${{ github.sha }}.
-
-            Descarga FocusFlow-Setup.exe para instalar FocusFlow o actualizar una instalación existente.
-          files: dist-installer/FocusFlow-Setup.exe
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-          make_latest: true
-) {
-                throw "Latest semantic version tag is invalid: $latestTag"
-              }
-              $parts[2] = ([int]$parts[2] + 1).ToString()
-              $version = "$($parts[0]).$($parts[1]).$($parts[2])"
-            }
-            "release_version=$version" | Add-Content -Path $env:GITHUB_OUTPUT
-            $appVersion = "V$version"
-          } else {
-            "release_version=" | Add-Content -Path $env:GITHUB_OUTPUT
-            $appVersion = "dev-$env:GITHUB_RUN_NUMBER"
-          }
-          "APP_VERSION = '$appVersion'" | Set-Content -Path focusflow_build.py -Encoding ascii
-
-      - name: Package FocusFlow for Windows
-        shell: pwsh
-        run: |
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
-
-      - name: Download Microsoft Edge WebView2 bootstrapper
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer | Out-Null
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer/MicrosoftEdgeWebView2Setup.exe"
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --yes --no-progress
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $compiler)) {
-            $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          }
-          if (-not (Test-Path $compiler)) {
-            throw "Inno Setup compiler was not found."
-          }
-          & $compiler "installer/FocusFlow.iss"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup failed with exit code $LASTEXITCODE."
-          }
-          if (-not (Test-Path "dist-installer/FocusFlow-Setup.exe")) {
-            throw "FocusFlow installer was not created."
-          }
-
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: FocusFlow-Windows-Installer
-          path: dist-installer/FocusFlow-Setup.exe
-          if-no-files-found: error
-          retention-days: 30
-
-  publish-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-installer
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download Windows installer artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: FocusFlow-Windows-Installer
-          path: dist-installer
-
-      - name: Publish latest Windows release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: FocusFlow para Windows · build ${{ github.run_number }}
-          body: |
-            Instalador de Windows generado automáticamente desde el commit ${{ github.sha }}.
-
-            Descarga FocusFlow-Setup.exe para instalar FocusFlow o actualizar una instalación existente.
           files: dist-installer/FocusFlow-Setup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
