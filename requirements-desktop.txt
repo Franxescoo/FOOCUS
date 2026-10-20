@@ -1,0 +1,3 @@
+-r requirements.txt
+# Native Windows desktop window for the local Flask application.
+pywebview>=5.4,<7.0
