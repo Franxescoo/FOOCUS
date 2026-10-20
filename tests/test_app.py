@@ -57,7 +57,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b"Actividad de trabajo", response.data)
         self.assertIn(b'id="study-goal-select"', response.data)
         self.assertNotIn(b'id="subject-filter"', response.data)
-        self.assertIn(b"Tu espacio está listo", response.data)
+        self.assertIn("Tu espacio está listo".encode(), response.data)
         self.assertIn(b'id="active-work-dialog"', response.data)
         self.assertIn(b'id="active-work-dock"', response.data)
         self.assertIn(b'id="work-minimize-button"', response.data)
