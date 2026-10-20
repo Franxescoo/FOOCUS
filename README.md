@@ -60,18 +60,24 @@ La base de datos focusflow.db se crea automáticamente junto a app.py. Si necesi
 
 ## Instalar como aplicación de escritorio en Windows
 
-FocusFlow también se puede empaquetar como una aplicación de escritorio con su propia ventana, sin tener que abrir el navegador manualmente.
+FocusFlow se puede instalar como una aplicación de escritorio con su propia ventana, sin abrir el navegador manualmente.
 
-1. Abre la pestaña **Actions** del repositorio en GitHub.
-2. Entra al flujo **Windows desktop installer** y abre la ejecución más reciente que terminó correctamente.
-3. Descarga el artefacto **FocusFlow-Windows-Installer** y extrae el archivo `FocusFlow-Setup.exe`.
-4. Ejecuta el instalador. Crea accesos directos y ofrece abrir FocusFlow al terminar.
+### Descargar desde la página
 
-La compilación de Windows se genera automáticamente al subir cambios a `main` o a una rama `feature/**`. Los artefactos de Actions se conservan durante 30 días. El instalador instala el componente Microsoft Edge WebView2 necesario para la ventana de escritorio.
+1. En la pantalla principal de FocusFlow, busca **FocusFlow para Windows** o pulsa el enlace de descarga del encabezado.
+2. La sección consulta la publicación más reciente de GitHub y compara su número de compilación con el de la aplicación instalada.
+3. Pulsa **Descargar instalador** y, cuando termine la descarga de `FocusFlow-Setup.exe`, ábrelo para instalar o actualizar FocusFlow.
+4. Cierra FocusFlow antes de actualizar. El instalador utiliza el mismo identificador de aplicación para actualizar la carpeta del programa.
 
-La aplicación de escritorio guarda sus datos en `%LOCALAPPDATA%\\FocusFlow` y solo inicia su servidor web en `127.0.0.1`. La base SQLite, la clave local de sesión y el puerto estable quedan fuera de la carpeta de instalación, por lo que actualizar o desinstalar el programa no debería borrar el historial. La música requiere conexión a internet.
+El botón apunta a la publicación más reciente, por lo que no hay que cambiar el enlace de la página para cada versión. La comprobación de versiones necesita internet; si GitHub no responde, la aplicación sigue funcionando y la página muestra un aviso.
 
-**Importante si ya usas la versión de desarrollo:** la base `focusflow.db` ubicada junto al repositorio no se copia automáticamente. Para conservar esos datos en la versión de escritorio, cierra FocusFlow, crea la carpeta `%LOCALAPPDATA%\\FocusFlow` si no existe y copia allí tu `focusflow.db` antes de iniciar la aplicación instalada por primera vez. Haz primero una copia de seguridad.
+### Publicación automática
+
+Cada compilación correcta que se ejecuta al subir cambios a `main` publica una nueva versión de Windows en **GitHub Releases**, además de mantener el artefacto temporal de Actions por 30 días. La versión de compilación se incorpora al programa para que la página pueda comprobar si existe una compilación más reciente. Las compilaciones de ramas de desarrollo y pull requests no se publican como versiones estables.
+
+El instalador instala el componente Microsoft Edge WebView2 necesario para la ventana de escritorio. FocusFlow guarda sus datos en `%LOCALAPPDATA%\FocusFlow`; la base de datos y la clave de sesión quedan fuera de la carpeta de instalación, por lo que actualizar el programa no debería borrar el historial. La música requiere conexión a internet.
+
+**Importante si ya usas la versión de desarrollo:** la base `focusflow.db` ubicada junto al repositorio no se copia automáticamente. Para conservar esos datos en la versión de escritorio, cierra FocusFlow, crea la carpeta `%LOCALAPPDATA%\FocusFlow` si no existe y copia allí tu `focusflow.db` antes de iniciar la aplicación instalada por primera vez. Haz primero una copia de seguridad.
 
 ## Ejecutar pruebas
 

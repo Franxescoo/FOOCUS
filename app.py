@@ -20,6 +20,13 @@ from flask import (
     url_for,
 )
 
+try:
+    from focusflow_build import APP_VERSION
+except ImportError:
+    # Source runs use a development marker; Windows builds embed their build number.
+    APP_VERSION = os.environ.get("FOCUSFLOW_VERSION", "dev")
+
+
 app = Flask(__name__)
 app.config.update(
     SECRET_KEY=os.environ.get("FOCUSFLOW_SECRET_KEY") or secrets.token_hex(32),
@@ -152,7 +159,7 @@ def csrf_token():
 
 @app.context_processor
 def inject_csrf_token():
-    return {"csrf_token": csrf_token}
+    return {"csrf_token": csrf_token, "app_version": APP_VERSION}
 
 
 @app.before_request

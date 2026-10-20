@@ -89,6 +89,9 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="active-work-dialog"', response.data)
         self.assertIn(b'id="active-work-dock"', response.data)
         self.assertIn(b'id="work-minimize-button"', response.data)
+        self.assertIn(b'id="download-focusflow"', response.data)
+        self.assertIn(b'id="download-status"', response.data)
+        self.assertIn(b'https://github.com/Franxescoo/FocusFlow/releases/latest/download/FocusFlow-Setup.exe', response.data)
         self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
 
