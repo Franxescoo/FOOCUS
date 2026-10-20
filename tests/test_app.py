@@ -114,6 +114,19 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["sessions"][0]["comment"], "Prueba del historial")
 
+
+    def test_export_csv_includes_task_and_work_comment(self):
+        self.create_task("Exportar mi progreso", priority="Alta")
+        with focusflow.get_db() as db:
+            task_id = db.execute("SELECT id FROM tasks").fetchone()["id"]
+        self.client.post("/api/work/start", json={"task_id": task_id})
+        self.client.post("/api/work/stop", json={"comment": "Avancé el diseño"})
+        response = self.client.get("/export.csv")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/csv", response.headers["Content-Type"])
+        self.assertIn("Exportar mi progreso".encode(), response.data)
+        self.assertIn("Avancé el diseño".encode(), response.data)
+
     def test_delete_task(self):
         self.create_task()
         with focusflow.get_db() as db:
