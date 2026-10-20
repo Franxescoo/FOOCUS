@@ -14,6 +14,7 @@ FocusFlow es una aplicación local de productividad para estudiar y organizar ta
 - Buscar tareas y filtrarlas por estado.
 - Avisos visuales para tareas vencidas o que vencen hoy.
 - Registro de sesiones de trabajo por tarea, con tiempo transcurrido, resumen del avance y siguiente paso al cerrar.
+- Ventana emergente de sesión al empezar una tarea, con opción de minimizar y retomarla desde un indicador flotante sin detener el cronómetro.
 - Mostrar el siguiente paso guardado en la tarjeta de la tarea para retomar el trabajo más rápido.
 - Historial de sesiones y tiempo total registrado por tarea.
 - Estadísticas de tiempo de hoy, esta semana y el historial completo.
@@ -68,7 +69,8 @@ Las pruebas usan una base de datos temporal; no deberían modificar tu base de d
 ## Seguimiento del trabajo
 
 1. En una tarea pendiente, pulsa **Empezar a trabajar**.
-2. FocusFlow registra la hora de inicio y muestra el cronómetro de la sesión.
+2. FocusFlow registra la hora de inicio y abre una ventana emergente con el cronómetro y los campos de revisión.
+2a. Puedes minimizar la ventana; la sesión continúa contando y queda un indicador flotante para volver a abrirla. Si recargas la página con una sesión activa, la ventana se recupera automáticamente.
 3. Cuando termines, anota lo que avanzaste y define el siguiente paso concreto antes de pulsar **Terminar y guardar**.
 4. Las estadísticas y el mapa de actividad se actualizan con las sesiones guardadas.
 5. En **Actividad de trabajo**, puedes fijar una meta diaria de entre 15 minutos y 10 horas, en incrementos de 15 minutos.
@@ -109,7 +111,7 @@ Usa un secreto largo, privado y único. En un despliegue HTTPS, configura ademá
 - templates/error.html: pantalla de error coherente con la aplicación.
 - static/style.css: temas, diseño responsive, paneles y widgets.
 - static/music.js: búsqueda, colección musical y reproducción.
-- tests/test_app.py: pruebas de rutas, sesión, meta diaria, CSRF y exportación.
+- tests/test_app.py: pruebas de rutas, ventana de sesión, recuperación al recargar, meta diaria, CSRF y exportación.
 - docs/ROADMAP.md: decisiones y pasos recomendados para el crecimiento futuro.
 - .github/workflows/tests.yml: ejecución automática de pruebas en GitHub Actions.
 - requirements.txt: dependencias de Python.

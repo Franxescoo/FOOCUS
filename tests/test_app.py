@@ -57,7 +57,38 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b"Actividad de trabajo", response.data)
         self.assertIn(b'id="study-goal-select"', response.data)
         self.assertIn(b'id="subject-filter"', response.data)
+        self.assertIn(b'id="active-work-dialog"', response.data)
+        self.assertIn(b'id="active-work-dock"', response.data)
+        self.assertIn(b'id="work-minimize-button"', response.data)
+        self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
+
+    def test_active_work_session_uses_modal_after_reload(self):
+        self.create_task(title="Repasar cálculo")
+        task_id = self.task_id()
+        started = self.client.post(
+            "/api/work/start",
+            json={"task_id": task_id},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(started.status_code, 200)
+
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="active-work-dialog"', response.data)
+        self.assertIn(b'id="active-work-dock-reopen"', response.data)
+        self.assertIn("Repasar cálculo".encode(), response.data)
+        self.assertIn(b'workDialog.showModal()', response.data)
+        self.assertIn(b'workDialog.close("minimize")', response.data)
+        self.assertNotIn(b'id="utility-session-card"', response.data)
+
+    def test_modal_keeps_session_ui_hidden_before_work_starts(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        page = response.data
+        self.assertIn(b'<dialog class="active-work-dialog"', page)
+        self.assertIn(b'id="active-work-panel" hidden', page)
+        self.assertIn(b'id="active-work-dock" hidden', page)
 
     def test_work_dashboard_is_visible_on_main_page(self):
         page = self.client.get("/").data

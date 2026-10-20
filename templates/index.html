@@ -337,10 +337,18 @@
         </section>
             </div>
           </details>
-          <details class="utility-card" id="utility-session-card"  {% if active_session %}open{% endif %}>
-            <summary><span class="utility-card-icon">●</span><span><strong>Sesión en curso</strong><small>Tu registro de trabajo</small></span><span class="utility-chevron">⌄</span></summary>
-            <div class="utility-card-content">
-<section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
+          
+        </aside>
+      </div>
+    </div>
+    <footer>FocusFlow · Un paso a la vez.</footer>
+  </main>
+<dialog class="active-work-dialog" id="active-work-dialog" tabindex="-1" aria-modal="true" aria-labelledby="active-work-title" aria-describedby="active-work-subtitle">
+  <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
+          <div class="active-work-dialog-header">
+            <span class="active-work-dialog-label"><span class="live-dot"></span> Sesión de estudio activa</span>
+            <button class="work-minimize-button" id="work-minimize-button" type="button" aria-label="Minimizar sesión; el tiempo seguirá contando">Minimizar</button>
+          </div>
           <div class="active-work-copy"><span class="live-dot"></span><div><p class="eyebrow">SESIÓN EN CURSO</p><h2 id="active-work-title">{% if active_session %}{{ active_session.task_title }}{% else %}Sin sesión activa{% endif %}</h2><p id="active-work-subtitle">El tiempo se está contando mientras trabajas.</p></div></div>
           <div class="active-work-clock" id="active-work-clock" data-started-at="{{ active_session.started_at if active_session else '' }}">00:00:00</div>
           <label class="field work-comment-field" for="work-comment">¿Qué avanzaste en esta sesión?</label>
@@ -350,14 +358,16 @@
           <p class="field-hint">Este paso aparecerá junto a la tarea para ayudarte a retomarla en la próxima sesión.</p>
           <div class="active-work-actions"><span id="work-session-status" role="status">Guarda una nota al terminar para recordar tu progreso.</span><button class="primary-button" id="stop-work-button" type="button">■ Terminar y guardar</button></div>
         </section>
-            </div>
-          </details>
-        </aside>
-      </div>
-    </div>
-    <footer>FocusFlow · Un paso a la vez.</footer>
-  </main>
-  <script src="{{ url_for('static', filename='music.js') }}" defer></script>
+</dialog>
+<div class="active-work-dock" id="active-work-dock" hidden>
+  <span class="active-work-dock-live" aria-hidden="true"></span>
+  <div class="active-work-dock-copy">
+    <strong id="active-work-dock-title">Sesión en curso</strong>
+    <small>El tiempo sigue contando · <span id="active-work-dock-clock">00:00:00</span></small>
+  </div>
+  <button class="active-work-dock-reopen" id="active-work-dock-reopen" type="button">Volver a la sesión</button>
+</div>
+    <script src="{{ url_for('static', filename='music.js') }}" defer></script>
   <script>
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
     (() => {
@@ -661,13 +671,10 @@
           const response = await fetch("/api/work/start", {method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken}, body:JSON.stringify({task_id:Number(task.id)})});
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar el registro de trabajo.");
-          document.getElementById("utility-focus-card").open = true;
-          document.getElementById("utility-session-card").open = true;
           const preset = document.querySelector('[data-minutes="5"]');
           if (preset) preset.click();
           const startTimer = document.getElementById("focus-start");
           if (startTimer && startTimer.textContent !== "Pausar") startTimer.click();
-          document.getElementById("focus-area").scrollIntoView({behavior:"smooth", block:"center"});
           if (window.focusFlowSetWorking) window.focusFlowSetWorking(data.task_id, data.task_title, data.started_at);
           document.getElementById("active-work-subtitle").textContent = "Primer paso: " + step;
           document.getElementById("work-session-status").textContent = "Tu sesión quedó registrada. Al terminar, guarda lo que avanzaste.";
@@ -844,6 +851,12 @@
       const nextStep = document.getElementById("work-next-step");
       const stopButton = document.getElementById("stop-work-button");
       const sessionStatus = document.getElementById("work-session-status");
+      const workDialog = document.getElementById("active-work-dialog");
+      const minimizeButton = document.getElementById("work-minimize-button");
+      const dock = document.getElementById("active-work-dock");
+      const dockTitle = document.getElementById("active-work-dock-title");
+      const dockClock = document.getElementById("active-work-dock-clock");
+      const dockReopen = document.getElementById("active-work-dock-reopen");
       let activeTaskId = {{ active_session.task_id if active_session else 'null' }};
       let startedAt = clock.dataset.startedAt || "";
       let ticker = null;
@@ -856,19 +869,53 @@
       };
       function drawClock() {
         if (!startedAt) return;
-        const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-        clock.textContent = formatDuration(elapsed);
+        const parsedStart = new Date(startedAt).getTime();
+        if (!Number.isFinite(parsedStart)) return;
+        const elapsedText = formatDuration((Date.now() - parsedStart) / 1000);
+        clock.textContent = elapsedText;
+        dockClock.textContent = elapsedText;
       }
       function startTicker() {
         if (ticker) clearInterval(ticker);
         drawClock();
         ticker = setInterval(drawClock, 1000);
       }
+      function showDock() {
+        if (!activeTaskId || !startedAt) return;
+        dockTitle.textContent = activeTitle.textContent || "Sesión en curso";
+        dock.hidden = false;
+        drawClock();
+      }
+      function openWorkDialog() {
+        if (!activeTaskId || !startedAt) return;
+        activePanel.hidden = false;
+        dock.hidden = true;
+        if (!workDialog.open) workDialog.showModal();
+        workDialog.focus({preventScroll: true});
+      }
+      function minimizeWorkDialog() {
+        if (workDialog.open) workDialog.close("minimize");
+        showDock();
+      }
+      workDialog.addEventListener("close", () => {
+        if (activeTaskId && startedAt) showDock();
+        else dock.hidden = true;
+      });
+      workDialog.addEventListener("cancel", event => {
+        event.preventDefault();
+        minimizeWorkDialog();
+      });
+      workDialog.addEventListener("click", event => {
+        if (event.target === workDialog) minimizeWorkDialog();
+      });
+      minimizeButton.addEventListener("click", minimizeWorkDialog);
+      dockReopen.addEventListener("click", openWorkDialog);
       function setWorking(taskId, title, start) {
         activeTaskId = taskId;
         startedAt = start;
         clock.dataset.startedAt = start;
         activeTitle.textContent = title;
+        dockTitle.textContent = title;
         activePanel.hidden = false;
         sessionStatus.textContent = "Tiempo contando. Puedes dejar el comentario al terminar.";
         document.querySelectorAll("[data-start-task]").forEach(button => {
@@ -876,11 +923,9 @@
           button.textContent = Number(button.dataset.startTask) === Number(taskId) ? "● Trabajando..." : "Otra sesión está activa";
         });
         startTicker();
-        activePanel.scrollIntoView({behavior:"smooth", block:"center"});
+        openWorkDialog();
       }
       window.focusFlowSetWorking = (taskId, title, start) => {
-        const sessionCard = document.getElementById("utility-session-card");
-        if (sessionCard) sessionCard.open = true;
         setWorking(taskId, title, start);
       };
       if (activeTaskId && startedAt) setWorking(activeTaskId, activeTitle.textContent, startedAt);
@@ -894,9 +939,10 @@
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar la sesión.");
           setWorking(data.task_id, data.task_title, data.started_at);
         } catch(error) {
-          sessionStatus.textContent = error.message;
           button.disabled = false;
-          button.textContent = original;
+          button.textContent = "Reintentar";
+          button.title = error.message || "No se pudo iniciar la sesión.";
+          button.setAttribute("aria-label", "Reintentar inicio de sesión: " + (error.message || "Error desconocido"));
         }
       }));
       stopButton.addEventListener("click", async () => {
