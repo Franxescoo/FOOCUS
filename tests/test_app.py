@@ -56,12 +56,27 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="work-dashboard"', response.data)
         self.assertIn(b"Actividad de trabajo", response.data)
         self.assertIn(b'id="study-goal-select"', response.data)
-        self.assertIn(b'id="subject-filter"', response.data)
+        self.assertNotIn(b'id="subject-filter"', response.data)
+        self.assertIn(b"Tu espacio está listo", response.data)
         self.assertIn(b'id="active-work-dialog"', response.data)
         self.assertIn(b'id="active-work-dock"', response.data)
         self.assertIn(b'id="work-minimize-button"', response.data)
         self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
+
+    def test_task_filters_include_live_count_and_empty_results(self):
+        self.create_task(title="Estudiar Django", subject="Programación")
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        page = response.data
+        self.assertIn(b'id="subject-filter"', page)
+        self.assertIn(b'id="task-visible-count"', page)
+        self.assertIn(b'id="task-filter-clear"', page)
+        self.assertIn(b'id="task-no-results" hidden', page)
+        self.assertIn(b'aria-pressed="true">Todas</button>', page)
+        self.assertIn(b'aria-pressed="false">Pendientes</button>', page)
+        self.assertIn(b'function clearTaskFilters()', page)
+        self.assertIn(b'button.setAttribute("aria-pressed", String(active))', page)
 
     def test_active_work_session_uses_modal_after_reload(self):
         self.create_task(title="Repasar cálculo")
