@@ -221,7 +221,9 @@
       let remaining = totalSeconds;
       let interval = null;
       const sessionDisplay = document.getElementById("sessions-today");
-      const sessionKey = "focusflow_sessions_" + new Date().toLocaleDateString("en-CA");
+      const localDate = new Date();
+      const sessionDate = localDate.getFullYear() + "-" + String(localDate.getMonth() + 1).padStart(2, "0") + "-" + String(localDate.getDate()).padStart(2, "0");
+      const sessionKey = "focusflow_sessions_" + sessionDate;
       let sessions = 0;
       try { sessions = Number(localStorage.getItem(sessionKey) || 0); } catch (error) {}
       sessionDisplay.textContent = String(sessions);
@@ -283,20 +285,23 @@
       draw();
     })();
     const taskSearch = document.getElementById("task-search");
-    if (taskSearch) taskSearch.addEventListener("input", () => {
-      const query = taskSearch.value.trim().toLocaleLowerCase();
+    let activeTaskFilter = "all";
+    function updateTaskVisibility() {
+      const query = taskSearch ? taskSearch.value.trim().toLocaleLowerCase() : "";
       document.querySelectorAll(".task-item").forEach(task => {
-        task.hidden = !task.textContent.toLocaleLowerCase().includes(query);
+        const matchesText = task.textContent.toLocaleLowerCase().includes(query);
+        const matchesFilter = activeTaskFilter === "all" || task.dataset.state === activeTaskFilter;
+        task.hidden = !(matchesText && matchesFilter);
       });
-    });
+    }
+    if (taskSearch) taskSearch.addEventListener("input", updateTaskVisibility);
   </script>
   <script>
     document.querySelectorAll("[data-filter]").forEach(button => {
       button.addEventListener("click", () => {
         document.querySelectorAll("[data-filter]").forEach(item => item.classList.toggle("active", item === button));
-        document.querySelectorAll(".task-item").forEach(task => {
-          task.hidden = button.dataset.filter !== "all" && task.dataset.state !== button.dataset.filter;
-        });
+        activeTaskFilter = button.dataset.filter;
+        updateTaskVisibility();
       });
     });
   </script>
