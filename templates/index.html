@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FocusFlow | Organiza tu día</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="layout">
+    <header class="topbar">
+      <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark">F</span> FocusFlow</a>
+      <span class="today">HOY · {{ today }}</span>
+    </header>
+
+    <section class="welcome">
+      <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
+      <h1>Haz espacio para<br><span>lo importante.</span></h1>
+      <p class="subtitle">Organiza tus tareas, avanza a tu ritmo y mantén el foco.</p>
+    </section>
+
+    <section class="stats" aria-label="Resumen de tareas">
+      <article class="stat-card"><span class="stat-label">TAREAS EN TOTAL</span><strong>{{ total }}</strong></article>
+      <article class="stat-card"><span class="stat-label">COMPLETADAS</span><strong>{{ completed }}</strong></article>
+      <article class="stat-card"><span class="stat-label">POR HACER</span><strong>{{ total - completed }}</strong></article>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">PLANIFICA</p><h2>Agregar una tarea</h2></div>
+      </div>
+      <form class="task-form" action="{{ url_for('add_task') }}" method="post">
+        <label class="field task-title">¿Qué necesitas hacer?
+          <input type="text" name="title" maxlength="160" placeholder="Ej. Estudiar Python durante 30 minutos" required>
+        </label>
+        <label class="field">Prioridad
+          <select name="priority"><option>Media</option><option>Alta</option><option>Baja</option></select>
+        </label>
+        <label class="field">Fecha límite
+          <input type="date" name="due_date">
+        </label>
+        <button class="primary-button" type="submit">+ Añadir tarea</button>
+      </form>
+    </section>
+
+    <section class="tasks-section">
+      <div class="section-heading task-heading">
+        <div><p class="eyebrow">TU PROGRESO</p><h2>Mis tareas</h2></div>
+        <span class="count">{{ total }} en total</span>
+      </div>
+
+      {% if tasks %}
+      <div class="task-list">
+        {% for task in tasks %}
+        <article class="task-item {% if task.completed %}is-complete{% endif %}">
+          <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="post">
+            <button class="check-button" type="submit" aria-label="{% if task.completed %}Marcar pendiente{% else %}Marcar completada{% endif %}">{% if task.completed %}✓{% endif %}</button>
+          </form>
+          <div class="task-info">
+            <h3>{{ task.title }}</h3>
+            <div class="task-meta">
+              <span class="priority priority-{{ task.priority|lower }}">{{ task.priority }}</span>
+              {% if task.due_date %}<span>Fecha límite: {{ task.due_date }}</span>{% endif %}
+            </div>
+          </div>
+          <form action="{{ url_for('delete_task', task_id=task.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta tarea?');">
+            <button class="delete-button" type="submit" aria-label="Eliminar tarea">×</button>
+          </form>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">✦</div>
+        <h3>Tu espacio está listo</h3>
+        <p>Añade tu primera tarea y empieza a organizar tu día.</p>
+      </div>
+      {% endif %}
+    </section>
+    <footer>FocusFlow · Un paso a la vez.</footer>
+  </main>
+</body>
+</html>
