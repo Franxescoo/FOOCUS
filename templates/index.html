@@ -33,6 +33,15 @@
     </section>
 
     <div class="workspace-grid">
+      <aside class="product-sidebar" aria-label="Herramientas FocusFlow">
+        <div class="side-brand"><span>∞</span><div><strong>FocusFlow</strong><small>Tu espacio de enfoque</small></div></div>
+        <p class="side-label">TU ESPACIO</p>
+        <a class="side-link active" href="#tasks-area"><span>▦</span> Mis tareas <span class="side-count">{{ total }}</span></a>
+        <a class="side-link" href="#focus-area"><span>◷</span> Concentración</a>
+        <button class="side-link side-music-button" id="sidebar-music-launcher" type="button"><span>♫</span> FocusFlow Music <span class="side-arrow">↗</span></button>
+        <div class="side-tip"><span class="tip-icon">✦</span><strong>Un paso a la vez</strong><p>El progreso se construye con pequeñas acciones constantes.</p></div>
+        <div class="side-bottom"><span class="online-dot"></span> Tu espacio personal</div>
+      </aside>
       <aside class="music-sidebar" id="music-sidebar" aria-label="Panel de música" aria-hidden="true">
         <section class="music-section" id="focusflow-music">
           <div class="music-heading">
@@ -89,7 +98,7 @@
         </section>
 
 
-        <section class="focus-card" aria-label="Temporizador de enfoque">
+        <section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
           <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
           <div class="focus-controls">
             <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div>
@@ -97,7 +106,7 @@
             <div class="focus-presets"><button type="button" data-minutes="25" class="focus-preset active">25 min</button><button type="button" data-minutes="15" class="focus-preset">15 min</button><button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
           </div>
         </section>
-        <section class="tasks-section">
+        <section class="tasks-section" id="tasks-area">
           <div class="section-heading task-heading"><div><p class="eyebrow">MANTÉN EL RITMO</p><h2>Mis tareas</h2></div><span class="count">{{ total }} en total</span></div>
           <div class="progress-card">
             <div class="progress-copy"><span>Progreso general</span><strong>{{ ((completed / total * 100)|round|int) if total else 0 }}%</strong></div>
@@ -142,6 +151,7 @@
   <script>
     (() => {
       const launcher = document.getElementById("music-launcher");
+      const sideLauncher = document.getElementById("sidebar-music-launcher");
       const sidebar = document.getElementById("music-sidebar");
       const backdrop = document.getElementById("music-backdrop");
       const closeButton = document.getElementById("music-close");
@@ -155,6 +165,7 @@
         else launcher.focus();
       }
       launcher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
+      sideLauncher.addEventListener("click", () => setMusicOpen(!sidebar.classList.contains("is-open")));
       closeButton.addEventListener("click", () => setMusicOpen(false));
       backdrop.addEventListener("click", () => setMusicOpen(false));
       document.addEventListener("keydown", event => {
