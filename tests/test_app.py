@@ -55,7 +55,6 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b"Actividad de trabajo", response.data)
         self.assertIn(b'id="study-goal-select"', response.data)
         self.assertIn(b'id="subject-filter"', response.data)
-        self.assertIn(b'id="subject-summary"', response.data) if b'id="subject-summary"' in response.data else None
         self.assertNotIn(b'id="utility-activity-card"', response.data)
 
     def test_work_dashboard_is_visible_on_main_page(self):
@@ -181,6 +180,9 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(task["subject_name"], "Matemáticas discretas")
         self.assertEqual(task["estimated_minutes"], 90)
         self.assertIsNotNone(task["subject_id"])
+        home = self.client.get("/").data
+        self.assertIn(b'id="subject-summary"', home)
+        self.assertIn("Matemáticas discretas".encode(), home)
 
     def test_subject_names_are_reused_case_insensitively(self):
         self.create_task(title="Tarea uno", subject="Programación")
