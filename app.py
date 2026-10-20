@@ -1,8 +1,13 @@
 from datetime import date
+import json
+import os
 import sqlite3
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 app = Flask(__name__)
 DATABASE = Path(__file__).with_name("focusflow.db")
@@ -85,6 +90,43 @@ def delete_task(task_id):
     with get_db() as db:
         db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     return redirect(url_for("index"))
+
+
+@app.route("/api/music/search")
+def search_music():
+    api_key = os.environ.get("YOUTUBE_API_KEY", "").strip()
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"items": [], "message": "Escribe una canción, artista o estilo."}), 400
+    if not api_key:
+        return jsonify({
+            "items": [],
+            "message": "La búsqueda integrada necesita configurar YOUTUBE_API_KEY. Puedes abrir YouTube Music con el botón de abajo."
+        })
+    params = urlencode({
+        "part": "snippet", "type": "video", "videoCategoryId": "10",
+        "maxResults": 8, "safeSearch": "moderate", "q": query, "key": api_key
+    })
+    try:
+        with urlopen("https://www.googleapis.com/youtube/v3/search?" + params, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        items = []
+        for item in payload.get("items", []):
+            video_id = item.get("id", {}).get("videoId")
+            snippet = item.get("snippet", {})
+            if video_id:
+                items.append({
+                    "id": video_id,
+                    "title": snippet.get("title", "Video sin título"),
+                    "channel": snippet.get("channelTitle", "Canal de YouTube"),
+                    "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url", "")
+                })
+        return jsonify({"items": items, "message": ""})
+    except HTTPError as error:
+        message = "YouTube rechazó la búsqueda. Revisa la API habilitada, la clave y la cuota." if error.code in (400, 403) else "No se pudo buscar en YouTube."
+        return jsonify({"items": [], "message": message}), 502
+    except (URLError, TimeoutError, ValueError):
+        return jsonify({"items": [], "message": "No se pudo conectar con YouTube. Inténtalo de nuevo."}), 502
 
 
 init_db()
