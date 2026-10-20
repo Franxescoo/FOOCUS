@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 import app as focusflow
@@ -25,7 +26,7 @@ class FocusFlowTaskTests(unittest.TestCase):
 
     def create_task(
         self, title="Repasar Python", priority="Alta", due_date="2026-10-22",
-        subject="", estimated_minutes="30",
+        subject="", estimated_minutes="30", planned_date="",
     ):
         return self.client.post(
             "/tasks",
@@ -35,6 +36,7 @@ class FocusFlowTaskTests(unittest.TestCase):
                 "due_date": due_date,
                 "subject": subject,
                 "estimated_minutes": estimated_minutes,
+                "planned_date": planned_date,
                 "csrf_token": self.csrf_token,
             },
             follow_redirects=True,
@@ -104,6 +106,7 @@ class FocusFlowTaskTests(unittest.TestCase):
             f"/api/tasks/{task_id}",
             json={
                 "title": "Proyecto terminado", "priority": "Media", "due_date": "",
+                "planned_date": "2026-11-03",
                 "subject": "Matemáticas", "estimated_minutes": 90,
             },
             headers=self.csrf_headers(),
@@ -112,7 +115,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertTrue(response.json["ok"])
         with focusflow.get_db() as db:
             task = db.execute(
-                """SELECT t.title, t.priority, t.due_date, t.estimated_minutes, s.name AS subject_name
+                """SELECT t.title, t.priority, t.due_date, t.planned_date, t.estimated_minutes,
+                          s.name AS subject_name
                    FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id WHERE t.id = ?""",
                 (task_id,),
             ).fetchone()
@@ -120,6 +124,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(task["priority"], "Media")
         self.assertEqual(task["subject_name"], "Matemáticas")
         self.assertEqual(task["estimated_minutes"], 90)
+        self.assertEqual(task["planned_date"], "2026-11-03")
         self.assertIsNone(task["due_date"])
 
     def test_edit_rejects_empty_title(self):
@@ -212,6 +217,39 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("estimación", response.json["message"].lower())
 
+    def test_weekly_plan_shows_pending_tasks_for_the_next_seven_days(self):
+        today = date.today().isoformat()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        self.create_task(title="Estudiar hoy", subject="Álgebra", planned_date=today)
+        today_task_id = self.task_id()
+        self.create_task(title="Repasar mañana", subject="Álgebra", planned_date=tomorrow)
+
+        page = self.client.get("/").data
+        self.assertIn(b'id="weekly-planner"', page)
+        self.assertIn(b"Estudiar hoy", page)
+        self.assertIn(b"Repasar ma", page)
+        self.assertIn(b"Planificada", page)
+
+        self.client.post(
+            f"/tasks/{today_task_id}/toggle",
+            data={"csrf_token": self.csrf_token},
+        )
+        page_after_completion = self.client.get("/").data
+        self.assertNotIn(b'data-planned-task="' + str(today_task_id).encode() + b'"', page_after_completion)
+        self.assertIn(b"Repasar ma", page_after_completion)
+
+    def test_task_without_planned_date_is_not_added_to_week_plan(self):
+        self.create_task(title="Sin día asignado")
+        page = self.client.get("/").data
+        self.assertIn(b"Sin día asignado", page)
+        self.assertNotIn(b"data-planned-task=", page)
+
+    def test_invalid_planned_date_is_ignored_on_task_creation(self):
+        self.create_task(title="Plan por corregir", planned_date="no-es-fecha")
+        with focusflow.get_db() as db:
+            task = db.execute("SELECT planned_date FROM tasks").fetchone()
+        self.assertIsNone(task["planned_date"])
+
     def test_init_db_migrates_legacy_tasks_without_losing_rows(self):
         current_database = focusflow.DATABASE
         legacy_database = Path(self.temp_dir.name) / "legacy-focusflow.db"
@@ -249,6 +287,7 @@ class FocusFlowTaskTests(unittest.TestCase):
                 task = db.execute("SELECT title, priority, estimated_minutes, subject_id FROM tasks").fetchone()
             self.assertIn("subject_id", columns)
             self.assertIn("estimated_minutes", columns)
+            self.assertIn("planned_date", columns)
             self.assertEqual(task["title"], "Tarea antigua")
             self.assertEqual(task["priority"], "Alta")
             self.assertEqual(task["estimated_minutes"], 30)
@@ -342,7 +381,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.json["sessions"][0]["comment"], "Prueba del historial")
 
     def test_export_csv_includes_task_and_work_comment(self):
-        self.create_task("Exportar mi progreso", priority="Alta")
+        self.create_task("Exportar mi progreso", priority="Alta", subject="Programación",
+                         estimated_minutes="60", planned_date="2026-10-24")
         task_id = self.task_id()
         self.client.post(
             "/api/work/start", json={"task_id": task_id}, headers=self.csrf_headers()
@@ -359,6 +399,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn("Avancé el diseño".encode(), response.data)
         self.assertIn("Estimación (minutos)".encode(), response.data)
         self.assertIn("Asignatura".encode(), response.data)
+        self.assertIn("Fecha planificada".encode(), response.data)
+        self.assertIn("2026-10-24".encode(), response.data)
 
     def test_export_csv_escapes_spreadsheet_formulas(self):
         self.create_task("=1+1")
