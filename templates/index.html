@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>FocusFlow | Organiza tu día</title>
+  <title>FOOCUS | Organiza tu día</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -14,12 +14,24 @@
   <div class="music-backdrop" id="music-backdrop" hidden></div>
   <main class="layout">
     <header class="topbar">
-      <a class="brand" href="{{ url_for('index') }}" aria-label="FocusFlow, inicio">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 32"><defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M16 6C7 6 3 13 8 21c5 8 12 6 24-5 12-11 19-13 24-5s1 15-8 15c-7 0-12-7-16-11C28 11 23 6 16 6Z" fill="none" stroke="url(#brand-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span> FocusFlow
+      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio">
+        <span aria-hidden="true" style="margin-right:-8px">F</span><span class="brand-mark" aria-hidden="true" style="margin-right:-8px"><svg viewBox="0 0 64 32"><defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M32 16C20 -2 6 3 6 16S20 34 32 16S58 -2 58 16S44 34 32 16" fill="none" stroke="url(#brand-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span aria-hidden="true" style="margin-left:-2px">CUS</span>
       </a>
       <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo oscuro</span></button></div>
     </header>
 
+    <section class="update-center" id="update-center" aria-live="polite" aria-atomic="true" hidden>
+      <div class="update-center-copy">
+        <p class="eyebrow">ACTUALIZACIONES DE FOOCUS</p>
+        <p class="update-center-message" id="update-center-message">Comprobando la versión más reciente...</p>
+        <ul class="update-center-changes" id="update-center-changes" hidden></ul>
+      </div>
+      <div class="update-center-actions">
+        <a class="primary-button update-center-download" id="update-center-download" href="#" hidden>Descargar actualización</a>
+        <button class="focus-reset" id="update-center-retry" type="button" hidden>Reintentar</button>
+        <button class="focus-reset" id="update-center-close" type="button">Ocultar</button>
+      </div>
+    </section>
     <section class="welcome">
       <div class="welcome-copy">
         <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
@@ -39,7 +51,7 @@
       <aside class="music-sidebar" id="music-sidebar" aria-label="Panel de música" aria-hidden="true">
         <section class="music-section" id="focusflow-music">
           <div class="music-heading">
-            <div><p class="eyebrow">TU BANDA SONORA</p><h2><span>FocusFlow Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div><button type="button" class="music-close" id="music-close" aria-label="Cerrar panel de música">×</button>
+            <div><p class="eyebrow">TU BANDA SONORA</p><h2><span>FOOCUS Music</span></h2><p class="music-description">Música para estudiar, programar y mantener la concentración.</p></div><button type="button" class="music-close" id="music-close" aria-label="Cerrar panel de música">×</button>
             <div class="music-note" aria-hidden="true">♫</div>
           </div>
           <form class="music-search" id="music-search-form">
@@ -89,7 +101,7 @@
           </div>
           <section class="study-goal" aria-labelledby="study-goal-title" data-today-seconds="{{ today_work_seconds }}">
             <div class="study-goal-head">
-              <div><p class="eyebrow">UN OBJETIVO REALISTA</p><h3 id="study-goal-title">Meta diaria de estudio</h3><p>La meta se guarda en este equipo junto con la base de datos de FocusFlow.</p></div>
+              <div><p class="eyebrow">UN OBJETIVO REALISTA</p><h3 id="study-goal-title">Meta diaria de estudio</h3><p>La meta se guarda en este equipo junto con la base de datos de FOOCUS.</p></div>
               <strong id="study-goal-value">{{ study_goal_minutes // 60 }} h{% if study_goal_minutes % 60 %} {{ study_goal_minutes % 60 }} min{% endif %}</strong>
             </div>
             <div class="study-goal-track" id="study-goal-track" role="progressbar" aria-label="Progreso de la meta diaria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ goal_progress_percent }}">
@@ -115,7 +127,7 @@
             {% endfor %}
           </div>
           <div class="activity-months"><span>{{ activity_days[0].label }}</span><span>{{ activity_days[17].label }}</span><span>{{ activity_days[-1].label }}</span></div>
-          <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FocusFlow.</p>
+          <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FOOCUS.</p>
         </section>
 
         <details class="weekly-planner panel" id="weekly-planner">
@@ -350,8 +362,7 @@
           
         </aside>
       </div>
-    </div>
-    <footer>FocusFlow · Un paso a la vez.</footer>
+    </div>    <footer>FOOCUS · Un paso a la vez.</footer>
   </main>
 <dialog class="active-work-dialog" id="active-work-dialog" tabindex="-1" aria-modal="true" aria-labelledby="active-work-title" aria-describedby="active-work-subtitle">
   <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
@@ -489,7 +500,7 @@
         try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
         saveTimerState();
         if ("Notification" in window && Notification.permission === "granted") {
-          try { new Notification("FocusFlow", {body: "Terminó tu bloque de concentración. Tómate un descanso."}); } catch (error) {}
+          try { new Notification("FOOCUS", {body: "Terminó tu bloque de concentración. Tómate un descanso."}); } catch (error) {}
         }
       }
 
@@ -1119,6 +1130,80 @@
         }
       });
     })();
+  </script>\n
+<script>
+    (() => {
+      const panel = document.getElementById("update-center");
+      const message = document.getElementById("update-center-message");
+      const changes = document.getElementById("update-center-changes");
+      const download = document.getElementById("update-center-download");
+      const retry = document.getElementById("update-center-retry");
+      const close = document.getElementById("update-center-close");
+      if (!panel || !message || !changes || !download || !retry || !close) return;
+
+      let dismissed = false;
+      let timer = null;
+      const show = () => { dismissed = false; panel.hidden = false; };
+      const clearChanges = () => { changes.replaceChildren(); changes.hidden = true; };
+      const showError = text => {
+        message.textContent = text || "No se pudo comprobar si hay una nueva versión.";
+        download.hidden = true;
+        clearChanges();
+        retry.hidden = false;
+        show();
+      };
+
+      async function checkUpdates() {
+        retry.disabled = true;
+        retry.textContent = "Comprobando...";
+        try {
+          const response = await fetch("/api/updates", {
+            method: "GET",
+            cache: "no-store",
+            headers: {"Accept": "application/json"}
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok || !data.checkable) {
+            showError(data.message || "No se pudo comprobar si hay una nueva versión.");
+            return;
+          }
+          if (data.available) {
+            message.textContent = "Hay una actualización disponible: " + data.latest_version;
+            download.href = data.download_url;
+            download.textContent = "Descargar " + data.latest_version;
+            download.hidden = false;
+            retry.hidden = true;
+            clearChanges();
+            (Array.isArray(data.changes) ? data.changes : []).forEach(change => {
+              const item = document.createElement("li");
+              item.textContent = change;
+              changes.append(item);
+            });
+            changes.hidden = changes.childElementCount === 0;
+            show();
+          } else {
+            panel.hidden = true;
+            dismissed = false;
+          }
+        } catch (error) {
+          showError("No se pudo conectar con GitHub para comprobar actualizaciones. Revisa tu conexión e inténtalo de nuevo.");
+        } finally {
+          retry.disabled = false;
+          retry.textContent = "Reintentar";
+        }
+      }
+
+      retry.addEventListener("click", checkUpdates);
+      close.addEventListener("click", () => { dismissed = true; panel.hidden = true; });
+      checkUpdates();
+      timer = window.setInterval(() => {
+        if (document.visibilityState === "visible" && !dismissed) checkUpdates();
+      }, 30 * 60 * 1000);
+      window.addEventListener("beforeunload", () => {
+        if (timer !== null) window.clearInterval(timer);
+      }, {once: true});
+    })();
   </script>
+
 </body>
 </html>

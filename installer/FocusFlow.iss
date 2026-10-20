@@ -1,6 +1,6 @@
-#define MyAppName "FocusFlow"
+#define MyAppName "FOOCUS"
 #define MyAppVersion "0.1.0"
-#define MyAppPublisher "FocusFlow"
+#define MyAppPublisher "FOOCUS"
 #define MyAppExeName "FocusFlow.exe"
 
 [Setup]
@@ -13,7 +13,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\dist-installer
-OutputBaseFilename=FocusFlow-Setup
+OutputBaseFilename=FOOCUS-Setup
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -32,9 +32,9 @@ Source: "..\dist\FocusFlow\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
-Name: "{autoprograms}\FocusFlow"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\FocusFlow"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\FOOCUS"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\FOOCUS"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Preparando el componente web de FocusFlow..."; Flags: waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar FocusFlow"; Flags: postinstall nowait skipifsilent
+Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Preparando el componente web de FOOCUS..."; Flags: waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar FOOCUS"; Flags: postinstall nowait skipifsilent

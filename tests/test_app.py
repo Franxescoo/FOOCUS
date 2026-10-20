@@ -1,6 +1,10 @@
+import io
+import json
+import os
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -75,6 +79,85 @@ class FocusFlowTaskTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 focusflow_desktop.save_server_port(data_dir, 80)
 
+    def test_public_update_check_works_without_a_github_token(self):
+        release = {
+            "tag_name": "v1.0.1",
+            "name": "FOOCUS V1.0.1",
+            "published_at": "2026-10-20T12:00:00Z",
+            "body": "## What's Changed\\n* Public update check\\n",
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {
+                "FOOCUS_GITHUB_REPOSITORY": "Franxescoo/FOOCUS",
+                "FOOCUS_GITHUB_TOKEN": "",
+                "FOCUSFLOW_GITHUB_TOKEN": "",
+            }),
+            patch.object(focusflow, "APP_VERSION", "V1.0.0"),
+            patch("app.urllib.request.urlopen", return_value=fake_response) as github_request,
+        ):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        payload = response.get_json()
+        self.assertTrue(payload["checkable"])
+        self.assertEqual(payload["latest_version"], "V1.0.1")
+        self.assertTrue(payload["available"])
+        request = github_request.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.github.com/repos/Franxescoo/FOOCUS/releases/latest")
+        self.assertIsNone(request.get_header("Authorization"))
+
+    def test_update_check_detects_new_semantic_version_and_extracts_changes(self):
+        release = {
+            "tag_name": "v1.0.1",
+            "name": "FOOCUS V1.0.1",
+            "published_at": "2026-10-20T12:00:00Z",
+            "html_url": "https://github.com/Franxescoo/FOOCUS/releases/tag/v1.0.1",
+            "body": (
+                "## What's Changed\n"
+                "* Add update notifications [#13](https://github.com/Franxescoo/FOOCUS/pull/13) "
+                "by @Franxescoo in https://github.com/Franxescoo/FOOCUS/pull/13\n"
+                "* Show semantic version in the installer\n"
+                "## New Contributors\n* Nobody\n"
+            ),
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": "test-read-only-token"}),
+            patch.object(focusflow, "APP_VERSION", "V1.0.0"),
+            patch("app.urllib.request.urlopen", return_value=fake_response) as github_request,
+        ):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["checkable"])
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["current_version"], "V1.0.0")
+        self.assertEqual(payload["latest_version"], "V1.0.1")
+        self.assertEqual(
+            payload["changes"],
+            ["Add update notifications #13", "Show semantic version in the installer"],
+        )
+        request = github_request.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-read-only-token")
+
+    def test_update_check_reports_current_semantic_version_as_up_to_date(self):
+        release = {
+            "tag_name": "v1.0.0",
+            "name": "FOOCUS V1.0.0",
+            "published_at": "2026-10-20T12:00:00Z",
+            "body": "## What's Changed\n* Initial release\n",
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {"FOCUSFLOW_GITHUB_TOKEN": "test-read-only-token"}),
+            patch.object(focusflow, "APP_VERSION", "V1.0.0"),
+            patch("app.urllib.request.urlopen", return_value=fake_response),
+        ):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["available"])
+
     def test_home_loads_when_empty(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -89,6 +172,13 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="active-work-dialog"', response.data)
         self.assertIn(b'id="active-work-dock"', response.data)
         self.assertIn(b'id="work-minimize-button"', response.data)
+        self.assertIn(b'id="update-center"', response.data)
+        self.assertIn(b'id="update-center-download"', response.data)
+        self.assertIn(b'id="update-center-message"', response.data)
+        self.assertIn(b'id="update-center-retry"', response.data)
+        self.assertIn(b'fetch("/api/updates"', response.data)
+        self.assertNotIn(b"api.github.com/repos/Franxescoo/FOOCUS/releases/latest", response.data)
+        self.assertIn("FOOCUS".encode(), response.data)
         self.assertNotIn(b'id="utility-session-card"', response.data)
         self.assertNotIn(b'id="utility-activity-card"', response.data)
 
@@ -538,6 +628,18 @@ class FocusFlowTaskTests(unittest.TestCase):
         with focusflow.get_db() as db:
             count = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
         self.assertEqual(count, 0)
+
+
+    def test_security_headers_and_windows_download_section_removed(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
+        self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 64 * 1024)
+        self.assertNotIn(b"Descargar FocusFlow para Windows", response.data)
+        self.assertNotIn(b"download-installer", response.data)
+        self.assertNotIn(b"download-focusflow", response.data)
 
 
 if __name__ == "__main__":
