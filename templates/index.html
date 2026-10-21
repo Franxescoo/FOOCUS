@@ -13,9 +13,7 @@
   <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
   <main class="layout">
     <header class="topbar">
-      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio">
-        <span aria-hidden="true" style="margin-right:-8px">F</span><span class="brand-mark" aria-hidden="true" style="margin-right:-8px"><svg viewBox="0 0 64 32"><defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M32 16C20 -2 6 3 6 16S20 34 32 16S58 -2 58 16S44 34 32 16" fill="none" stroke="url(#brand-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span aria-hidden="true" style="margin-left:-2px">CUS</span>
-      </a>
+      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio"><img class="brand-logo" src="{{ url_for('static', filename='foocus-app-icon.svg') }}" alt="" width="32" height="32"><span>FOOCUS</span></a>
       <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="{{ 'true' if saved_theme == 'dark' else 'false' }}" aria-label="{{ 'Activar modo claro' if saved_theme == 'dark' else 'Activar modo oscuro' }}"><span class="theme-icon" aria-hidden="true">{{ '☀' if saved_theme == 'dark' else '☾' }}</span><span class="theme-label">{{ 'Modo claro' if saved_theme == 'dark' else 'Modo oscuro' }}</span></button></div>
     </header>
 
