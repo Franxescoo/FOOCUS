@@ -30,7 +30,7 @@ jobs:
       - name: Install desktop dependencies and packager
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements-desktop.txt pyinstaller
+          python -m pip install -r requirements-desktop.txt pyinstaller pillow
 
       - name: Run application tests
         run: python -m unittest discover -s tests -v
@@ -65,7 +65,8 @@ jobs:
       - name: Package FOOCUS for Windows
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
+          python build_icon.py
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --icon "static/foocus.ico" --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
 
       - name: Download Microsoft Edge WebView2 bootstrapper
         shell: pwsh

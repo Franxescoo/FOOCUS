@@ -1,21 +1,20 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="{{ saved_theme }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>FOOCUS | Organiza tu día</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='foocus-app-icon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
   <main class="layout">
     <header class="topbar">
-      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio">
-        <span aria-hidden="true" style="margin-right:-8px">F</span><span class="brand-mark" aria-hidden="true" style="margin-right:-8px"><svg viewBox="0 0 64 32"><defs><linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6756d9"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><path d="M32 16C20 -2 6 3 6 16S20 34 32 16S58 -2 58 16S44 34 32 16" fill="none" stroke="url(#brand-gradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span aria-hidden="true" style="margin-left:-2px">CUS</span>
-      </a>
-      <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Activar modo oscuro"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo oscuro</span></button></div>
+      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio"><img class="brand-logo" src="{{ url_for('static', filename='foocus-app-icon.svg') }}" alt="" width="32" height="32"><span>FOOCUS</span></a>
+      <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="{{ 'true' if saved_theme == 'dark' else 'false' }}" aria-label="{{ 'Activar modo claro' if saved_theme == 'dark' else 'Activar modo oscuro' }}"><span class="theme-icon" aria-hidden="true">{{ '☀' if saved_theme == 'dark' else '☾' }}</span><span class="theme-label">{{ 'Modo claro' if saved_theme == 'dark' else 'Modo oscuro' }}</span></button></div>
     </header>
 
     <section class="update-center" id="update-center" aria-live="polite" aria-atomic="false" hidden>
@@ -562,25 +561,42 @@
 
     (() => {
       const themeButton = document.getElementById("theme-toggle");
-      const themeKey = "focusflow_theme_v1";
-      function applyTheme(theme) {
-        const dark = theme === "dark";
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+      let theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+
+      function applyTheme(value) {
+        const dark = value === "dark";
         document.documentElement.dataset.theme = dark ? "dark" : "light";
         themeButton.setAttribute("aria-pressed", String(dark));
         themeButton.setAttribute("aria-label", dark ? "Activar modo claro" : "Activar modo oscuro");
         themeButton.querySelector(".theme-icon").textContent = dark ? "☀" : "☾";
         themeButton.querySelector(".theme-label").textContent = dark ? "Modo claro" : "Modo oscuro";
       }
-      let theme = "light";
-      try {
-        const saved = localStorage.getItem(themeKey);
-        if (saved === "dark" || saved === "light") theme = saved;
-      } catch (error) {}
+
       applyTheme(theme);
-      themeButton.addEventListener("click", () => {
-        theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-        applyTheme(theme);
-        try { localStorage.setItem(themeKey, theme); } catch (error) {}
+      themeButton.addEventListener("click", async () => {
+        const previousTheme = theme;
+        const nextTheme = previousTheme === "dark" ? "light" : "dark";
+        applyTheme(nextTheme);
+        themeButton.disabled = true;
+
+        try {
+          const response = await fetch("/api/settings/theme", {
+            method: "PUT",
+            headers: {"Content-Type": "application/json", "X-CSRF-Token": csrfToken},
+            body: JSON.stringify({theme: nextTheme})
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            throw new Error(result.message || "No se pudo guardar el tema.");
+          }
+          theme = nextTheme;
+        } catch (error) {
+          applyTheme(previousTheme);
+          console.error("No se pudo guardar la preferencia de tema:", error);
+        } finally {
+          themeButton.disabled = false;
+        }
       });
     })();
 

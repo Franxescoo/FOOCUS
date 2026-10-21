@@ -1,4 +1,4 @@
-"""Windows desktop launcher for FocusFlow.
+"""Windows desktop launcher for FOOCUS.
 
 The Flask server only listens on loopback. User data lives outside the install
 folder so updates and uninstalling the application do not remove the database.
@@ -10,6 +10,7 @@ import logging
 import os
 from pathlib import Path
 import secrets
+import sqlite3
 import sys
 from threading import Thread
 from typing import Mapping
@@ -70,6 +71,24 @@ def save_server_port(data_dir: Path, port: int) -> None:
     (data_dir / "server.port").write_text(str(port), encoding="ascii")
 
 
+def get_saved_theme(database_path: Path) -> str:
+    """Read the saved appearance before showing the desktop window."""
+    if not database_path.is_file():
+        return "light"
+    connection = None
+    try:
+        connection = sqlite3.connect(str(database_path), timeout=2)
+        row = connection.execute(
+            "SELECT setting_value FROM app_settings WHERE setting_key = 'theme'"
+        ).fetchone()
+        return row[0] if row and row[0] in {"dark", "light"} else "light"
+    except sqlite3.Error:
+        return "light"
+    finally:
+        if connection is not None:
+            connection.close()
+
+
 def show_error(message: str) -> None:
     """Show startup failures even when the executable has no console."""
     if os.name == "nt":
@@ -114,7 +133,7 @@ def main() -> int:
 
         server_thread = Thread(
             target=server.serve_forever,
-            name="FocusFlow-local-server",
+            name="FOOCUS-local-server",
             daemon=True,
         )
         server_thread.start()
@@ -126,7 +145,7 @@ def main() -> int:
             width=DEFAULT_WINDOW_SIZE[0],
             height=DEFAULT_WINDOW_SIZE[1],
             min_size=MIN_WINDOW_SIZE,
-            background_color="#f7f7fc",
+            background_color="#171927" if get_saved_theme(Path(os.environ["FOCUSFLOW_DATABASE"])) == "dark" else "#f7f7fc",
             text_select=True,
             zoomable=True,
         )
@@ -135,7 +154,7 @@ def main() -> int:
     except Exception as error:
         logging.exception("FocusFlow could not start")
         show_error(
-            "No se pudo iniciar FocusFlow.\n\n"
+            "No se pudo iniciar FOOCUS.\n\n"
             f"Detalle: {error}\n\n"
             "Comprueba que Microsoft Edge WebView2 esté instalado y que otra "
             "aplicación no esté usando el puerto local de FocusFlow. "
@@ -151,7 +170,7 @@ def main() -> int:
                     server_thread.join(timeout=3)
                 server.server_close()
             except Exception:
-                logging.exception("Error while stopping FocusFlow's local server")
+                logging.exception("Error while stopping FOOCUS's local server")
 
 
 if __name__ == "__main__":
