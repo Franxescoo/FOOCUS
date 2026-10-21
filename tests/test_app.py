@@ -317,7 +317,7 @@ class FocusFlowTaskTests(unittest.TestCase):
     def test_productivity_metrics_handle_empty_and_completed_task_states(self):
         page = self.client.get("/").data
         self.assertIn(b'id="completion-rate">0%', page)
-        self.assertIn(b'id="average-session-duration">—', page)
+        self.assertIn('id="average-session-duration">—'.encode("utf-8"), page)
 
         self.create_task(title="Tarea finalizada")
         task_id = self.task_id()
