@@ -1309,3 +1309,50 @@ html[data-theme="dark"] .activity-footnote, html[data-theme="dark"] .starter-foo
   .topbar-actions { min-width: 0; }
   .theme-toggle { white-space: nowrap; }
 }
+
+
+/* FOOCUS V1.0.10: clearer productivity metrics and release notes on narrow screens. */
+.work-dashboard-main .work-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+.work-dashboard-main .work-metrics article {
+  min-width: 0;
+  height: 100%;
+}
+.update-center-version {
+  margin: 5px 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.update-center-no-changes {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.update-center-release-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--purple-dark);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.update-center-release-link:hover { text-decoration: underline; }
+html[data-theme="dark"] .update-center-release-link { color: #c0b8ff; }
+@media (max-width: 700px) {
+  .work-dashboard-main .work-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .update-center-header { align-items: stretch; }
+  .update-center-actions { flex-wrap: wrap; }
+}
+@media (max-width: 380px) {
+  .work-dashboard-main .work-metrics { grid-template-columns: minmax(0, 1fr); }
+}
