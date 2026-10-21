@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import app as focusflow
@@ -313,6 +313,65 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'<dialog class="active-work-dialog"', page)
         self.assertIn(b'id="active-work-panel" hidden', page)
         self.assertIn(b'id="active-work-dock" hidden', page)
+
+    def test_productivity_metrics_handle_empty_and_completed_task_states(self):
+        page = self.client.get("/").data
+        self.assertIn(b'id="completion-rate">0%', page)
+        self.assertIn('id="average-session-duration">—'.encode("utf-8"), page)
+
+        self.create_task(title="Tarea finalizada")
+        task_id = self.task_id()
+        response = self.client.post(
+            f"/tasks/{task_id}/toggle",
+            data={"csrf_token": self.csrf_token},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        page = self.client.get("/").data
+        self.assertIn(b'id="completion-rate">100%', page)
+        self.assertIn(b'1 de 1 tareas', page)
+
+        timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+        with focusflow.get_db() as db:
+            db.execute(
+                """INSERT INTO work_sessions
+                   (task_id, started_at, ended_at, duration_seconds, comment, next_step)
+                   VALUES (?, ?, ?, ?, '', '')""",
+                (task_id, timestamp, timestamp, 3660),
+            )
+        page = self.client.get("/").data
+        self.assertIn(b'id="average-session-duration">61 min', page)
+        self.assertIn(b'id="all-work-sessions">1', page)
+
+    def test_update_check_provides_version_link_when_release_notes_are_empty(self):
+        release = {
+            "tag_name": "v1.0.10",
+            "name": "FOOCUS V1.0.10",
+            "published_at": "2026-10-21T12:00:00Z",
+            "html_url": "https://github.com/Franxescoo/FOOCUS/releases/tag/v1.0.10",
+            "body": "",
+        }
+        fake_response = io.BytesIO(json.dumps(release).encode("utf-8"))
+        with (
+            patch.dict(os.environ, {
+                "FOOCUS_GITHUB_REPOSITORY": "Franxescoo/FOOCUS",
+                "FOOCUS_GITHUB_TOKEN": "",
+                "FOCUSFLOW_GITHUB_TOKEN": "",
+            }),
+            patch.object(focusflow, "APP_VERSION", "V1.0.9"),
+            patch("app.urllib.request.urlopen", return_value=fake_response),
+        ):
+            response = self.client.get("/api/updates")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["current_version"], "V1.0.9")
+        self.assertEqual(payload["latest_version"], "V1.0.10")
+        self.assertEqual(payload["changes"], [])
+        self.assertEqual(
+            payload["release_url"],
+            "https://github.com/Franxescoo/FOOCUS/releases/latest",
+        )
 
     def test_work_dashboard_is_visible_on_main_page(self):
         page = self.client.get("/").data

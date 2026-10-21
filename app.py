@@ -434,6 +434,9 @@ def index():
             "actual_seconds": subject_work_seconds.get(subject["id"], 0),
         })
 
+    completion_rate = round(completed / total * 100) if total else 0
+    average_session_seconds = round(total_work_seconds / len(sessions)) if sessions else 0
+
     goal_seconds = study_goal_minutes * 60
     goal_progress_percent = min(100, round(today_work_seconds / goal_seconds * 100)) if goal_seconds else 0
     response = make_response(render_template(
@@ -458,6 +461,8 @@ def index():
         goal_progress_percent=goal_progress_percent,
         active_session=active_session,
         saved_theme=saved_theme,
+        completion_rate=completion_rate,
+        average_session_seconds=average_session_seconds,
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
