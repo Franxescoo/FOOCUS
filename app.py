@@ -309,6 +309,10 @@ def index():
     week_start = today_date - timedelta(days=today_date.weekday())
 
     with get_db() as db:
+        theme_row = db.execute(
+            "SELECT setting_value FROM app_settings WHERE setting_key = 'theme'"
+        ).fetchone()
+        saved_theme = theme_row["setting_value"] if theme_row and theme_row["setting_value"] in {"dark", "light"} else "light"
         tasks = db.execute(
             """SELECT t.*, s.name AS subject_name
                FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id
@@ -453,6 +457,7 @@ def index():
         study_goal_minutes=study_goal_minutes,
         goal_progress_percent=goal_progress_percent,
         active_session=active_session,
+        saved_theme=saved_theme,
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
@@ -949,6 +954,26 @@ def edit_task(task_id):
             "estimated_minutes": estimated_minutes,
         },
     })
+
+
+@app.route("/api/settings/theme", methods=["PUT"])
+def update_theme():
+    """Persist the selected appearance in the local settings database."""
+    payload = request.get_json(silent=True) or {}
+    theme = payload.get("theme")
+    if theme not in {"dark", "light"}:
+        return jsonify({"ok": False, "message": "Selecciona un tema válido."}), 400
+
+    with get_db() as db:
+        db.execute(
+            """INSERT INTO app_settings (setting_key, setting_value, updated_at)
+               VALUES ('theme', ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(setting_key) DO UPDATE SET
+               setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP""",
+            (theme,),
+        )
+
+    return jsonify({"ok": True, "theme": theme})
 
 
 @app.route("/api/settings/study-goal", methods=["PUT"])
