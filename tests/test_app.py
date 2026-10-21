@@ -484,13 +484,17 @@ class FocusFlowTaskTests(unittest.TestCase):
     def test_desktop_window_theme_reader_uses_saved_preference(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             database = Path(temp_dir) / "settings.db"
-            with sqlite3.connect(database) as db:
-                db.execute(
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute(
                     "CREATE TABLE app_settings (setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL)"
                 )
-                db.execute(
+                connection.execute(
                     "INSERT INTO app_settings (setting_key, setting_value) VALUES ('theme', 'dark')"
                 )
+                connection.commit()
+            finally:
+                connection.close()
             self.assertEqual(focusflow_desktop.get_saved_theme(database), "dark")
             self.assertEqual(focusflow_desktop.get_saved_theme(Path(temp_dir) / "missing.db"), "light")
 
