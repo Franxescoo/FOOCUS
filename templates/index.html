@@ -22,7 +22,10 @@
         <div class="update-center-copy">
           <p class="eyebrow">ACTUALIZACIONES DE FOOCUS</p>
           <p class="update-center-message" id="update-center-message">Comprobando la versión más reciente...</p>
+          <p class="update-center-version" id="update-center-version" hidden></p>
           <ul class="update-center-changes" id="update-center-changes" hidden></ul>
+          <p class="update-center-no-changes" id="update-center-no-changes" hidden>Esta publicación no incluye un resumen de cambios. Abre las notas completas para consultar los detalles.</p>
+          <a class="update-center-release-link" id="update-center-release-link" href="https://github.com/Franxescoo/FOOCUS/releases/latest" target="_blank" rel="noopener noreferrer" hidden>Ver notas completas de la versión ↗</a>
         </div>
         <div class="update-center-actions">
           <button class="primary-button update-center-download" id="update-center-download" type="button" hidden>Descargar actualización</button>
@@ -86,6 +89,8 @@
             <article><span>Esta semana</span><strong id="week-work-total">{{ week_work_seconds // 3600 }} h {{ (week_work_seconds % 3600) // 60 }} min</strong><small>Desde el lunes</small></article>
             <article><span>Total registrado</span><strong id="all-work-total">{{ total_work_seconds // 3600 }} h {{ (total_work_seconds % 3600) // 60 }} min</strong><small>Historial completo</small></article>
             <article><span>Sesiones guardadas</span><strong id="all-work-sessions">{{ total_session_count }}</strong><small>Bloques finalizados</small></article>
+            <article><span>Tareas completadas</span><strong id="completion-rate">{{ completion_rate }}%</strong><small>{{ completed }} de {{ total }} tareas</small></article>
+            <article><span>Promedio por sesión</span><strong id="average-session-duration">{% if total_session_count %}{{ (average_session_seconds + 30) // 60 }} min{% else %}—{% endif %}</strong><small>Duración de bloques finalizados</small></article>
           </div>
           <section class="study-goal" aria-labelledby="study-goal-title" data-today-seconds="{{ today_work_seconds }}">
             <div class="study-goal-head">
@@ -1115,7 +1120,10 @@
     (() => {
       const panel = document.getElementById("update-center");
       const message = document.getElementById("update-center-message");
+      const versionSummary = document.getElementById("update-center-version");
       const changes = document.getElementById("update-center-changes");
+      const noChanges = document.getElementById("update-center-no-changes");
+      const releaseLink = document.getElementById("update-center-release-link");
       const download = document.getElementById("update-center-download");
       const retry = document.getElementById("update-center-retry");
       const close = document.getElementById("update-center-close");
@@ -1129,7 +1137,7 @@
       const progressSize = document.getElementById("update-download-size");
       const openInstaller = document.getElementById("update-center-open-installer");
       const downloadRetry = document.getElementById("update-center-download-retry");
-      if (![panel, message, changes, download, retry, close, progressPanel, progressTitle,
+      if (![panel, message, versionSummary, changes, noChanges, releaseLink, download, retry, close, progressPanel, progressTitle,
             progressSubtitle, progressPercent, progressTrack, progressFill, progressStatus,
             progressSize, openInstaller, downloadRetry].every(Boolean)) return;
 
@@ -1138,7 +1146,13 @@
       let downloadPollTimer = null;
       let latestVersion = "";
       const show = () => { dismissed = false; panel.hidden = false; };
-      const clearChanges = () => { changes.replaceChildren(); changes.hidden = true; };
+      const clearChanges = () => {
+        changes.replaceChildren();
+        changes.hidden = true;
+        noChanges.hidden = true;
+        versionSummary.hidden = true;
+        releaseLink.hidden = true;
+      };
       const formatBytes = value => {
         const bytes = Math.max(0, Number(value) || 0);
         if (bytes < 1024) return bytes + " B";
@@ -1302,12 +1316,19 @@
             download.hidden = false;
             retry.hidden = true;
             clearChanges();
+            versionSummary.textContent = "Versión instalada: " + (data.current_version || "desconocida") + " · Nueva versión: " + data.latest_version;
+            versionSummary.hidden = false;
+            releaseLink.href = typeof data.release_url === "string" && data.release_url.startsWith("https://github.com/")
+              ? data.release_url
+              : "https://github.com/Franxescoo/FOOCUS/releases/latest";
+            releaseLink.hidden = false;
             (Array.isArray(data.changes) ? data.changes : []).forEach(change => {
               const item = document.createElement("li");
               item.textContent = change;
               changes.append(item);
             });
             changes.hidden = changes.childElementCount === 0;
+            noChanges.hidden = changes.childElementCount > 0;
             show();
           } else {
             // Keep an active or completed download visible until the user closes it.
