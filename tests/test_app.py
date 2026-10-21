@@ -448,6 +448,52 @@ class FocusFlowTaskTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(updated["setting_value"], "180")
 
+    def test_theme_defaults_to_light_and_persists_across_page_loads(self):
+        initial = self.client.get("/")
+        self.assertEqual(initial.status_code, 200)
+        self.assertIn(b'data-theme="light"', initial.data)
+
+        response = self.client.put(
+            "/api/settings/theme",
+            json={"theme": "dark"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["ok"])
+        self.assertEqual(response.json["theme"], "dark")
+
+        with focusflow.get_db() as db:
+            saved = db.execute(
+                "SELECT setting_value FROM app_settings WHERE setting_key = 'theme'"
+            ).fetchone()
+        self.assertEqual(saved["setting_value"], "dark")
+        reopened_page = self.client.get("/")
+        self.assertEqual(reopened_page.status_code, 200)
+        self.assertIn(b'data-theme="dark"', reopened_page.data)
+        self.assertIn(b'Activar modo claro', reopened_page.data)
+
+    def test_theme_rejects_unknown_values(self):
+        response = self.client.put(
+            "/api/settings/theme",
+            json={"theme": "purple"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json["ok"])
+
+    def test_desktop_window_theme_reader_uses_saved_preference(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "settings.db"
+            with sqlite3.connect(database) as db:
+                db.execute(
+                    "CREATE TABLE app_settings (setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL)"
+                )
+                db.execute(
+                    "INSERT INTO app_settings (setting_key, setting_value) VALUES ('theme', 'dark')"
+                )
+            self.assertEqual(focusflow_desktop.get_saved_theme(database), "dark")
+            self.assertEqual(focusflow_desktop.get_saved_theme(Path(temp_dir) / "missing.db"), "light")
+
     def test_study_goal_rejects_out_of_range_values(self):
         response = self.client.put(
             "/api/settings/study-goal",
