@@ -173,7 +173,7 @@
               <select id="calendar-task-select">
                 <option value="">Selecciona una tarea pendiente…</option>
                 {% for task in tasks if not task.completed %}
-                <option value="{{ task.id }}">{{ task.title }}</option>
+                <option value="{{ task.id }}" data-priority="{{ task.priority }}" data-subject="{{ task.subject_name or '' }}" data-estimated-minutes="{{ task.estimated_minutes }}" data-due-date="{{ task.due_date or '' }}">{{ task.title }}</option>
                 {% endfor %}
               </select>
             </label>
@@ -209,7 +209,7 @@
           </div>
         </section>
 
-        <details class="weekly-planner panel" id="weekly-planner" data-app-screen="calendar" hidden open>
+        <details class="weekly-planner panel" id="weekly-planner" data-app-screen="calendar" hidden>
           <summary class="weekly-planner-summary">
             <span class="weekly-planner-icon" aria-hidden="true">▦</span>
             <span class="weekly-planner-copy"><strong>Plan de estudio · próximos 7 días</strong><small>Separa el día en que estudiarás de la fecha límite de entrega.</small></span>
@@ -219,7 +219,7 @@
           <div class="weekly-planner-content">
             <div class="weekly-planner-days">
               {% for day in week_plan_days %}
-              <section class="weekly-plan-day {% if day.is_today %}is-today{% endif %}">
+              <section class="weekly-plan-day {% if day.is_today %}is-today{% endif %}" data-week-date="{{ day.date }}">
                 <div class="weekly-plan-day-heading"><h3>{{ day.label }}</h3><span>{{ day.tasks|length }}</span></div>
                 {% if day.tasks %}
                 <div class="weekly-plan-day-list">
@@ -510,6 +510,99 @@
         if (!deadline && day > toIso(addDays(today, 365))) return false;
         return true;
       }
+      function refreshWeeklyPlan() {
+        const option = taskSelect.selectedOptions[0];
+        if (!option || !activeTaskId) return;
+        const title = option.textContent.trim();
+        const priority = option.dataset.priority || "Media";
+        const subject = option.dataset.subject || "";
+        const estimatedMinutes = Number(option.dataset.estimatedMinutes) || 30;
+        const taskDueDate = option.dataset.dueDate || "";
+        const daySections = Array.from(document.querySelectorAll(".weekly-plan-day[data-week-date]"));
+
+        daySections.forEach(daySection => {
+          const list = daySection.querySelector(".weekly-plan-day-list");
+          if (list) {
+            Array.from(list.querySelectorAll(".weekly-plan-item")).forEach(item => {
+              if (item.dataset.plannedTask === activeTaskId) item.remove();
+            });
+          }
+          const dateIso = daySection.dataset.weekDate;
+          const shouldShow = selectedDays.has(dateIso);
+          let currentList = daySection.querySelector(".weekly-plan-day-list");
+          const emptyMessage = daySection.querySelector(".weekly-plan-empty");
+
+          if (shouldShow) {
+            if (!currentList) {
+              currentList = document.createElement("div");
+              currentList.className = "weekly-plan-day-list";
+              if (emptyMessage) daySection.insertBefore(currentList, emptyMessage);
+              else daySection.append(currentList);
+            }
+            const article = document.createElement("article");
+            article.className = "weekly-plan-item";
+            article.dataset.plannedTask = activeTaskId;
+            const copy = document.createElement("div");
+            copy.className = "weekly-plan-item-copy";
+            const taskTitle = document.createElement("strong");
+            taskTitle.textContent = title;
+            copy.append(taskTitle);
+            const meta = document.createElement("div");
+            meta.className = "weekly-plan-item-meta";
+            const priorityTag = document.createElement("span");
+            priorityTag.className = "priority priority-" + priority.toLowerCase();
+            priorityTag.textContent = priority;
+            meta.append(priorityTag);
+            if (subject) {
+              const subjectTag = document.createElement("span");
+              subjectTag.className = "subject-chip";
+              subjectTag.textContent = subject;
+              meta.append(subjectTag);
+            }
+            const estimate = document.createElement("span");
+            estimate.className = "estimated-time";
+            estimate.textContent = estimatedMinutes + " min";
+            meta.append(estimate);
+            copy.append(meta);
+            if (taskDueDate) {
+              const deadlineLabel = document.createElement("small");
+              deadlineLabel.textContent = "Entrega: " + formatIso(taskDueDate, {day:"numeric", month:"short", year:"numeric"});
+              copy.append(deadlineLabel);
+            }
+            const start = document.createElement("button");
+            start.className = "start-task-work weekly-plan-start";
+            start.type = "button";
+            start.dataset.startTask = activeTaskId;
+            start.dataset.taskTitle = title;
+            start.textContent = "▶ Empezar";
+            start.addEventListener("click", () => {
+              const original = Array.from(document.querySelectorAll('#tasks-area button.start-task-work'))
+                .find(button => button.dataset.startTask === activeTaskId);
+              if (original) original.click();
+            });
+            article.append(copy, start);
+            currentList.append(article);
+            if (emptyMessage) emptyMessage.remove();
+          } else if (currentList && !currentList.querySelector(".weekly-plan-item")) {
+            currentList.remove();
+            if (!daySection.querySelector(".weekly-plan-empty")) {
+              const empty = document.createElement("p");
+              empty.className = "weekly-plan-empty";
+              empty.textContent = "Sin tareas planificadas.";
+              daySection.append(empty);
+            }
+          }
+
+          const count = daySection.querySelector(".weekly-plan-day-heading span");
+          if (count) count.textContent = String(daySection.querySelectorAll(".weekly-plan-item").length);
+        });
+        const weeklyCount = document.querySelector(".weekly-planner-count");
+        if (weeklyCount) {
+          const total = daySections.reduce((sum, day) => sum + day.querySelectorAll(".weekly-plan-item").length, 0);
+          weeklyCount.textContent = total + (total === 1 ? " tarea planificada" : " tareas planificadas");
+        }
+      }
+
       function renderCalendar() {
         monthLabel.textContent = visibleMonth.toLocaleDateString("es-CL", {month:"long", year:"numeric"});
         grid.replaceChildren();
@@ -611,8 +704,8 @@
           const data = await response.json();
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar el plan.");
           selectedDays = new Set(data.days || []);
+          refreshWeeklyPlan();
           setStatus("Plan guardado · " + data.count + (data.count === 1 ? " día de estudio." : " días de estudio."), "success");
-          // Refresh the legacy seven-day planner data on the next navigation/reload.
         } catch (error) {
           selectedDays = previousDays;
           setStatus(error.message || "No se pudo guardar el plan.", "error");
