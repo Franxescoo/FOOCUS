@@ -650,6 +650,8 @@
         syncSummary();
       }
       async function loadTaskPlan() {
+        if (saving) return;
+        taskSelect.disabled = true;
         activeTaskId = taskSelect.value;
         selectedDays = new Set();
         deadline = "";
@@ -662,6 +664,7 @@
           emptyState.hidden = taskSelect.options.length > 1;
           setStatus("Selecciona una tarea para empezar.");
           loading = false;
+          taskSelect.disabled = false;
           renderCalendar();
           return;
         }
@@ -687,6 +690,7 @@
           setStatus(error.message || "No se pudo cargar el plan.", "error");
         } finally {
           loading = false;
+          taskSelect.disabled = false;
           renderCalendar();
         }
       }
@@ -695,6 +699,7 @@
         const previousDays = new Set(selectedDays);
         selectedDays = new Set(nextDays);
         saving = true;
+        taskSelect.disabled = true;
         renderCalendar();
         setStatus("Guardando el plan…");
         try {
@@ -713,6 +718,7 @@
           setStatus(error.message || "No se pudo guardar el plan.", "error");
         } finally {
           saving = false;
+          taskSelect.disabled = false;
           renderCalendar();
         }
       }
