@@ -1602,6 +1602,17 @@ html[data-theme="dark"] .work-dashboard, html[data-theme="dark"] .weekly-planner
   transform: translateY(-1px);
 }
 .calendar-day:disabled { cursor: default; opacity: 1; }
+.calendar-day:disabled:not(.is-outside-month):not(.is-selected):not(.is-today) {
+  border-color: transparent;
+  background: var(--bg);
+  color: var(--muted);
+  box-shadow: none;
+}
+.calendar-day:disabled.is-today:not(.is-selected) {
+  background: var(--soft-purple);
+  color: var(--purple-dark);
+}
+
 .calendar-day.is-outside-month {
   border-color: transparent;
   background: transparent;
@@ -1719,6 +1730,16 @@ html[data-theme="dark"] .calendar-day.is-selected {
 }
 html[data-theme="dark"] .calendar-day.is-today:not(.is-selected) { border-color: #aaa0ff; box-shadow: inset 0 0 0 1px #aaa0ff; }
 html[data-theme="dark"] .calendar-day.is-deadline:not(.is-selected) { border-color: #c99b42; }
+html[data-theme="dark"] .calendar-day:disabled:not(.is-outside-month):not(.is-selected):not(.is-today) {
+  border-color: transparent;
+  background: #191b2b;
+  color: #777c95;
+}
+html[data-theme="dark"] .calendar-day:disabled.is-today:not(.is-selected) {
+  border-color: #aaa0ff;
+  background: #292640;
+  color: #c0b8ff;
+}
 html[data-theme="dark"] .calendar-day-deadline { color: #f1cd78; }
 html[data-theme="dark"] .calendar-day.is-selected .calendar-day-deadline { color: #fff; }
 html[data-theme="dark"] .calendar-task-info, html[data-theme="dark"] .calendar-summary {
