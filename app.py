@@ -977,11 +977,6 @@ def edit_task(task_id):
         return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
     if planned_date is False:
         return jsonify({"ok": False, "message": "La fecha planificada no es válida."}), 400
-    if due_date and planned_date and planned_date > due_date:
-        return jsonify({
-            "ok": False,
-            "message": "El día para estudiar no puede ser posterior a la fecha límite.",
-        }), 400
     if estimated_minutes is None:
         return jsonify({"ok": False, "message": "Selecciona una estimación válida."}), 400
 
@@ -989,6 +984,11 @@ def edit_task(task_id):
         exists = db.execute("SELECT id, planned_date FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not exists:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+        if due_date and planned_date and planned_date > due_date and exists["planned_date"] != planned_date:
+            return jsonify({
+                "ok": False,
+                "message": "El día para estudiar no puede ser posterior a la fecha límite.",
+            }), 400
         subject_id = get_or_create_subject(db, subject_name)
         db.execute(
             """UPDATE tasks SET title = ?, priority = ?, due_date = ?, planned_date = ?,
