@@ -122,6 +122,41 @@ def init_db():
             db.execute("ALTER TABLE tasks ADD COLUMN planned_date TEXT")
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS task_study_days (
+                task_id INTEGER NOT NULL,
+                study_date TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (task_id, study_date),
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            )
+            """
+        )
+        # Migrate each still-relevant legacy planned date into the new multi-day calendar.
+        db.execute(
+            """
+            INSERT OR IGNORE INTO task_study_days (task_id, study_date)
+            SELECT id, planned_date FROM tasks
+            WHERE planned_date IS NOT NULL AND planned_date <> ''
+              AND planned_date >= date('now', 'localtime')
+              AND (due_date IS NULL OR due_date = '' OR planned_date <= due_date)
+            """
+        )
+        # Expired planned days are not future appointments; real study history is kept in work_sessions.
+        db.execute(
+            "DELETE FROM task_study_days WHERE study_date < date('now', 'localtime')"
+        )
+        db.execute(
+            """
+            UPDATE tasks
+            SET planned_date = (
+                SELECT MIN(study_date) FROM task_study_days
+                WHERE task_study_days.task_id = tasks.id
+            )
+            WHERE planned_date IS NOT NULL AND planned_date < date('now', 'localtime')
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS work_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_id INTEGER NOT NULL,
@@ -160,6 +195,9 @@ def init_db():
         )
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_tasks_subject ON tasks(subject_id, completed)"
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_task_study_days_date ON task_study_days(study_date, task_id)"
         )
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_task_started ON work_sessions(task_id, started_at DESC)"
@@ -331,7 +369,15 @@ def index():
                WHERE ws.ended_at IS NULL ORDER BY ws.id DESC LIMIT 1"""
         ).fetchone()
         all_subjects = db.execute("SELECT id, name FROM subjects ORDER BY name COLLATE NOCASE").fetchall()
+        study_day_rows = db.execute(
+            "SELECT task_id, study_date FROM task_study_days WHERE study_date >= ? ORDER BY study_date",
+            (today_date.isoformat(),),
+        ).fetchall()
         study_goal_minutes = get_study_goal_minutes(db)
+
+    study_days_by_task = {}
+    for study_day in study_day_rows:
+        study_days_by_task.setdefault(study_day["task_id"], set()).add(study_day["study_date"])
 
     total = len(tasks)
     completed = sum(task["completed"] for task in tasks)
@@ -386,9 +432,15 @@ def index():
     week_plan_count = 0
     for offset in range(7):
         plan_date = today_date + timedelta(days=offset)
+        plan_iso = plan_date.isoformat()
         day_tasks = [
             task for task in tasks
-            if not task["completed"] and task["planned_date"] == plan_date.isoformat()
+            if not task["completed"] and (
+                plan_iso in study_days_by_task.get(task["id"], set())
+                if study_days_by_task.get(task["id"])
+                else task["planned_date"] == plan_iso
+                and (not task["due_date"] or plan_iso <= task["due_date"])
+            )
         ]
         day_tasks.sort(key=lambda task: (
             {"Alta": 0, "Media": 1, "Baja": 2}.get(task["priority"], 1),
@@ -874,13 +926,22 @@ def add_task():
     if estimated_minutes is None:
         estimated_minutes = 30
 
+    if due_date and planned_date and planned_date > due_date:
+        planned_date = None
+
     with get_db() as db:
         subject_id = get_or_create_subject(db, subject_name)
-        db.execute(
+        cursor = db.execute(
             """INSERT INTO tasks (title, priority, due_date, planned_date, subject_id, estimated_minutes)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (title, priority, due_date, planned_date, subject_id, estimated_minutes),
         )
+        task_id = cursor.lastrowid
+        if planned_date and planned_date >= date.today().isoformat():
+            db.execute(
+                "INSERT OR IGNORE INTO task_study_days (task_id, study_date) VALUES (?, ?)",
+                (task_id, planned_date),
+            )
     return redirect(url_for("index"))
 
 
@@ -934,15 +995,47 @@ def edit_task(task_id):
         return jsonify({"ok": False, "message": "Selecciona una estimación válida."}), 400
 
     with get_db() as db:
-        exists = db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        exists = db.execute("SELECT id, planned_date FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not exists:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+        if due_date and planned_date and planned_date > due_date and exists["planned_date"] != planned_date:
+            return jsonify({
+                "ok": False,
+                "message": "El día para estudiar no puede ser posterior a la fecha límite.",
+            }), 400
         subject_id = get_or_create_subject(db, subject_name)
         db.execute(
             """UPDATE tasks SET title = ?, priority = ?, due_date = ?, planned_date = ?,
                subject_id = ?, estimated_minutes = ? WHERE id = ?""",
             (title, priority, due_date, planned_date, subject_id, estimated_minutes, task_id),
         )
+
+        if exists["planned_date"] != planned_date:
+            # A deliberate edit to the single-day field replaces the old calendar plan.
+            db.execute("DELETE FROM task_study_days WHERE task_id = ?", (task_id,))
+            if planned_date and planned_date >= date.today().isoformat():
+                db.execute(
+                    "INSERT OR IGNORE INTO task_study_days (task_id, study_date) VALUES (?, ?)",
+                    (task_id, planned_date),
+                )
+        if due_date:
+            db.execute(
+                "DELETE FROM task_study_days WHERE task_id = ? AND study_date > ?",
+                (task_id, due_date),
+            )
+
+        remaining_days = db.execute(
+            "SELECT study_date FROM task_study_days WHERE task_id = ? ORDER BY study_date",
+            (task_id,),
+        ).fetchall()
+        effective_planned_date = remaining_days[0]["study_date"] if remaining_days else (
+            planned_date if not due_date or not planned_date or planned_date <= due_date else None
+        )
+        db.execute(
+            "UPDATE tasks SET planned_date = ? WHERE id = ?",
+            (effective_planned_date, task_id),
+        )
+        planned_date = effective_planned_date
         subject = db.execute(
             "SELECT name FROM subjects WHERE id = ?", (subject_id,)
         ).fetchone() if subject_id else None
@@ -958,6 +1051,102 @@ def edit_task(task_id):
             "subject": subject["name"] if subject else "",
             "estimated_minutes": estimated_minutes,
         },
+    })
+
+
+@app.route("/api/tasks/<int:task_id>/study-days", methods=["GET"])
+def get_task_study_days(task_id):
+    """Return the saved calendar dates and deadline for a single task."""
+    with get_db() as db:
+        task = db.execute(
+            "SELECT id, title, due_date, completed, estimated_minutes FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        if not task:
+            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+        days = db.execute(
+            "SELECT study_date FROM task_study_days WHERE task_id = ? AND study_date >= ? ORDER BY study_date",
+            (task_id, date.today().isoformat()),
+        ).fetchall()
+    return jsonify({
+        "ok": True,
+        "task_id": task_id,
+        "title": task["title"],
+        "due_date": task["due_date"],
+        "completed": bool(task["completed"]),
+        "estimated_minutes": task["estimated_minutes"],
+        "days": [row["study_date"] for row in days],
+    })
+
+
+@app.route("/api/tasks/<int:task_id>/study-days", methods=["PUT"])
+def update_task_study_days(task_id):
+    """Save a flexible set of study dates, never later than the task deadline."""
+    payload = request.get_json(silent=True) or {}
+    raw_days = payload.get("days")
+    if not isinstance(raw_days, list):
+        return jsonify({"ok": False, "message": "Envía una lista de días de estudio."}), 400
+    if len(raw_days) > 366:
+        return jsonify({"ok": False, "message": "Puedes seleccionar hasta 366 días por tarea."}), 400
+
+    normalized_days = set()
+    for raw_day in raw_days:
+        if not isinstance(raw_day, str):
+            return jsonify({"ok": False, "message": "Una de las fechas no es válida."}), 400
+        try:
+            parsed_day = date.fromisoformat(raw_day)
+        except ValueError:
+            return jsonify({"ok": False, "message": "Una de las fechas no es válida."}), 400
+        if parsed_day.isoformat() != raw_day:
+            return jsonify({"ok": False, "message": "Usa fechas con formato AAAA-MM-DD."}), 400
+        normalized_days.add(raw_day)
+
+    today_iso = date.today().isoformat()
+    if any(day < today_iso for day in normalized_days):
+        return jsonify({"ok": False, "message": "No puedes planificar sesiones en días que ya pasaron."}), 400
+
+    with get_db() as db:
+        task = db.execute(
+            "SELECT id, title, due_date, completed FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        if not task:
+            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+        if task["completed"] and normalized_days:
+            return jsonify({
+                "ok": False,
+                "message": "Esta tarea ya está completada. Reábrela antes de planificar más sesiones.",
+            }), 409
+
+        due_date = task["due_date"] or ""
+        if due_date and any(day > due_date for day in normalized_days):
+            return jsonify({
+                "ok": False,
+                "message": "Todos los días de estudio deben ser iguales o anteriores a la fecha límite.",
+                "due_date": due_date,
+            }), 400
+        if not due_date and any(day > (date.today() + timedelta(days=365)).isoformat() for day in normalized_days):
+            return jsonify({
+                "ok": False,
+                "message": "Sin fecha límite, puedes planificar hasta un año por adelantado. Define una fecha límite para ampliar el plan.",
+            }), 400
+
+        db.execute("DELETE FROM task_study_days WHERE task_id = ?", (task_id,))
+        db.executemany(
+            "INSERT INTO task_study_days (task_id, study_date) VALUES (?, ?)",
+            [(task_id, day) for day in sorted(normalized_days)],
+        )
+        planned_date = min(normalized_days) if normalized_days else None
+        db.execute("UPDATE tasks SET planned_date = ? WHERE id = ?", (planned_date, task_id))
+
+    return jsonify({
+        "ok": True,
+        "task_id": task_id,
+        "due_date": due_date or None,
+        "planned_date": planned_date,
+        "days": sorted(normalized_days),
+        "count": len(normalized_days),
+        "message": "Plan de estudio guardado.",
     })
 
 

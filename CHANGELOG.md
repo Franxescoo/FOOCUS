@@ -1,15 +1,22 @@
 # Registro de cambios de FOOCUS
 
-> Esta sección documenta cambios preparados en una rama de desarrollo. No representa una versión publicada. La versión oficial más reciente se consulta en [GitHub Releases](https://github.com/Franxescoo/FOOCUS/releases).
+Las publicaciones oficiales están disponibles en [GitHub Releases](https://github.com/Franxescoo/FOOCUS/releases). Los cambios de la sección «Próxima versión» todavía no están publicados.
 
-## Próxima versión planificada — objetivo V1.0.10
+## Publicado — V1.0.10
 
-- **Identidad visual:** conservar el logo de FOOCUS en el encabezado, favicon, ejecutable de Windows e instalador.
-- **Preferencias:** guardar y restaurar el tema claro u oscuro al reiniciar la aplicación.
-- **Diseño adaptable:** ajustar el panel de productividad y las notas de actualización para ventanas pequeñas, manteniendo el diseño actual.
-- **Estadísticas:** mostrar el porcentaje de tareas completadas y la duración media de las sesiones finalizadas, además del tiempo diario, semanal y total existente.
-- **Actualizaciones:** indicar la versión instalada y la disponible, mostrar el resumen de cambios de la publicación y ofrecer acceso a las notas completas cuando no exista un resumen.
-- **Calidad:** agregar pruebas para los estados vacíos, el porcentaje de tareas completadas, el promedio de sesión y la respuesta del actualizador sin notas.
-- **Distribución:** validar las pruebas y la compilación del instalador antes de preparar cualquier publicación oficial.
+- Preferencia de tema claro/oscuro persistente.
+- Logo FOOCUS en el encabezado, favicon, ejecutable de Windows e instalador.
+- Estadísticas de productividad y mejoras de presentación del actualizador.
+- Mejoras visuales y de adaptación a ventanas estrechas.
 
-La versión y estas notas quedan sujetas a revisión. No publicar ni etiquetar este cambio como lanzamiento oficial hasta completar la validación.
+## Próxima versión planificada — objetivo V1.0.11
+
+- **Navegación:** barra lateral izquierda con pantallas independientes para Inicio, Calendario, Tareas, Concentración y Estadísticas.
+- **Calendario mensual:** cuadrícula de días cuadrados, navegación entre meses, distinción visual de hoy, fechas elegidas y fecha límite.
+- **Planificación flexible:** elegir varios días de estudio para una tarea y guardarlos en SQLite para conservarlos al reiniciar.
+- **Respeto de la fecha límite:** bloquear días posteriores al vencimiento y validar la regla también en el servidor. Al adelantar un límite, se eliminan las sesiones planificadas que quedarían fuera del plazo.
+- **Integración:** mantener el resumen semanal sincronizado con las selecciones del calendario y enlazarlo con el inicio de sesiones de concentración.
+- **Diseño:** interfaz ligeramente más amplia y nítida, mejor contraste, navegación accesible y celdas cuadradas adaptables a pantallas pequeñas.
+- **Pruebas:** cubrir la persistencia de múltiples días, el rechazo de fechas no válidas, los cambios en la fecha límite, la limpieza de planes vencidos y la navegación.
+
+La V1.0.11 es solo el objetivo de planificación. No publicar ni etiquetar una versión oficial hasta revisar la interfaz y completar las validaciones de CI y la prueba manual de Windows.
