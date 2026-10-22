@@ -57,7 +57,23 @@
         <p class="update-download-trust"><span aria-hidden="true">✓</span> Se descarga desde la publicación oficial de GitHub y se comprueba su tamaño y huella digital cuando está disponible. FOOCUS no se instalará sin que tú abras el instalador.</p>
       </section>
     </section>
-    <section class="welcome">
+    <div class="app-shell">
+      <aside class="app-sidebar" aria-label="Navegación principal">
+        <p class="sidebar-caption">ESPACIO DE TRABAJO</p>
+        <nav class="sidebar-navigation" aria-label="Pantallas de FOOCUS">
+          <button class="sidebar-link is-active" type="button" data-screen-target="home" aria-current="page"><span class="sidebar-link-icon" aria-hidden="true">⌂</span><span class="sidebar-link-label">Inicio</span></button>
+          <button class="sidebar-link" type="button" data-screen-target="calendar"><span class="sidebar-link-icon" aria-hidden="true">▦</span><span class="sidebar-link-label">Calendario</span></button>
+          <button class="sidebar-link" type="button" data-screen-target="tasks"><span class="sidebar-link-icon" aria-hidden="true">☷</span><span class="sidebar-link-label">Tareas</span></button>
+          <button class="sidebar-link" type="button" data-screen-target="focus"><span class="sidebar-link-icon" aria-hidden="true">◷</span><span class="sidebar-link-label">Concentración</span></button>
+          <button class="sidebar-link" type="button" data-screen-target="stats"><span class="sidebar-link-icon" aria-hidden="true">▥</span><span class="sidebar-link-label">Estadísticas</span></button>
+        </nav>
+        <div class="sidebar-footer">
+          <span class="sidebar-status-dot" aria-hidden="true"></span>
+          <span>Tu progreso, a tu ritmo</span>
+        </div>
+      </aside>
+      <div class="app-content">
+    <section class="welcome" data-app-screen="home">
       <div class="welcome-copy">
         <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
         <h1>Haz espacio para<br><span>lo importante.</span></h1>
@@ -76,13 +92,13 @@
 
 
         <div class="main-column">
-<section class="stats" aria-label="Resumen de tareas">
+<section class="stats" aria-label="Resumen de tareas" data-app-screen="home">
           <article class="stat-card"><span class="stat-label">TAREAS TOTALES</span><strong>{{ total }}</strong><span class="stat-detail">En tu lista</span></article>
           <article class="stat-card"><span class="stat-label">COMPLETADAS</span><strong>{{ completed }}</strong><span class="stat-detail">Buen trabajo</span></article>
           <article class="stat-card"><span class="stat-label">PENDIENTES</span><strong>{{ total - completed }}</strong><span class="stat-detail">Paso a paso</span></article>
         </section>
 
-        <section class="work-dashboard panel work-dashboard-main" id="work-dashboard">
+        <section class="work-dashboard panel work-dashboard-main" id="work-dashboard" data-app-screen="stats" hidden>
           <div class="section-heading"><div><p class="eyebrow">TU CONSTANCIA, EN DATOS</p><h2>Actividad de trabajo</h2><p class="notes-hint">Registra el tiempo real que dedicas a tus tareas y deja un resumen de cada sesión.</p></div><span class="section-icon">◷</span></div>
           <div class="work-metrics">
             <article><span>Hoy</span><strong id="today-work-total">{{ today_work_seconds // 3600 }} h {{ (today_work_seconds % 3600) // 60 }} min</strong><small>Tiempo guardado</small></article>
@@ -123,7 +139,7 @@
           <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FOOCUS.</p>
         </section>
 
-        <section class="anti-procrastination panel" id="start-small" aria-labelledby="start-small-title">
+        <section class="anti-procrastination panel" id="start-small" data-app-screen="home" aria-labelledby="start-small-title">
           <div class="section-heading"><div><p class="eyebrow">PLAN ANTI-PROCRASTINACIÓN · 5 MIN</p><h2 id="start-small-title">Desbloquea tu próxima tarea.</h2><p class="notes-hint">Elige una tarea y conviértela en una acción pequeña que puedas empezar ahora.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
           <div class="starter-steps" aria-label="Tres pasos para empezar">
             <article class="starter-step"><span class="starter-step-number" aria-hidden="true">01</span><div class="starter-step-copy"><strong>Elige una tarea</strong><small>Solo una que esté pendiente.</small></div></article>
@@ -143,7 +159,57 @@
           <p class="starter-footnote">El objetivo es romper la barrera de inicio, no terminarlo todo. Después de cinco minutos puedes parar sin culpa.</p>
         </section>
 
-        <details class="weekly-planner panel" id="weekly-planner">
+        <section class="calendar-view panel" id="calendar-view" data-app-screen="calendar" hidden aria-labelledby="calendar-title">
+          <div class="section-heading calendar-heading">
+            <div>
+              <p class="eyebrow">PLANIFICA A TU RITMO</p>
+              <h2 id="calendar-title">Calendario de estudio</h2>
+              <p class="notes-hint">Selecciona varios días para una tarea. Ninguna sesión se puede programar después de su fecha límite.</p>
+            </div>
+            <span class="section-icon" aria-hidden="true">▦</span>
+          </div>
+          <div class="calendar-controls">
+            <label class="field" for="calendar-task-select">Tarea que quieres planificar
+              <select id="calendar-task-select">
+                <option value="">Selecciona una tarea pendiente…</option>
+                {% for task in tasks if not task.completed %}
+                <option value="{{ task.id }}">{{ task.title }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <div class="calendar-task-info" id="calendar-task-info" role="status">Elige una tarea para cargar o modificar su calendario.</div>
+          </div>
+          <div class="calendar-month-toolbar">
+            <button class="calendar-month-button" type="button" id="calendar-previous" aria-label="Mes anterior">‹</button>
+            <h3 id="calendar-month-label" aria-live="polite">Calendario</h3>
+            <button class="calendar-month-button" type="button" id="calendar-next" aria-label="Mes siguiente">›</button>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+          </div>
+          <div class="calendar-grid" id="calendar-grid" role="group" aria-label="Días del mes"></div>
+          <div class="calendar-legend" aria-label="Leyenda del calendario">
+            <span><i class="calendar-legend-today"></i>Hoy</span>
+            <span><i class="calendar-legend-selected"></i>Día de estudio</span>
+            <span><i class="calendar-legend-deadline"></i>Fecha límite</span>
+          </div>
+          <div class="calendar-summary">
+            <div>
+              <strong id="calendar-selected-count">0 días seleccionados</strong>
+              <p id="calendar-selected-summary">Los días seleccionados aparecerán aquí.</p>
+            </div>
+            <button class="focus-reset" type="button" id="calendar-clear" disabled>Limpiar días</button>
+          </div>
+          <p class="calendar-status" id="calendar-status" role="status" aria-live="polite">Los cambios se guardan automáticamente.</p>
+          <div class="calendar-empty" id="calendar-empty" hidden>
+            <div class="empty-icon" aria-hidden="true">▦</div>
+            <h3>Primero crea una tarea</h3>
+            <p>Cuando tengas una tarea pendiente, podrás elegir aquí los días de estudio y respetar su fecha límite.</p>
+            <button class="primary-button" type="button" data-screen-target="tasks">Ir a tareas</button>
+          </div>
+        </section>
+
+        <details class="weekly-planner panel" id="weekly-planner" data-app-screen="calendar" hidden open>
           <summary class="weekly-planner-summary">
             <span class="weekly-planner-icon" aria-hidden="true">▦</span>
             <span class="weekly-planner-copy"><strong>Plan de estudio · próximos 7 días</strong><small>Separa el día en que estudiarás de la fecha límite de entrega.</small></span>
@@ -181,7 +247,7 @@
             <p class="weekly-planner-note">Para programar una tarea, asigna su día en el formulario o desde «Editar». Puedes cambiarlo cuando se mueva tu semana.</p>
           </div>
         </details>
-<section class="panel">
+<section class="panel" id="task-create-panel" data-app-screen="tasks" hidden>
           <div class="section-heading"><div><p class="eyebrow">PLANIFICA TU DÍA</p><h2>Agregar una tarea</h2></div><span class="section-icon">＋</span></div>
           <form class="task-form" action="{{ url_for('add_task') }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -213,7 +279,7 @@
           </form>
         </section>
 
-<section class="tasks-section" id="tasks-area">
+<section class="tasks-section" id="tasks-area" data-app-screen="tasks" hidden>
           <div class="section-heading task-heading"><div><p class="eyebrow">MANTÉN EL RITMO</p><h2>Mis tareas</h2></div><div class="task-heading-actions"><a class="export-button" href="{{ url_for('export_csv') }}" download>↓ Exportar CSV</a><span class="count">{{ total }} en total</span></div></div>
           <div class="progress-card">
             <div class="progress-copy"><span>Progreso general</span><strong>{{ ((completed / total * 100)|round|int) if total else 0 }}%</strong></div>
@@ -327,7 +393,7 @@
           {% endif %}
         </section>
         </div>
-        <aside class="utility-rail" aria-label="Herramientas de concentración">
+        <aside class="utility-rail" id="utility-rail" data-app-screen="focus" hidden aria-label="Herramientas de concentración">
           <p class="utility-rail-title">TU ESPACIO DE ENFOQUE</p>
           <details class="utility-card" id="utility-focus-card">
             <summary><span class="utility-card-icon">◷</span><span><strong>Temporizador</strong><small>Un bloque a la vez</small></span><span class="utility-chevron">⌄</span></summary>
@@ -356,7 +422,234 @@
           
         </aside>
       </div>
-    </div>    <footer>FOOCUS · Un paso a la vez.</footer>
+      <footer>FOOCUS · Un paso a la vez.</footer>
+    </div>
+  </div>
+
+  <script nonce="{{ csp_nonce }}">
+    (() => {
+      const navButtons = Array.from(document.querySelectorAll("[data-screen-target]"));
+      const screenItems = Array.from(document.querySelectorAll("[data-app-screen]"));
+      const validScreens = new Set(["home", "calendar", "tasks", "focus", "stats"]);
+
+      function showScreen(screen) {
+        if (!validScreens.has(screen)) return;
+        screenItems.forEach(item => { item.hidden = item.dataset.appScreen !== screen; });
+        navButtons.forEach(button => {
+          const active = button.dataset.screenTarget === screen;
+          button.classList.toggle("is-active", active);
+          if (active) button.setAttribute("aria-current", "page");
+          else button.removeAttribute("aria-current");
+        });
+        document.body.dataset.currentScreen = screen;
+        if (screen === "calendar") window.FOOCUSCalendar?.activate();
+        window.scrollTo({top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+      }
+
+      navButtons.forEach(button => button.addEventListener("click", () => showScreen(button.dataset.screenTarget)));
+      window.FOOCUSShowScreen = showScreen;
+      showScreen("home");
+    })();
+  </script>
+  <script nonce="{{ csp_nonce }}">
+    (() => {
+      const taskSelect = document.getElementById("calendar-task-select");
+      const grid = document.getElementById("calendar-grid");
+      const monthLabel = document.getElementById("calendar-month-label");
+      const taskInfo = document.getElementById("calendar-task-info");
+      const selectedCount = document.getElementById("calendar-selected-count");
+      const selectedSummary = document.getElementById("calendar-selected-summary");
+      const status = document.getElementById("calendar-status");
+      const clearButton = document.getElementById("calendar-clear");
+      const emptyState = document.getElementById("calendar-empty");
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+      if (![taskSelect, grid, monthLabel, taskInfo, selectedCount, selectedSummary, status, clearButton, emptyState].every(Boolean)) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayIso = toIso(today);
+      let visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      let selectedDays = new Set();
+      let deadline = "";
+      let loading = false;
+      let saving = false;
+      let activeTaskId = "";
+
+      function toIso(date) {
+        return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+      }
+      function parseIso(value) {
+        const parts = value.split("-").map(Number);
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+      function formatIso(value, options = {day:"numeric", month:"short"}) {
+        return parseIso(value).toLocaleDateString("es-CL", options);
+      }
+      function addDays(date, amount) {
+        const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        copy.setDate(copy.getDate() + amount);
+        return copy;
+      }
+      function setStatus(message, kind = "") {
+        status.textContent = message;
+        status.classList.toggle("is-error", kind === "error");
+        status.classList.toggle("is-success", kind === "success");
+      }
+      function syncSummary() {
+        const days = Array.from(selectedDays).sort();
+        selectedCount.textContent = days.length + (days.length === 1 ? " día seleccionado" : " días seleccionados");
+        selectedSummary.textContent = days.length
+          ? days.slice(0, 6).map(formatIso).join(" · ") + (days.length > 6 ? " · +" + (days.length - 6) + " más" : "")
+          : "Los días seleccionados aparecerán aquí.";
+        clearButton.disabled = loading || saving || days.length === 0;
+      }
+      function dateIsAvailable(day) {
+        if (day < todayIso) return false;
+        if (deadline && day > deadline) return false;
+        if (!deadline && day > toIso(addDays(today, 365))) return false;
+        return true;
+      }
+      function renderCalendar() {
+        monthLabel.textContent = visibleMonth.toLocaleDateString("es-CL", {month:"long", year:"numeric"});
+        grid.replaceChildren();
+        const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+        const mondayOffset = (first.getDay() + 6) % 7;
+        const gridStart = addDays(first, -mondayOffset);
+
+        for (let index = 0; index < 42; index++) {
+          const current = addDays(gridStart, index);
+          const dayIso = toIso(current);
+          const sameMonth = current.getMonth() === visibleMonth.getMonth();
+          const selected = selectedDays.has(dayIso);
+          const available = sameMonth && dateIsAvailable(dayIso) && !loading && !saving && Boolean(activeTaskId);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "calendar-day";
+          if (!sameMonth) button.classList.add("is-outside-month");
+          if (dayIso === todayIso) button.classList.add("is-today");
+          if (dayIso === deadline) button.classList.add("is-deadline");
+          if (selected) button.classList.add("is-selected");
+          button.disabled = !available;
+          button.setAttribute("aria-pressed", String(selected));
+          button.setAttribute("aria-label", formatIso(dayIso, {weekday:"long", day:"numeric", month:"long", year:"numeric"}) + (selected ? ", día planificado" : "") + (dayIso === deadline ? ", fecha límite" : ""));
+          button.title = !sameMonth ? "" : (dayIso === deadline ? "Fecha límite" : (selected ? "Quitar día de estudio" : "Añadir día de estudio"));
+          const number = document.createElement("span");
+          number.className = "calendar-day-number";
+          number.textContent = String(current.getDate());
+          button.append(number);
+          if (selected) {
+            const mark = document.createElement("span");
+            mark.className = "calendar-day-mark";
+            mark.setAttribute("aria-hidden", "true");
+            mark.textContent = "✓";
+            button.append(mark);
+          }
+          if (dayIso === deadline) {
+            const marker = document.createElement("span");
+            marker.className = "calendar-day-deadline";
+            marker.textContent = "Límite";
+            button.append(marker);
+          }
+          if (sameMonth) button.addEventListener("click", () => toggleDay(dayIso));
+          grid.append(button);
+        }
+        syncSummary();
+      }
+      async function loadTaskPlan() {
+        activeTaskId = taskSelect.value;
+        selectedDays = new Set();
+        deadline = "";
+        loading = true;
+        renderCalendar();
+        if (!activeTaskId) {
+          taskInfo.textContent = taskSelect.options.length > 1
+            ? "Elige una tarea para consultar su fecha límite y planificar días."
+            : "No hay tareas pendientes. Crea una tarea para empezar a planificar.";
+          emptyState.hidden = taskSelect.options.length > 1;
+          setStatus("Selecciona una tarea para empezar.");
+          loading = false;
+          renderCalendar();
+          return;
+        }
+        emptyState.hidden = true;
+        setStatus("Cargando el plan guardado…");
+        try {
+          const response = await fetch("/api/tasks/" + encodeURIComponent(activeTaskId) + "/study-days", {cache:"no-store", headers:{"Accept":"application/json"}});
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo cargar el plan.");
+          selectedDays = new Set(data.days || []);
+          deadline = data.due_date || "";
+          taskInfo.textContent = deadline
+            ? "Fecha límite: " + formatIso(deadline, {day:"numeric", month:"long", year:"numeric"}) + ". Puedes elegir cualquier día disponible hasta esa fecha."
+            : "Esta tarea no tiene fecha límite. Para evitar una planificación indefinida, el calendario permite planificar hasta un año por adelantado.";
+          const deadlineInput = document.querySelector('#tasks-area [data-task-id="' + CSS.escape(activeTaskId) + '"] .edit-due-date');
+          if (data.completed) {
+            taskInfo.textContent = "Esta tarea está completada. Reábrela desde Tareas para planificar nuevas sesiones.";
+          }
+          setStatus("Plan cargado correctamente.", "success");
+        } catch (error) {
+          selectedDays = new Set();
+          setStatus(error.message || "No se pudo cargar el plan.", "error");
+        } finally {
+          loading = false;
+          renderCalendar();
+        }
+      }
+      async function saveDays(nextDays) {
+        if (!activeTaskId || loading || saving) return;
+        const previousDays = new Set(selectedDays);
+        selectedDays = new Set(nextDays);
+        saving = true;
+        renderCalendar();
+        setStatus("Guardando el plan…");
+        try {
+          const response = await fetch("/api/tasks/" + encodeURIComponent(activeTaskId) + "/study-days", {
+            method:"PUT",
+            headers:{"Accept":"application/json", "Content-Type":"application/json", "X-CSRF-Token":csrfToken},
+            body:JSON.stringify({days:Array.from(selectedDays).sort()})
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo guardar el plan.");
+          selectedDays = new Set(data.days || []);
+          setStatus("Plan guardado · " + data.count + (data.count === 1 ? " día de estudio." : " días de estudio."), "success");
+          // Refresh the legacy seven-day planner data on the next navigation/reload.
+        } catch (error) {
+          selectedDays = previousDays;
+          setStatus(error.message || "No se pudo guardar el plan.", "error");
+        } finally {
+          saving = false;
+          renderCalendar();
+        }
+      }
+      function toggleDay(dayIso) {
+        if (!activeTaskId || !dateIsAvailable(dayIso) || loading || saving) return;
+        const next = new Set(selectedDays);
+        if (next.has(dayIso)) next.delete(dayIso);
+        else next.add(dayIso);
+        saveDays(next);
+      }
+      document.getElementById("calendar-previous").addEventListener("click", () => {
+        visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+        renderCalendar();
+      });
+      document.getElementById("calendar-next").addEventListener("click", () => {
+        visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+        renderCalendar();
+      });
+      taskSelect.addEventListener("change", loadTaskPlan);
+      clearButton.addEventListener("click", () => saveDays([]));
+      const firstTask = taskSelect.querySelector("option[value]:not([value=''])");
+      if (firstTask) {
+        taskSelect.value = firstTask.value;
+        loadTaskPlan();
+      } else {
+        emptyState.hidden = false;
+        taskInfo.textContent = "No hay tareas pendientes. Crea una tarea para empezar a planificar.";
+      }
+      renderCalendar();
+      window.FOOCUSCalendar = {activate() { renderCalendar(); }};
+    })();
+  </script>
   </main>
 <dialog class="active-work-dialog" id="active-work-dialog" tabindex="-1" aria-modal="true" aria-labelledby="active-work-title" aria-describedby="active-work-subtitle">
   <section class="active-work-panel panel" id="active-work-panel" {% if not active_session %}hidden{% endif %}>
