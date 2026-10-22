@@ -486,6 +486,41 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertFalse(response.json["ok"])
         self.assertIn("seguridad", response.json["message"].lower())
 
+    def test_expired_calendar_days_are_pruned_without_losing_work_history(self):
+        today = date.today()
+        past_day = (today - timedelta(days=1)).isoformat()
+        deadline = (today + timedelta(days=5)).isoformat()
+        self.create_task(title="Sesiones anteriores", due_date=deadline)
+        task_id = self.task_id()
+        with focusflow.get_db() as db:
+            db.execute(
+                "INSERT INTO task_study_days (task_id, study_date) VALUES (?, ?)",
+                (task_id, past_day),
+            )
+            db.execute(
+                "UPDATE tasks SET planned_date = ? WHERE id = ?",
+                (past_day, task_id),
+            )
+            db.execute(
+                "INSERT INTO work_sessions (task_id, started_at, ended_at, duration_seconds, comment, next_step) VALUES (?, ?, ?, ?, '', '')",
+                (task_id, today.isoformat() + "T09:00:00", today.isoformat() + "T09:30:00", 1800),
+            )
+
+        focusflow.init_db()
+        with focusflow.get_db() as db:
+            task = db.execute(
+                "SELECT planned_date FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            scheduled = db.execute(
+                "SELECT study_date FROM task_study_days WHERE task_id = ?", (task_id,)
+            ).fetchall()
+            sessions = db.execute(
+                "SELECT duration_seconds FROM work_sessions WHERE task_id = ?", (task_id,)
+            ).fetchall()
+        self.assertIsNone(task["planned_date"])
+        self.assertEqual(scheduled, [])
+        self.assertEqual([row["duration_seconds"] for row in sessions], [1800])
+
     def test_calendar_screen_and_sidebar_navigation_are_rendered(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -534,6 +569,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(task["planned_date"], study_days[0])
         self.assertEqual(task["due_date"], deadline)
         self.assertEqual([row["study_date"] for row in stored], study_days)
+        page = self.client.get("/").data
+        self.assertEqual(page.count(b'class="weekly-plan-item" data-planned-task'), 3)
 
     def test_calendar_rejects_study_days_after_deadline_without_overwriting_saved_plan(self):
         today = date.today()
