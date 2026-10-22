@@ -932,7 +932,7 @@ class FocusFlowTaskTests(unittest.TestCase):
 
     def test_export_csv_includes_task_and_work_comment(self):
         self.create_task("Exportar mi progreso", priority="Alta", subject="Programación",
-                         estimated_minutes="60", planned_date="2026-10-24")
+                         estimated_minutes="60", due_date="2026-10-26", planned_date="2026-10-24")
         task_id = self.task_id()
         self.client.post(
             "/api/work/start", json={"task_id": task_id}, headers=self.csrf_headers()
