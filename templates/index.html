@@ -61,11 +61,11 @@
       <aside class="app-sidebar" aria-label="Navegación principal">
         <p class="sidebar-caption">ESPACIO DE TRABAJO</p>
         <nav class="sidebar-navigation" aria-label="Pantallas de FOOCUS">
-          <button class="sidebar-link is-active" type="button" data-screen-target="home" aria-current="page"><span class="sidebar-link-icon" aria-hidden="true">⌂</span><span class="sidebar-link-label">Inicio</span></button>
-          <button class="sidebar-link" type="button" data-screen-target="calendar"><span class="sidebar-link-icon" aria-hidden="true">▦</span><span class="sidebar-link-label">Calendario</span></button>
-          <button class="sidebar-link" type="button" data-screen-target="tasks"><span class="sidebar-link-icon" aria-hidden="true">☷</span><span class="sidebar-link-label">Tareas</span></button>
-          <button class="sidebar-link" type="button" data-screen-target="focus"><span class="sidebar-link-icon" aria-hidden="true">◷</span><span class="sidebar-link-label">Concentración</span></button>
-          <button class="sidebar-link" type="button" data-screen-target="stats"><span class="sidebar-link-icon" aria-hidden="true">▥</span><span class="sidebar-link-label">Estadísticas</span></button>
+          <button class="sidebar-link is-active" type="button" title="Inicio" aria-label="Inicio" data-screen-target="home" aria-current="page"><span class="sidebar-link-icon" aria-hidden="true">⌂</span><span class="sidebar-link-label">Inicio</span></button>
+          <button class="sidebar-link" type="button" title="Calendario" aria-label="Calendario" data-screen-target="calendar"><span class="sidebar-link-icon" aria-hidden="true">▦</span><span class="sidebar-link-label">Calendario</span></button>
+          <button class="sidebar-link" type="button" title="Tareas" aria-label="Tareas" data-screen-target="tasks"><span class="sidebar-link-icon" aria-hidden="true">☷</span><span class="sidebar-link-label">Tareas</span></button>
+          <button class="sidebar-link" type="button" title="Concentración" aria-label="Concentración" data-screen-target="focus"><span class="sidebar-link-icon" aria-hidden="true">◷</span><span class="sidebar-link-label">Concentración</span></button>
+          <button class="sidebar-link" type="button" title="Estadísticas" aria-label="Estadísticas" data-screen-target="stats"><span class="sidebar-link-icon" aria-hidden="true">▥</span><span class="sidebar-link-label">Estadísticas</span></button>
         </nav>
         <div class="sidebar-footer">
           <span class="sidebar-status-dot" aria-hidden="true"></span>
@@ -500,7 +500,7 @@
         const days = Array.from(selectedDays).sort();
         selectedCount.textContent = days.length + (days.length === 1 ? " día seleccionado" : " días seleccionados");
         selectedSummary.textContent = days.length
-          ? days.slice(0, 6).map(formatIso).join(" · ") + (days.length > 6 ? " · +" + (days.length - 6) + " más" : "")
+          ? days.slice(0, 6).map(day => formatIso(day)).join(" · ") + (days.length > 6 ? " · +" + (days.length - 6) + " más" : "")
           : "Los días seleccionados aparecerán aquí.";
         clearButton.disabled = loading || saving || days.length === 0;
       }
@@ -673,6 +673,8 @@
           if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo cargar el plan.");
           selectedDays = new Set(data.days || []);
           deadline = data.due_date || "";
+          const selectedOption = taskSelect.selectedOptions[0];
+          if (selectedOption) selectedOption.dataset.dueDate = deadline;
           taskInfo.textContent = deadline
             ? "Fecha límite: " + formatIso(deadline, {day:"numeric", month:"long", year:"numeric"}) + ". Puedes elegir cualquier día disponible hasta esa fecha."
             : "Esta tarea no tiene fecha límite. Para evitar una planificación indefinida, el calendario permite planificar hasta un año por adelantado.";
