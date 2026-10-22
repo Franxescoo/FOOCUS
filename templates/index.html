@@ -428,7 +428,8 @@
 
   <script nonce="{{ csp_nonce }}">
     (() => {
-      const navButtons = Array.from(document.querySelectorAll("[data-screen-target]"));
+      const navButtons = Array.from(document.querySelectorAll(".sidebar-link[data-screen-target]"));
+      const screenButtons = Array.from(document.querySelectorAll("[data-screen-target]"));
       const screenItems = Array.from(document.querySelectorAll("[data-app-screen]"));
       const validScreens = new Set(["home", "calendar", "tasks", "focus", "stats"]);
 
@@ -446,7 +447,7 @@
         window.scrollTo({top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
       }
 
-      navButtons.forEach(button => button.addEventListener("click", () => showScreen(button.dataset.screenTarget)));
+      screenButtons.forEach(button => button.addEventListener("click", () => showScreen(button.dataset.screenTarget)));
       window.FOOCUSShowScreen = showScreen;
       showScreen("home");
     })();
@@ -582,7 +583,6 @@
           taskInfo.textContent = deadline
             ? "Fecha límite: " + formatIso(deadline, {day:"numeric", month:"long", year:"numeric"}) + ". Puedes elegir cualquier día disponible hasta esa fecha."
             : "Esta tarea no tiene fecha límite. Para evitar una planificación indefinida, el calendario permite planificar hasta un año por adelantado.";
-          const deadlineInput = document.querySelector('#tasks-area [data-task-id="' + CSS.escape(activeTaskId) + '"] .edit-due-date');
           if (data.completed) {
             taskInfo.textContent = "Esta tarea está completada. Reábrela desde Tareas para planificar nuevas sesiones.";
           }
