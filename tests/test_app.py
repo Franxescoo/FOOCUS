@@ -486,6 +486,130 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertFalse(response.json["ok"])
         self.assertIn("seguridad", response.json["message"].lower())
 
+    def test_calendar_screen_and_sidebar_navigation_are_rendered(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        page = response.data
+        self.assertIn(b'class="app-sidebar"', page)
+        self.assertIn(b'data-screen-target="calendar"', page)
+        self.assertIn(b'data-screen-target="tasks"', page)
+        self.assertIn(b'id="calendar-view"', page)
+        self.assertIn(b'id="calendar-grid"', page)
+        self.assertIn(b'id="calendar-task-select"', page)
+        self.assertIn(b'data-app-screen="stats"', page)
+
+    def test_calendar_can_save_multiple_study_days_before_deadline(self):
+        today = date.today()
+        deadline = (today + timedelta(days=6)).isoformat()
+        study_days = sorted({
+            (today + timedelta(days=1)).isoformat(),
+            (today + timedelta(days=3)).isoformat(),
+            (today + timedelta(days=5)).isoformat(),
+        })
+        self.create_task(title="Preparar evaluación", due_date=deadline)
+        task_id = self.task_id()
+
+        saved = self.client.put(
+            f"/api/tasks/{task_id}/study-days",
+            json={"days": study_days},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertTrue(saved.json["ok"])
+        self.assertEqual(saved.json["days"], study_days)
+        self.assertEqual(saved.json["count"], 3)
+        self.assertEqual(saved.json["planned_date"], study_days[0])
+
+        loaded = self.client.get(f"/api/tasks/{task_id}/study-days")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(loaded.json["days"], study_days)
+        with focusflow.get_db() as db:
+            task = db.execute(
+                "SELECT planned_date, due_date FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            stored = db.execute(
+                "SELECT study_date FROM task_study_days WHERE task_id = ? ORDER BY study_date",
+                (task_id,),
+            ).fetchall()
+        self.assertEqual(task["planned_date"], study_days[0])
+        self.assertEqual(task["due_date"], deadline)
+        self.assertEqual([row["study_date"] for row in stored], study_days)
+
+    def test_calendar_rejects_study_days_after_deadline_without_overwriting_saved_plan(self):
+        today = date.today()
+        deadline = (today + timedelta(days=2)).isoformat()
+        valid_day = (today + timedelta(days=1)).isoformat()
+        invalid_day = (today + timedelta(days=4)).isoformat()
+        self.create_task(title="Tarea con límite", due_date=deadline)
+        task_id = self.task_id()
+
+        initial = self.client.put(
+            f"/api/tasks/{task_id}/study-days",
+            json={"days": [valid_day]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(initial.status_code, 200)
+
+        rejected = self.client.put(
+            f"/api/tasks/{task_id}/study-days",
+            json={"days": [valid_day, invalid_day]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("fecha límite", rejected.json["message"])
+        loaded = self.client.get(f"/api/tasks/{task_id}/study-days")
+        self.assertEqual(loaded.json["days"], [valid_day])
+
+    def test_calendar_rejects_past_dates_and_requires_a_list(self):
+        self.create_task(title="Planificación válida", due_date=(date.today() + timedelta(days=5)).isoformat())
+        task_id = self.task_id()
+        bad_payloads = [
+            {"days": (date.today() + timedelta(days=1)).isoformat()},
+            {"days": [(date.today() - timedelta(days=1)).isoformat()]},
+        ]
+        for payload in bad_payloads:
+            response = self.client.put(
+                f"/api/tasks/{task_id}/study-days",
+                json=payload,
+                headers=self.csrf_headers(),
+            )
+            self.assertEqual(response.status_code, 400)
+
+    def test_calendar_schedule_is_removed_when_new_deadline_moves_before_a_session(self):
+        today = date.today()
+        original_deadline = (today + timedelta(days=8)).isoformat()
+        early_day = (today + timedelta(days=1)).isoformat()
+        late_day = (today + timedelta(days=6)).isoformat()
+        new_deadline = (today + timedelta(days=3)).isoformat()
+        self.create_task(title="Cambiar límite", due_date=original_deadline)
+        task_id = self.task_id()
+        scheduled = self.client.put(
+            f"/api/tasks/{task_id}/study-days",
+            json={"days": [early_day, late_day]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(scheduled.status_code, 200)
+
+        response = self.client.patch(
+            f"/api/tasks/{task_id}",
+            json={
+                "title": "Cambiar límite",
+                "priority": "Media",
+                "due_date": new_deadline,
+                "planned_date": early_day,
+                "subject": "",
+                "estimated_minutes": 30,
+            },
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        with focusflow.get_db() as db:
+            days = db.execute(
+                "SELECT study_date FROM task_study_days WHERE task_id = ? ORDER BY study_date",
+                (task_id,),
+            ).fetchall()
+        self.assertEqual([row["study_date"] for row in days], [early_day])
+
     def test_study_goal_defaults_and_persists(self):
         with focusflow.get_db() as db:
             initial = db.execute(
