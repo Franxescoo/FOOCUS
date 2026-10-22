@@ -575,6 +575,45 @@ class FocusFlowTaskTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 400)
 
+    def test_calendar_can_move_deadline_before_every_saved_day(self):
+        today = date.today()
+        original_deadline = (today + timedelta(days=8)).isoformat()
+        saved_days = [
+            (today + timedelta(days=4)).isoformat(),
+            (today + timedelta(days=6)).isoformat(),
+        ]
+        new_deadline = (today + timedelta(days=2)).isoformat()
+        self.create_task(title="Replanificar todo", due_date=original_deadline)
+        with focusflow.get_db() as db:
+            task_id = db.execute(
+                "SELECT id FROM tasks WHERE title = ?", ("Replanificar todo",)
+            ).fetchone()["id"]
+
+        scheduled = self.client.put(
+            f"/api/tasks/{task_id}/study-days",
+            json={"days": saved_days},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(scheduled.status_code, 200)
+
+        response = self.client.patch(
+            f"/api/tasks/{task_id}",
+            json={
+                "title": "Replanificar todo",
+                "priority": "Media",
+                "due_date": new_deadline,
+                "planned_date": saved_days[0],
+                "subject": "",
+                "estimated_minutes": 30,
+            },
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json["task"]["planned_date"])
+        loaded = self.client.get(f"/api/tasks/{task_id}/study-days")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(loaded.json["days"], [])
+
     def test_calendar_schedule_is_removed_when_new_deadline_moves_before_a_session(self):
         today = date.today()
         original_deadline = (today + timedelta(days=8)).isoformat()
