@@ -141,6 +141,20 @@ def init_db():
               AND (due_date IS NULL OR due_date = '' OR planned_date <= due_date)
             """
         )
+        # Expired planned days are not future appointments; real study history is kept in work_sessions.
+        db.execute(
+            "DELETE FROM task_study_days WHERE study_date < date('now', 'localtime')"
+        )
+        db.execute(
+            """
+            UPDATE tasks
+            SET planned_date = (
+                SELECT MIN(study_date) FROM task_study_days
+                WHERE task_study_days.task_id = tasks.id
+            )
+            WHERE planned_date IS NOT NULL AND planned_date < date('now', 'localtime')
+            """
+        )
         db.execute(
             """
             CREATE TABLE IF NOT EXISTS work_sessions (
@@ -1051,8 +1065,8 @@ def get_task_study_days(task_id):
         if not task:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
         days = db.execute(
-            "SELECT study_date FROM task_study_days WHERE task_id = ? ORDER BY study_date",
-            (task_id,),
+            "SELECT study_date FROM task_study_days WHERE task_id = ? AND study_date >= ? ORDER BY study_date",
+            (task_id, date.today().isoformat()),
         ).fetchall()
     return jsonify({
         "ok": True,
