@@ -283,7 +283,7 @@ Cada criterio debe verificarse con una prueba automatizada o un escenario manual
 | CAN-038 | Editar una tarea vinculada actualiza el registro original. |
 | CAN-039 | Desvincular una tarea sin eliminar el registro global. |
 | CAN-040 | Convertir una tarea propia en tarea global sin crear duplicados. |
-| CAN-041 | Mantener la integración de tareas globales con calendario y planificador. |
+| CAN-041 | Mantener la integración de tareas globales con calendario y planificador; permitir iniciar una sesión de concentración desde una tarjeta vinculada mediante el flujo de trabajo existente. |
 | CAN-042 | No incluir tareas propias en estadísticas/calendario globales salvo conversión explícita. |
 
 ### F. Archivos y enlaces
@@ -327,7 +327,7 @@ Cada criterio debe verificarse con una prueba automatizada o un escenario manual
 ## 7. Escenarios de prueba end-to-end
 
 1. **Proyecto completo:** crear espacio, asociar Canvas, crear elementos y columnas, cerrar/abrir y comprobar identidad de datos.
-2. **Tareas:** crear tarea Canvas, convertirla, modificarla desde el gestor global y comprobar que Canvas refleja el mismo registro; desvincular sin borrar.
+2. **Tareas y concentración:** crear una tarea Canvas, convertirla, modificarla desde el gestor global, iniciar una sesión desde su tarjeta vinculada, comprobar el panel de trabajo y el temporizador; desvincular sin borrar.
 3. **Recuperación:** autosave, guardado manual, undo/redo, reinicio, consultar y restaurar una versión.
 4. **Adjuntos:** adjuntar imagen/PDF/enlace, duplicar elemento, borrar una referencia y comprobar que el fichero sigue disponible mientras exista otra referencia.
 5. **Compatibilidad:** abrir base de datos anterior, ejecutar migración, comprobar tareas/asignaturas/sesiones/calendario/ajustes y crear un Canvas.
@@ -343,7 +343,7 @@ Este estado describe el código incorporado en la rama `feature/foocus-canvas-fo
 | 2. Canvas libre | Implementada en la rama: notas, texto, grupos con miembros, conexiones, selección múltiple, movimiento, redimensionado, duplicación, zoom, encuadre y viewport persistente. | Validación manual con tableros reales. |
 | 3. Canvas estructurado | Implementada en la rama: columnas reordenables, tarjetas, subtareas, prioridades, fechas, estados y movimiento entre columnas. | Validación manual de flujos completos. |
 | 4. Guardado e historial | Implementada en la rama: autosave, guardado manual, undo/redo en sesión, versiones persistentes y restauración. | Prueba manual de recuperación tras cierre inesperado. |
-| 5. Tareas y adjuntos | Implementada en la rama: tareas propias/vinculadas, conversión idempotente a tarea global, archivos locales y enlaces externos. | Validación manual de formatos y sincronización de tareas. |
+| 5. Tareas y adjuntos | Implementada en la rama: tareas propias/vinculadas, conversión idempotente, sesión de concentración desde una tarjeta vinculada, archivos locales y enlaces externos. | Validación manual de formatos y sincronización de tareas. |
 | 6. Estabilización e instalador | Pruebas automatizadas y compilación de Windows se ejecutan en GitHub Actions. | La validación final debe corresponder al último commit; falta instalar/probar manualmente en Windows. |
 
 La rama continúa en un PR de borrador. No debe declararse Canvas listo para distribución hasta que las pruebas de Actions y la instalación manual en Windows pasen sobre el mismo commit final.
