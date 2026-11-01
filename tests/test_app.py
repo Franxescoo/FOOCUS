@@ -285,6 +285,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'id="canvas-board-form"', response.data)
         self.assertIn(b"canvas.js", response.data)
         self.assertIn(b"canvas.css", response.data)
+        self.assertIn(b"canvas-editor.js", response.data)
 
     def test_cursor_aura_is_decorative_and_respects_accessibility(self):
         response = self.client.get("/")
@@ -1320,12 +1321,34 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(loaded.json["columns"][0]["title"], "Por hacer")
         self.assertEqual(loaded.json["elements"][0]["task_id"], task_id)
         self.assertEqual(loaded.json["elements"][0]["linked_task_title"], "Preparar informe")
+        self.assertEqual(loaded.json["elements"][0]["linked_task_priority"], "Alta")
+
+        options = self.client.get("/api/canvas/task-options")
+        self.assertEqual(options.status_code, 200)
+        self.assertEqual(options.json["items"][0]["id"], task_id)
+
+        updated_task = self.client.patch(
+            f"/api/tasks/{task_id}",
+            json={"title":"Informe revisado","priority":"Media","due_date":"","planned_date":"","subject":"","estimated_minutes":45},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(updated_task.status_code, 200)
+        completed = self.client.put(
+            f"/api/tasks/{task_id}/completion", json={"completed":True}, headers=self.csrf_headers()
+        )
+        self.assertEqual(completed.status_code, 200)
+        self.assertTrue(completed.json["completed"])
+
+        refreshed = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(refreshed.json["elements"][0]["linked_task_title"], "Informe revisado")
+        self.assertEqual(refreshed.json["elements"][0]["linked_task_priority"], "Media")
+        self.assertTrue(refreshed.json["elements"][0]["linked_task_completed"])
 
         with focusflow.get_db() as db:
             db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         orphaned = self.client.get(f"/api/canvas/{board_id}/content")
         self.assertIsNone(orphaned.json["elements"][0]["task_id"])
-        self.assertEqual(orphaned.json["elements"][0]["linked_task_title"], "Preparar informe")
+        self.assertEqual(orphaned.json["elements"][0]["linked_task_title"], "Informe revisado")
 
     def test_canvas_content_rejects_wrong_mode_invalid_dimensions_and_missing_columns(self):
         free_board = self.client.post("/api/canvas", json={"title":"Libre"}, headers=self.csrf_headers()).json["item"]["id"]
