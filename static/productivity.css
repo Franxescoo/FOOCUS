@@ -43,9 +43,9 @@
 .plus-recommendations { display:grid; gap:7px; margin-top:11px; }
 .plus-recommendations p { margin:0; color:var(--muted); font-size:10px; line-height:1.6; }
 .widget-is-hidden { display:none!important; }
-html[data-accent="blue"] { --purple:#3b73d9; --purple-dark:#2455ad; --soft-purple:#eaf1ff; }
-html[data-accent="green"] { --purple:#25856b; --purple-dark:#17644f; --soft-purple:#e5f6ef; }
-html[data-accent="rose"] { --purple:#c05283; --purple-dark:#96355d; --soft-purple:#fbeaf1; }
+html[data-accent="blue"] { --purple:#3b73d9; --purple-dark:#2455ad; --soft-purple:#eaf1ff; --accent-rgb:59 115 217; }
+html[data-accent="green"] { --purple:#25856b; --purple-dark:#17644f; --soft-purple:#e5f6ef; --accent-rgb:37 133 107; }
+html[data-accent="rose"] { --purple:#c05283; --purple-dark:#96355d; --soft-purple:#fbeaf1; --accent-rgb:192 82 131; }
 html.compact-mode .panel { padding:16px; }
 html.compact-mode .stat-card { padding:11px; }
 html.compact-mode .task-item { padding-block:10px; }
