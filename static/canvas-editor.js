@@ -760,8 +760,8 @@
             startFocus.disabled = true;
             startFocus.textContent = "Iniciando…";
             try {
-              window.FOOCUSShowScreen?.("focus");
               await window.focusFlowStartTask(card.task_id);
+              window.FOOCUSShowScreen?.("focus");
               const preferredMinutes = Number(document.body.dataset.sessionMinutes) || 25;
               const preset = document.querySelector('[data-minutes="' + preferredMinutes + '"]');
               if (preset && !preset.classList.contains("active")) preset.click();
