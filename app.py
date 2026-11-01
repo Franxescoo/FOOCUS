@@ -1632,7 +1632,7 @@ def normalize_canvas_content(db, board, payload):
         content = element.get("content", {})
         if not isinstance(content, dict):
             return None, "El contenido de un elemento debe ser un objeto."
-        allowed_content_fields = {"title", "body", "description", "priority", "due_date", "status", "subtasks"}
+        allowed_content_fields = {"title", "body", "description", "priority", "due_date", "status", "subtasks", "members"}
         if set(content) - allowed_content_fields:
             return None, "Un elemento contiene campos no permitidos."
         clean_content = {}
@@ -1656,6 +1656,18 @@ def normalize_canvas_content(db, board, payload):
             if subtask.strip():
                 clean_subtasks.append(subtask.strip())
         clean_content["subtasks"] = clean_subtasks
+        raw_members = content.get("members", [])
+        if not isinstance(raw_members, list) or len(raw_members) > 100:
+            return None, "Un grupo puede contener hasta 100 elementos."
+        if raw_members and kind != "group":
+            return None, "Solo los grupos pueden contener referencias a otros elementos."
+        clean_members = []
+        for member_key in raw_members:
+            if not isinstance(member_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", member_key):
+                return None, "Una referencia de grupo no es válida."
+            if member_key not in clean_members:
+                clean_members.append(member_key)
+        clean_content["members"] = clean_members
         if mode == "structured":
             if not clean_content["title"].strip():
                 return None, "Cada tarjeta debe tener un título."
@@ -1684,8 +1696,16 @@ def normalize_canvas_content(db, board, payload):
             "task_snapshot_title": task_snapshot_title,
         })
 
-    normalized_connections = []
-    connection_keys = set()
+    elements_by_key = {item["key"]: item for item in normalized_elements}
+    for item in normalized_elements:
+        if item["kind"] != "group":
+            continue
+        for member_key in item["content"].get("members", []):
+            member = elements_by_key.get(member_key)
+            if member is None or member_key == item["key"] or member["kind"] == "group":
+                return None, "Un grupo debe referenciar elementos existentes que no sean otros grupos."
+
+    normalized_connections = []    connection_keys = set()
     for connection in connections:
         if mode != "free":
             return None, "Las conexiones se habilitan en Canvas libre."
