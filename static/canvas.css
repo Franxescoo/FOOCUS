@@ -385,3 +385,53 @@ html[data-theme="dark"] .canvas-orphan-task-note { color: #e8b17f; }
 .canvas-history-row small { color: var(--muted); font-size: 9px; }
 .canvas-history-row button { flex: 0 0 auto; min-height: 31px; }
 html[data-theme="dark"] .canvas-history-panel { background: #191b2b; }
+
+
+.canvas-attachments-panel {
+  margin: 15px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.canvas-attachments-panel h3 { margin: 0; font: 700 14px 'Manrope',sans-serif; }
+.canvas-attachments-panel p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+.canvas-attachment-controls {
+  display: grid;
+  grid-template-columns: minmax(150px,.8fr) minmax(190px,1.2fr) minmax(190px,1.2fr);
+  align-items: end;
+  gap: 10px;
+  margin: 13px 0;
+}
+.canvas-attachment-controls form { display: flex; align-items: end; gap: 7px; min-width: 0; }
+.canvas-attachment-controls .field { flex: 1 1 auto; min-width: 0; gap: 5px; }
+.canvas-attachment-controls input,
+.canvas-attachment-controls select { min-width: 0; font-size: 10px; }
+.canvas-attachment-controls input[type="file"] { max-width: 100%; }
+.canvas-attachment-controls button { flex: 0 0 auto; min-height: 34px; white-space: nowrap; font-size: 10px; }
+.canvas-attachment-list { display: grid; gap: 7px; }
+.canvas-attachment-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.canvas-attachment-info { display: grid; min-width: 0; gap: 3px; }
+.canvas-attachment-info strong { overflow-wrap: anywhere; font-size: 10px; }
+.canvas-attachment-info small { color: var(--muted); font-size: 9px; }
+.canvas-attachment-open { font-size: 10px; white-space: nowrap; }
+.canvas-attachment-row button { min-height: 30px; }
+html[data-theme="dark"] .canvas-attachments-panel { background: #191b2b; }
+html[data-theme="dark"] .canvas-attachment-row { background: #202235; }
+@media(max-width: 760px) {
+  .canvas-attachment-controls { grid-template-columns: 1fr; }
+  .canvas-attachment-controls form { align-items: end; }
+}
+@media(max-width: 460px) {
+  .canvas-attachment-row { grid-template-columns: minmax(0,1fr) auto; }
+  .canvas-attachment-info { grid-column: 1 / -1; }
+}
