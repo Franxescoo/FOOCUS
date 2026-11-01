@@ -128,6 +128,81 @@
     } catch (error) { attachmentList.textContent = error.message; }
   }
 
+  function scheduleViewportSave() {
+    if (!board || board.mode !== "free" || restoringViewport) return;
+    window.clearTimeout(viewportTimer);
+    viewportTimer = window.setTimeout(async () => {
+      if (!board || board.mode !== "free" || restoringViewport) return;
+      try {
+        await request("/api/canvas/" + board.id + "/viewport", {
+          method:"PUT",
+          body:JSON.stringify({x:Math.round(freeStage.scrollLeft), y:Math.round(freeStage.scrollTop), zoom})
+        });
+      } catch (error) {
+        byId("canvas-status").textContent = "No se pudo guardar la vista del lienzo: " + error.message;
+      }
+    }, 350);
+  }
+
+  function applyZoom(nextZoom, preserveCenter = true, shouldSave = true) {
+    const oldZoom = zoom;
+    const next = Math.max(0.25, Math.min(2, Math.round(Number(nextZoom) * 100) / 100));
+    if (!Number.isFinite(next) || next === oldZoom) return;
+    const centerX = preserveCenter ? (freeStage.scrollLeft + freeStage.clientWidth / 2) / oldZoom : 0;
+    const centerY = preserveCenter ? (freeStage.scrollTop + freeStage.clientHeight / 2) / oldZoom : 0;
+    zoom = next;
+    freeContent.style.transform = "scale(" + zoom + ")";
+    zoomLabel.textContent = Math.round(zoom * 100) + "%";
+    if (preserveCenter) {
+      freeStage.scrollLeft = Math.max(0, centerX * zoom - freeStage.clientWidth / 2);
+      freeStage.scrollTop = Math.max(0, centerY * zoom - freeStage.clientHeight / 2);
+    }
+    if (shouldSave) scheduleViewportSave();
+  }
+
+  function restoreViewport(viewport) {
+    restoringViewport = true;
+    const savedZoom = viewport && typeof viewport.zoom === "number" ? viewport.zoom : 1;
+    zoom = 1;
+    freeContent.style.transform = "scale(1)";
+    applyZoom(savedZoom, false, false);
+    window.requestAnimationFrame(() => {
+      freeStage.scrollLeft = Math.max(0, Number(viewport && viewport.x) || 0);
+      freeStage.scrollTop = Math.max(0, Number(viewport && viewport.y) || 0);
+      restoringViewport = false;
+    });
+  }
+
+  freeStage.addEventListener("scroll", scheduleViewportSave, {passive:true});
+  freeStage.addEventListener("wheel", event => {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    applyZoom(zoom + (event.deltaY < 0 ? 0.1 : -0.1));
+  }, {passive:false});
+  freeStage.addEventListener("pointerdown", event => {
+    const backgroundTarget = event.target === freeStage || event.target === freeContent || event.target === world || event.target === svg;
+    if (!backgroundTarget || event.button !== 0) return;
+    const startX = event.clientX, startY = event.clientY;
+    const startLeft = freeStage.scrollLeft, startTop = freeStage.scrollTop;
+    freeStage.classList.add("is-panning");
+    freeStage.setPointerCapture(event.pointerId);
+    function pan(moveEvent) {
+      freeStage.scrollLeft = startLeft - (moveEvent.clientX - startX);
+      freeStage.scrollTop = startTop - (moveEvent.clientY - startY);
+    }
+    function endPan(endEvent) {
+      freeStage.classList.remove("is-panning");
+      freeStage.removeEventListener("pointermove", pan);
+      freeStage.removeEventListener("pointerup", endPan);
+      freeStage.removeEventListener("pointercancel", endPan);
+      if (freeStage.hasPointerCapture(endEvent.pointerId)) freeStage.releasePointerCapture(endEvent.pointerId);
+      scheduleViewportSave();
+    }
+    freeStage.addEventListener("pointermove", pan);
+    freeStage.addEventListener("pointerup", endPan, {once:true});
+    freeStage.addEventListener("pointercancel", endPan, {once:true});
+  });
+
   function setStatus(message, error = false) {
     status.textContent = message;
     status.classList.toggle("is-error", error);
