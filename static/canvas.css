@@ -435,3 +435,41 @@ html[data-theme="dark"] .canvas-attachment-row { background: #202235; }
   .canvas-attachment-row { grid-template-columns: minmax(0,1fr) auto; }
   .canvas-attachment-info { grid-column: 1 / -1; }
 }
+
+
+.canvas-free-content {
+  position: relative;
+  width: 2400px;
+  height: 1600px;
+  transform-origin: 0 0;
+}
+.canvas-free-world { position: absolute; inset: 0 auto auto 0; }
+.canvas-connection-layer { z-index: 0; }
+.canvas-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.canvas-zoom-controls button { min-width: 30px; padding: 0 7px; }
+.canvas-element-resize {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: linear-gradient(135deg, transparent 45%, var(--purple) 46%, var(--purple) 54%, transparent 55%);
+  cursor: nwse-resize;
+  opacity: .6;
+}
+.canvas-element-resize:hover { opacity: 1; }
