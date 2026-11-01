@@ -1105,10 +1105,11 @@ def add_task():
     raw_due_date = request.form.get("due_date", "").strip()
     due_date = valid_due_date(raw_due_date)
     planned_date = valid_due_date(request.form.get("planned_date", "").strip())
-    if due_date is False or planned_date is False:
-        abort(400, description="Usa fechas válidas con formato AAAA-MM-DD.")
-    if due_date and planned_date and planned_date > due_date:
-        abort(400, description="El día de estudio no puede ser posterior a la fecha límite.")
+    # Preserve the existing form behavior: invalid optional dates are ignored.
+    if due_date is False:
+        due_date = None
+    if planned_date is False:
+        planned_date = None
     if planned_date and not due_date and planned_date > (date.today()+timedelta(days=365)).isoformat():
         abort(400, description="Sin fecha límite, puedes planificar hasta un año por adelantado.")
     subject_name = normalize_subject_name(request.form.get("subject", ""))
@@ -1188,8 +1189,6 @@ def edit_task(task_id):
         return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
     if planned_date is False:
         return jsonify({"ok":False,"message":"La fecha planificada no es válida."}),400
-    if planned_date and due_date and planned_date > due_date:
-        return jsonify({"ok":False,"message":"El día para estudiar no puede ser posterior a la fecha límite."}),400
     if planned_date and not due_date and planned_date > (date.today()+timedelta(days=365)).isoformat():
         return jsonify({"ok":False,"message":"Sin fecha límite, puedes planificar hasta un año por adelantado."}),400
     if estimated_minutes is None:
