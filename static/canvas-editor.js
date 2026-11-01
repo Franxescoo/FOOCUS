@@ -13,6 +13,8 @@
   const structuredTools = byId("canvas-structured-tools");
   const freeStage = byId("canvas-free-stage");
   const world = byId("canvas-free-world");
+  const freeContent = byId("canvas-free-content");
+  const zoomLabel = byId("canvas-zoom-label");
   const svg = byId("canvas-connection-layer");
   const structured = byId("canvas-structured-board");
   const undoButton = byId("canvas-undo");
@@ -34,6 +36,9 @@
   let timer = null;
   let taskOptions = [];
   let changeRevision = 0;
+  let zoom = 1;
+  let viewportTimer = null;
+  let restoringViewport = false;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const key = () => (window.crypto && crypto.randomUUID)
@@ -221,6 +226,7 @@
       node.style.left = item.x + "px";
       node.style.top = item.y + "px";
       node.style.width = item.width + "px";
+      node.style.height = item.height + "px";
       node.style.minHeight = item.height + "px";
 
       const grip = document.createElement("div");
@@ -245,6 +251,34 @@
       body.value = item.content.body || "";
       body.addEventListener("change", () => editField(item, "body", body.value));
       node.append(body);
+      const resize = document.createElement("button");
+      resize.type = "button";
+      resize.className = "canvas-element-resize";
+      resize.setAttribute("aria-label", "Redimensionar elemento");
+      resize.title = "Arrastra para cambiar el tamaño";
+      resize.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const startX = event.clientX, startY = event.clientY;
+        const startWidth = item.width, startHeight = item.height;
+        remember();
+        function resizeMove(moveEvent) {
+          item.width = Math.max(160, Math.min(900, startWidth + (moveEvent.clientX - startX) / zoom));
+          item.height = Math.max(110, Math.min(900, startHeight + (moveEvent.clientY - startY) / zoom));
+          node.style.width = item.width + "px";
+          node.style.height = item.height + "px";
+          node.style.minHeight = item.height + "px";
+          renderConnections();
+        }
+        function resizeEnd() {
+          window.removeEventListener("pointermove", resizeMove);
+          window.removeEventListener("pointerup", resizeEnd);
+          if (item.width !== startWidth || item.height !== startHeight) changed();
+        }
+        window.addEventListener("pointermove", resizeMove);
+        window.addEventListener("pointerup", resizeEnd, {once:true});
+      });
+      node.append(resize);
 
       node.addEventListener("click", event => selectFree(item, event));
       node.addEventListener("pointerdown", event => {
