@@ -287,6 +287,23 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'event.pointerType !== "mouse"', page)
         self.assertIn(b'window.requestAnimationFrame(animateAura)', page)
 
+    def test_brand_and_cursor_use_the_selected_accent(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'class="brand-wordmark"', response.data)
+        self.assertIn(b'fill="var(--purple)"', response.data)
+        self.assertIn(b'FOOCUS', response.data)
+
+        root = Path(__file__).resolve().parents[1]
+        style = (root / "static" / "style.css").read_text(encoding="utf-8")
+        productivity_style = (root / "static" / "productivity.css").read_text(encoding="utf-8")
+        productivity_script = (root / "static" / "productivity.js").read_text(encoding="utf-8")
+        self.assertIn("rgb(var(--accent-rgb) / 14%)", style)
+        self.assertIn('--accent-rgb:59 115 217', productivity_style)
+        self.assertIn('--accent-rgb:37 133 107', productivity_style)
+        self.assertIn('--accent-rgb:192 82 131', productivity_style)
+        self.assertIn('fields.accent.addEventListener("change"', productivity_script)
+
     def test_active_work_session_uses_modal_after_reload(self):
         self.create_task(title="Repasar cálculo")
         task_id = self.task_id()
