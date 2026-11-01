@@ -20,6 +20,10 @@
   const saveButton = byId("canvas-save-now");
   const historyPanel = byId("canvas-history-panel");
   const historyList = byId("canvas-history-list");
+  const attachmentElementSelect = byId("canvas-attachment-element");
+  const attachmentFileForm = byId("canvas-attachment-file-form");
+  const attachmentLinkForm = byId("canvas-attachment-link-form");
+  const attachmentList = byId("canvas-attachment-list");
   let board = null;
   let state = {columns:[], elements:[], connections:[]};
   let undo = [];
@@ -42,7 +46,7 @@
       cache:"no-store", ...options,
       headers:{
         "Accept":"application/json",
-        ...(options.body ? {"Content-Type":"application/json"} : {}),
+        ...(options.body && !(options.body instanceof FormData) ? {"Content-Type":"application/json"} : {}),
         ...(method !== "GET" ? {"X-CSRF-Token":csrf} : {}),
         ...(options.headers || {})
       }
@@ -260,7 +264,6 @@
       byId("canvas-status").textContent = "La tarea global ya no está disponible. Desvincúlala para convertir esta tarjeta en una tarea propia."; 
       return;
     }
-    remember();
     try {
       if (field === "status") {
         const completed = value === "Completada";
