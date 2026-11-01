@@ -229,6 +229,31 @@ def init_db():
             )"""
         )
         db.execute("CREATE INDEX IF NOT EXISTS idx_planned_sessions_date ON planned_sessions(planned_date, start_time)")
+        # Canvas foundation: additive tables; existing tasks and work history stay untouched.
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                description TEXT NOT NULL DEFAULT '',
+                color TEXT NOT NULL DEFAULT 'violet' CHECK (color IN ('violet','blue','green','rose')),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_boards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workspace_id INTEGER,
+                title TEXT NOT NULL,
+                mode TEXT NOT NULL DEFAULT 'free' CHECK (mode IN ('free','structured')),
+                viewport_json TEXT NOT NULL DEFAULT '{"x":0,"y":0,"zoom":1}',
+                preferences_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_boards_workspace ON canvas_boards(workspace_id, updated_at DESC)")
 
 
 def csrf_token():
