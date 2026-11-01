@@ -26,6 +26,8 @@
   let dirty = false;
   let saving = false;
   let timer = null;
+  let taskOptions = [];
+  let changeRevision = 0;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const key = () => (window.crypto && crypto.randomUUID)
@@ -64,6 +66,7 @@
     updateHistoryButtons();
   }
   function changed() {
+    changeRevision += 1;
     dirty = true;
     setStatus("Cambios pendientes");
     window.clearTimeout(timer);
@@ -76,13 +79,14 @@
     }
     window.clearTimeout(timer);
     saving = true;
+    const savedRevision = changeRevision;
     saveButton.disabled = true;
     setStatus("Guardando…");
     try {
       const result = await request("/api/canvas/" + board.id + "/content", {
         method:"PUT", body:JSON.stringify(state)
       });
-      dirty = false;
+      dirty = changeRevision !== savedRevision;
       setStatus("Guardado");
       byId("canvas-status").textContent = "Canvas guardado: " + result.counts.elements + " elementos.";
     } catch (error) {
@@ -238,17 +242,69 @@
     changed();
   }
 
+  function getFieldValue(item, field) {
+    if (!item.task_id) return item.content[field] || "";
+    if (field === "title") return item.linked_task_title || item.content.title || "";
+    if (field === "priority") return item.linked_task_priority || item.content.priority || "Media";
+    if (field === "due_date") return item.linked_task_due_date || "";
+    if (field === "status") return item.linked_task_completed ? "Completada" : "Pendiente";
+    return item.content[field] || "";
+  }
+
+  async function updateLinkedTask(item, field, value) {
+    const task = taskOptions.find(option => Number(option.id) === Number(item.task_id));
+    if (!task) {
+      byId("canvas-status").textContent = "La tarea global ya no está disponible. Desvincúlala para convertir esta tarjeta en una tarea propia."; 
+      return;
+    }
+    remember();
+    try {
+      if (field === "status") {
+        const completed = value === "Completada";
+        await request("/api/tasks/" + task.id + "/completion", {
+          method:"PUT", body:JSON.stringify({completed})
+        });
+        task.completed = completed ? 1 : 0;
+        item.linked_task_completed = completed;
+        item.content.status = value;
+      } else {
+        const payload = {
+          title: field === "title" ? value : task.title,
+          priority: field === "priority" ? value : task.priority,
+          due_date: field === "due_date" ? value : (task.due_date || ""),
+          planned_date: task.planned_date || "",
+          subject: task.subject || "",
+          estimated_minutes: task.estimated_minutes || 30
+        };
+        const result = await request("/api/tasks/" + task.id, {
+          method:"PATCH", body:JSON.stringify(payload)
+        });
+        Object.assign(task, result.task);
+        item.linked_task_title = result.task.title;
+        item.linked_task_priority = result.task.priority;
+        item.linked_task_due_date = result.task.due_date || "";
+        item.content[field] = value;
+      }
+      changed();
+      if (board.mode === "structured") renderStructured();
+      byId("canvas-status").textContent = "Tarea global actualizada desde Canvas.";
+    } catch (error) {
+      byId("canvas-status").textContent = error.message;
+      byId("canvas-status").classList.add("is-error");
+    }
+  }
+
   function inputField(item, field, label, type, choices) {
     let control;
     if (type === "select") {
       control = document.createElement("select");
       for (const choice of choices) control.add(new Option(choice, choice));
-      control.value = item.content[field] || choices[0];
+      control.value = getFieldValue(item, field) || choices[0];
     } else if (type === "textarea") {
       control = document.createElement("textarea");
       control.rows = 3;
       control.maxLength = 2000;
-      control.value = item.content[field] || "";
+      control.value = getFieldValue(item, field);
       control.placeholder = label;
     } else {
       control = document.createElement("input");
@@ -257,7 +313,11 @@
       if (type === "text") control.maxLength = field === "title" ? 160 : 2000;
     }
     control.setAttribute("aria-label", label);
-    control.addEventListener("change", () => editField(item, field, control.value));
+    control.addEventListener("change", () => {
+      if (item.task_id && ["title","priority","due_date","status"].includes(field)) {
+        updateLinkedTask(item, field, control.value);
+      } else editField(item, field, control.value);
+    });
     return control;
   }
 
@@ -414,15 +474,25 @@
     try {
       const result = await Promise.all([
         request("/api/canvas/" + item.id),
-        request("/api/canvas/" + item.id + "/content")
+        request("/api/canvas/" + item.id + "/content"),
+        request("/api/canvas/task-options")
       ]);
+      taskOptions = result[2].items || [];
       board = item;
       state = {
         columns:result[1].columns || [],
         elements:(result[1].elements || []).map(element => ({
           key:element.key, kind:element.kind, column_key:element.column_key,
           x:element.x, y:element.y, width:element.width, height:element.height,
-          task_id:element.task_id, content:element.content || {}
+          task_id:element.task_id, content:element.content || {},
+          task_snapshot_title:element.task_snapshot_title || "",
+          linked_task_title:element.linked_task_title || "",
+          linked_task_priority:element.linked_task_priority || "",
+          linked_task_due_date:element.linked_task_due_date || "",
+          linked_task_planned_date:element.linked_task_planned_date || "",
+          linked_task_estimated_minutes:element.linked_task_estimated_minutes || 30,
+          linked_task_subject:element.linked_task_subject || "",
+          linked_task_completed:element.linked_task_completed
         })),
         connections:result[1].connections || []
       };
