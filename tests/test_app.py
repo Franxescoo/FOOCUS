@@ -1383,7 +1383,7 @@ class FocusFlowTaskTests(unittest.TestCase):
             "elements":[{
                 "key":"card-a","kind":"card","column_key":"todo","x":0,"y":0,"width":280,"height":190,
                 "task_id":task_id,
-                "content":{"title":"Preparar informe","description":"Revisar resultados","priority":"Alta",
+                "content":{"title":"Preparar informe","description":"Revisar resultados","subtasks":["Definir contenido","Revisar formato"],"priority":"Alta",
                            "due_date":"","status":"En curso"}
             }],
             "connections":[]
@@ -1396,6 +1396,19 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(loaded.json["elements"][0]["task_id"], task_id)
         self.assertEqual(loaded.json["elements"][0]["linked_task_title"], "Preparar informe")
         self.assertEqual(loaded.json["elements"][0]["linked_task_priority"], "Alta")
+        self.assertEqual(loaded.json["elements"][0]["content"]["subtasks"], ["Definir contenido", "Revisar formato"])
+        invalid_subtasks = {
+            "columns": payload["columns"],
+            "elements": [{
+                **payload["elements"][0],
+                "content": {**payload["elements"][0]["content"], "subtasks": [str(i) for i in range(41)]},
+            }],
+            "connections": [],
+        }
+        rejected_subtasks = self.client.put(
+            f"/api/canvas/{board_id}/content", json=invalid_subtasks, headers=self.csrf_headers()
+        )
+        self.assertEqual(rejected_subtasks.status_code, 400)
 
         options = self.client.get("/api/canvas/task-options")
         self.assertEqual(options.status_code, 200)
