@@ -244,6 +244,9 @@
       applyProfile(defaults);
       profileStatus.textContent = "Valores iniciales restaurados. Guarda para conservarlos.";
     });
+    fields.accent.addEventListener("change", () => {
+      document.documentElement.dataset.accent = fields.accent.value;
+    });
     horizon.addEventListener("change",() => { proposal = null; applyButton.disabled = true; });
   }
 
