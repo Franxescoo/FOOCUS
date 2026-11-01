@@ -18,6 +18,8 @@
   const undoButton = byId("canvas-undo");
   const redoButton = byId("canvas-redo");
   const saveButton = byId("canvas-save-now");
+  const historyPanel = byId("canvas-history-panel");
+  const historyList = byId("canvas-history-list");
   let board = null;
   let state = {columns:[], elements:[], connections:[]};
   let undo = [];
@@ -84,11 +86,12 @@
     setStatus("Guardando…");
     try {
       const result = await request("/api/canvas/" + board.id + "/content", {
-        method:"PUT", body:JSON.stringify(state)
+        method:"PUT", body:JSON.stringify({...state, create_version: manual})
       });
       dirty = changeRevision !== savedRevision;
       setStatus("Guardado");
       byId("canvas-status").textContent = "Canvas guardado: " + result.counts.elements + " elementos.";
+      if (result.version_number) await refreshHistory();
     } catch (error) {
       setStatus("Error al guardar", true);
       byId("canvas-status").textContent = error.message;
@@ -528,12 +531,90 @@
     changed();
   }
 
+  function renderHistory(items) {
+    historyList.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "canvas-empty";
+      empty.textContent = "Todavía no hay versiones. Se creará una al guardar por primera vez.";
+      historyList.append(empty);
+      return;
+    }
+    for (const version of items) {
+      const row = document.createElement("article");
+      row.className = "canvas-history-row";
+      const copy = document.createElement("div");
+      const description = document.createElement("strong");
+      description.textContent = "Versión " + version.version_number + " · " + version.description;
+      const created = document.createElement("small");
+      created.textContent = version.created_at;
+      copy.append(description, created);
+      const restore = document.createElement("button");
+      restore.type = "button";
+      restore.className = "focus-reset";
+      restore.textContent = "Restaurar";
+      restore.addEventListener("click", () => restoreVersion(version));
+      row.append(copy, restore);
+      historyList.append(row);
+    }
+  }
+
+  async function refreshHistory() {
+    if (!board) return;
+    try {
+      const result = await request("/api/canvas/" + board.id + "/history");
+      renderHistory(result.items || []);
+    } catch (error) {
+      historyList.textContent = error.message;
+    }
+  }
+
+  async function restoreVersion(version) {
+    if (dirty && !window.confirm("Hay cambios sin guardar. ¿Descartarlos y restaurar la versión seleccionada?")) return;
+    if (!window.confirm("¿Restaurar la versión " + version.version_number + "? Se conservarán las versiones posteriores.")) return;
+    try {
+      setStatus("Restaurando versión…");
+      await request("/api/canvas/" + board.id + "/history/" + version.id + "/restore", {
+        method:"POST", body:JSON.stringify({})
+      });
+      const result = await request("/api/canvas/" + board.id + "/content");
+      state = {
+        columns:result.columns || [],
+        elements:(result.elements || []).map(element => ({
+          key:element.key, kind:element.kind, column_key:element.column_key,
+          x:element.x, y:element.y, width:element.width, height:element.height,
+          task_id:element.task_id, content:element.content || {},
+          task_snapshot_title:element.task_snapshot_title || "",
+          linked_task_title:element.linked_task_title || "",
+          linked_task_priority:element.linked_task_priority || "",
+          linked_task_due_date:element.linked_task_due_date || "",
+          linked_task_planned_date:element.linked_task_planned_date || "",
+          linked_task_estimated_minutes:element.linked_task_estimated_minutes || 30,
+          linked_task_subject:element.linked_task_subject || "",
+          linked_task_completed:element.linked_task_completed
+        })),
+        connections:result.connections || []
+      };
+      dirty = false;
+      undo = [];
+      redo = [];
+      selected.clear();
+      if (board.mode === "free") renderFree(); else renderStructured();
+      updateHistoryButtons();
+      setStatus("Versión restaurada y guardada.");
+      await refreshHistory();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+
   async function openBoard(item) {
     try {
       const result = await Promise.all([
         request("/api/canvas/" + item.id),
         request("/api/canvas/" + item.id + "/content"),
-        request("/api/canvas/task-options")
+        request("/api/canvas/task-options"),
+        request("/api/canvas/" + item.id + "/history")
       ]);
       taskOptions = result[2].items || [];
       board = item;
@@ -578,6 +659,8 @@
       editor.hidden = false;
       if (board.mode === "free") renderFree();
       else renderStructured();
+      historyPanel.hidden = true;
+      renderHistory(result[3].items || []);
       updateHistoryButtons();
       setStatus(dirty ? "Cambios pendientes" : "Guardado");
       window.scrollTo({top:0,behavior:"smooth"});
@@ -605,6 +688,11 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
+  byId("canvas-history-toggle").addEventListener("click", async () => {
+    historyPanel.hidden = !historyPanel.hidden;
+    if (!historyPanel.hidden) await refreshHistory();
+  });
+  byId("canvas-history-close").addEventListener("click", () => { historyPanel.hidden = true; });
   byId("canvas-editor-back").addEventListener("click", closeEditor);
   byId("canvas-add-note").addEventListener("click", () => addFree("note"));
   byId("canvas-add-text").addEventListener("click", () => addFree("text"));
