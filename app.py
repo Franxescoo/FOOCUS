@@ -30,8 +30,8 @@ from flask import (
 try:
     from focusflow_build import APP_VERSION
 except ImportError:
-    # Desktop builds embed their exact version; source installs default to the current release.
-    APP_VERSION = os.environ.get("FOOCUS_VERSION", os.environ.get("FOCUSFLOW_VERSION", "V1.0.5"))
+    # Source installs display the evolution line; desktop builds embed their own version.
+    APP_VERSION = os.environ.get("FOOCUS_VERSION", os.environ.get("FOCUSFLOW_VERSION", "V1.1.0+"))
 
 
 app = Flask(__name__)
@@ -65,6 +65,17 @@ MAX_SUBJECT_NAME_LENGTH = 60
 DEFAULT_STUDY_GOAL_MINUTES = 120
 MIN_STUDY_GOAL_MINUTES = 15
 MAX_STUDY_GOAL_MINUTES = 600
+DEFAULT_PRODUCTIVITY_PROFILE = {
+    "adaptive_enabled": True, "available_days": [0,1,2,3,4],
+    "start_time": "16:00", "end_time": "20:00", "session_minutes": 45,
+    "break_minutes": 10, "daily_capacity_minutes": 180, "planning_horizon_days": 7,
+    "accent": "violet", "compact_mode": False,
+    "dashboard_widgets": ["welcome","summary","starter","weekly","analytics"],
+}
+ALLOWED_SESSION_MINUTES = {15,25,30,45,60,90,120}
+ALLOWED_BREAK_MINUTES = {5,10,15,20,30}
+ALLOWED_DASHBOARD_WIDGETS = {"welcome","summary","starter","weekly","analytics"}
+ALLOWED_ACCENTS = {"violet","blue","green","rose"}
 
 
 @contextmanager
@@ -205,6 +216,19 @@ def init_db():
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_started_ended ON work_sessions(started_at, ended_at)"
         )
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS planned_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                planned_date TEXT NOT NULL,
+                start_time TEXT NOT NULL,
+                duration_minutes INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(task_id, planned_date, start_time),
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            )"""
+        )
+        db.execute("CREATE INDEX IF NOT EXISTS idx_planned_sessions_date ON planned_sessions(planned_date, start_time)")
 
 
 def csrf_token():
@@ -296,13 +320,16 @@ def not_found(error):
 
 
 def valid_due_date(value):
-    """Accept an empty date or a real ISO calendar date."""
+    """Accept an empty date or a canonical YYYY-MM-DD date."""
     if not value:
         return None
+    if not isinstance(value, str):
+        return False
     try:
-        return date.fromisoformat(value).isoformat()
+        parsed = date.fromisoformat(value)
     except (TypeError, ValueError):
         return False
+    return parsed.isoformat() if parsed.isoformat()==value else False
 
 def normalize_subject_name(value):
     """Normalize a user-entered subject label and cap its size."""
@@ -341,6 +368,170 @@ def get_study_goal_minutes(db):
     return min(MAX_STUDY_GOAL_MINUTES, max(MIN_STUDY_GOAL_MINUTES, value))
 
 
+def clock_minutes(value):
+    if not isinstance(value, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value):
+        return None
+    hours, minutes = (int(part) for part in value.split(":"))
+    return hours * 60 + minutes
+
+
+def normalize_productivity_profile(payload, current=None):
+    if not isinstance(payload, dict):
+        return None
+    profile = dict(DEFAULT_PRODUCTIVITY_PROFILE)
+    if isinstance(current, dict):
+        profile.update(current)
+    adaptive = payload.get("adaptive_enabled", profile["adaptive_enabled"])
+    compact = payload.get("compact_mode", profile["compact_mode"])
+    if type(adaptive) is not bool or type(compact) is not bool:
+        return None
+    days = payload.get("available_days", profile["available_days"])
+    if not isinstance(days, list) or not days or any(type(day) is not int or day < 0 or day > 6 for day in days):
+        return None
+    days = sorted(set(days))
+    start, end = payload.get("start_time", profile["start_time"]), payload.get("end_time", profile["end_time"])
+    start_min, end_min = clock_minutes(start), clock_minutes(end)
+    if start_min is None or end_min is None or end_min - start_min < 15:
+        return None
+    session = payload.get("session_minutes", profile["session_minutes"])
+    rest = payload.get("break_minutes", profile["break_minutes"])
+    capacity = payload.get("daily_capacity_minutes", profile["daily_capacity_minutes"])
+    horizon = payload.get("planning_horizon_days", profile["planning_horizon_days"])
+    if type(session) is not int or session not in ALLOWED_SESSION_MINUTES:
+        return None
+    if type(rest) is not int or rest not in ALLOWED_BREAK_MINUTES:
+        return None
+    if type(capacity) is not int or capacity < 30 or capacity > 600 or capacity % 15:
+        return None
+    if type(horizon) is not int or horizon not in {7,14,21,30} or session > end_min - start_min:
+        return None
+    accent = payload.get("accent", profile["accent"])
+    if accent not in ALLOWED_ACCENTS:
+        return None
+    widgets = payload.get("dashboard_widgets", profile["dashboard_widgets"])
+    if not isinstance(widgets, list) or any(not isinstance(w, str) or w not in ALLOWED_DASHBOARD_WIDGETS for w in widgets):
+        return None
+    return {"adaptive_enabled": adaptive, "available_days": days, "start_time": start, "end_time": end,
+            "session_minutes": session, "break_minutes": rest, "daily_capacity_minutes": capacity,
+            "planning_horizon_days": horizon, "accent": accent, "compact_mode": compact,
+            "dashboard_widgets": list(dict.fromkeys(widgets))}
+
+
+def get_productivity_profile(db):
+    row = db.execute("SELECT setting_value FROM app_settings WHERE setting_key='productivity_profile'").fetchone()
+    if not row:
+        return dict(DEFAULT_PRODUCTIVITY_PROFILE)
+    try:
+        saved = json.loads(row["setting_value"])
+    except (TypeError, ValueError, json.JSONDecodeError):
+        saved = {}
+    return normalize_productivity_profile(saved, DEFAULT_PRODUCTIVITY_PROFILE) or dict(DEFAULT_PRODUCTIVITY_PROFILE)
+
+
+def save_productivity_profile(db, profile):
+    db.execute(
+        """INSERT INTO app_settings (setting_key,setting_value,updated_at)
+           VALUES ('productivity_profile',?,CURRENT_TIMESTAMP)
+           ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=CURRENT_TIMESTAMP""",
+        (json.dumps(profile, ensure_ascii=False, separators=(",",":")),),
+    )
+
+
+def build_productivity_plan(db, profile, horizon_days):
+    today = date.today()
+    rows = db.execute(
+        """SELECT t.id,t.title,t.priority,t.due_date,t.estimated_minutes,t.created_at,s.name AS subject_name,
+                  COALESCE(SUM(ws.duration_seconds),0) AS actual_seconds
+           FROM tasks t LEFT JOIN subjects s ON s.id=t.subject_id
+           LEFT JOIN work_sessions ws ON ws.task_id=t.id AND ws.ended_at IS NOT NULL
+           WHERE t.completed=0 GROUP BY t.id,s.name
+           ORDER BY CASE WHEN t.due_date IS NULL OR t.due_date='' THEN 1 ELSE 0 END,t.due_date,
+                    CASE t.priority WHEN 'Alta' THEN 0 WHEN 'Media' THEN 1 ELSE 2 END,t.created_at,t.id"""
+    ).fetchall()
+    pending, overdue = [], []
+    for row in rows:
+        deadline = row["due_date"] or ""
+        if deadline and deadline < today.isoformat():
+            overdue.append({"task_id":row["id"],"title":row["title"],"due_date":deadline,"reason":"La fecha límite ya pasó."})
+            continue
+        estimate = max(15, int(row["estimated_minutes"] or 30))
+        actual = (max(0,int(row["actual_seconds"] or 0))+59)//60
+        remaining = max(0,estimate-actual)
+        if remaining:
+            pending.append({"task_id":row["id"],"title":row["title"],"priority":row["priority"],
+                            "due_date":deadline or None,"subject":row["subject_name"] or "",
+                            "remaining_minutes":((remaining+14)//15)*15})
+    start_min, end_min = clock_minutes(profile["start_time"]), clock_minutes(profile["end_time"])
+    items = []
+    for offset in range(horizon_days):
+        day = today + timedelta(days=offset)
+        if day.weekday() not in set(profile["available_days"]):
+            continue
+        cursor, used = start_min, 0
+        while cursor+15 <= end_min and used+15 <= profile["daily_capacity_minutes"]:
+            task = next((x for x in pending if x["remaining_minutes"]>0 and (not x["due_date"] or x["due_date"]>=day.isoformat())),None)
+            if task is None:
+                break
+            chunk = min(profile["session_minutes"],task["remaining_minutes"],end_min-cursor,
+                        profile["daily_capacity_minutes"]-used)
+            chunk = (chunk//15)*15
+            if chunk < 15:
+                break
+            finish = cursor+chunk
+            items.append({"task_id":task["task_id"],"task_title":task["title"],"subject":task["subject"],
+                          "priority":task["priority"],"due_date":task["due_date"],"planned_date":day.isoformat(),
+                          "start_time":f"{cursor//60:02d}:{cursor%60:02d}",
+                          "end_time":f"{finish//60:02d}:{finish%60:02d}","duration_minutes":chunk})
+            task["remaining_minutes"] -= chunk
+            used += chunk
+            cursor = finish+profile["break_minutes"]
+    unscheduled = overdue + [{"task_id":x["task_id"],"title":x["title"],"remaining_minutes":x["remaining_minutes"],
+                              "due_date":x["due_date"],"reason":"No hay capacidad disponible antes de la fecha límite o dentro del horizonte elegido."}
+                             for x in pending if x["remaining_minutes"]>0]
+    return {"ok":True,"horizon_days":horizon_days,"generated_at":datetime.now().astimezone().isoformat(timespec="seconds"),
+            "items":items,"unscheduled":unscheduled,"scheduled_minutes":sum(x["duration_minutes"] for x in items),
+            "scheduled_sessions":len(items)}
+
+
+def build_productivity_insights(db, profile):
+    since = (date.today()-timedelta(days=60)).isoformat()
+    rows = db.execute("SELECT started_at,duration_seconds FROM work_sessions WHERE ended_at IS NOT NULL AND started_at>=? ORDER BY started_at DESC",(since,)).fetchall()
+    periods = {"Mañana":0,"Tarde":0,"Noche":0}
+    sessions, total = [], 0
+    for row in rows:
+        try:
+            started = datetime.fromisoformat(row["started_at"])
+        except (TypeError,ValueError):
+            continue
+        sessions.append(started)
+        total += max(0,int(row["duration_seconds"] or 0))
+        periods["Mañana" if started.hour<12 else "Tarde" if started.hour<18 else "Noche"] += 1
+    average = round(total/len(sessions)/60) if sessions else 0
+    best = max(periods,key=periods.get) if sessions else None
+    estimate_rows = db.execute(
+        """SELECT t.estimated_minutes,SUM(ws.duration_seconds) AS actual_seconds FROM tasks t
+           JOIN work_sessions ws ON ws.task_id=t.id WHERE ws.ended_at IS NOT NULL AND ws.started_at >= ? GROUP BY t.id"""
+    , (since,)).fetchall()
+    ratios = [(int(x["actual_seconds"] or 0)/60)/max(1,int(x["estimated_minutes"] or 30))
+              for x in estimate_rows if int(x["actual_seconds"] or 0)>0]
+    ratio = round(sum(ratios)/len(ratios),2) if ratios else None
+    suggestions = []
+    if not profile["adaptive_enabled"]:
+        suggestions.append("El perfil adaptativo está desactivado. Tus estadísticas siguen disponibles, pero no se generan recomendaciones.")
+    elif len(sessions)<3:
+        suggestions.append("Registra al menos 3 sesiones para empezar a identificar patrones de actividad.")
+    else:
+        suggestions.append(f"Tu sesión registrada promedio dura {average} minutos. Úsala como referencia, no como obligación.")
+        if best and periods[best]>=3:
+            suggestions.append(f"Has registrado más sesiones durante la {best.lower()}. Puedes probar reservar ese horario para tareas importantes.")
+        if ratio is not None and len(ratios)>=2:
+            if ratio>1.15: suggestions.append("Tus tareas están tomando más tiempo que tus estimaciones. Considera reservar bloques adicionales.")
+            elif ratio<0.85: suggestions.append("Sueles terminar antes de tus estimaciones. Puedes ajustar gradualmente los tiempos previstos.")
+    return {"ok":True,"enabled":profile["adaptive_enabled"],"sample_size":len(sessions),
+            "metrics":{"average_session_minutes":average,"best_period":best,"period_counts":periods,"estimate_ratio":ratio},
+            "recommendations":suggestions}
+
+
 @app.route("/")
 def index():
     today_date = date.today()
@@ -374,6 +565,7 @@ def index():
             (today_date.isoformat(),),
         ).fetchall()
         study_goal_minutes = get_study_goal_minutes(db)
+        productivity_profile = get_productivity_profile(db)
 
     study_days_by_task = {}
     for study_day in study_day_rows:
@@ -515,6 +707,7 @@ def index():
         saved_theme=saved_theme,
         completion_rate=completion_rate,
         average_session_seconds=average_session_seconds,
+        productivity_profile=productivity_profile,
     ))
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
@@ -522,8 +715,8 @@ def index():
 
 
 def parse_semantic_version(value):
-    """Return a comparable semantic-version tuple, or None for non-release builds."""
-    match = re.fullmatch(r"[vV]?(\d+)\.(\d+)\.(\d+)", str(value or "").strip())
+    """Compare versions while accepting the display-only trailing plus."""
+    match = re.fullmatch(r"[vV]?(\d+)\.(\d+)\.(\d+)(?:\+)?", str(value or "").strip())
     return tuple(int(part) for part in match.groups()) if match else None
 
 
@@ -912,6 +1105,12 @@ def add_task():
     raw_due_date = request.form.get("due_date", "").strip()
     due_date = valid_due_date(raw_due_date)
     planned_date = valid_due_date(request.form.get("planned_date", "").strip())
+    if due_date is False or planned_date is False:
+        abort(400, description="Usa fechas válidas con formato AAAA-MM-DD.")
+    if due_date and planned_date and planned_date > due_date:
+        abort(400, description="El día de estudio no puede ser posterior a la fecha límite.")
+    if planned_date and not due_date and planned_date > (date.today()+timedelta(days=365)).isoformat():
+        abort(400, description="Sin fecha límite, puedes planificar hasta un año por adelantado.")
     subject_name = normalize_subject_name(request.form.get("subject", ""))
     estimated_minutes = parse_estimated_minutes(request.form.get("estimated_minutes", 30))
 
@@ -919,10 +1118,6 @@ def add_task():
         return redirect(url_for("index"))
     if priority not in VALID_PRIORITIES:
         priority = "Media"
-    if due_date is False:
-        due_date = None
-    if planned_date is False:
-        planned_date = None
     if estimated_minutes is None:
         estimated_minutes = 30
 
@@ -975,7 +1170,9 @@ def delete_task(task_id):
 @app.route("/api/tasks/<int:task_id>", methods=["PATCH"])
 def edit_task(task_id):
     """Update an existing task from the inline editor."""
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON válido para editar la tarea."}),400
     title = str(payload.get("title", "")).strip()[:160]
     priority = payload.get("priority", "Media")
     due_date = valid_due_date(str(payload.get("due_date", "")).strip())
@@ -990,7 +1187,11 @@ def edit_task(task_id):
     if due_date is False:
         return jsonify({"ok": False, "message": "La fecha límite no es válida."}), 400
     if planned_date is False:
-        return jsonify({"ok": False, "message": "La fecha planificada no es válida."}), 400
+        return jsonify({"ok":False,"message":"La fecha planificada no es válida."}),400
+    if planned_date and due_date and planned_date > due_date:
+        return jsonify({"ok":False,"message":"El día para estudiar no puede ser posterior a la fecha límite."}),400
+    if planned_date and not due_date and planned_date > (date.today()+timedelta(days=365)).isoformat():
+        return jsonify({"ok":False,"message":"Sin fecha límite, puedes planificar hasta un año por adelantado."}),400
     if estimated_minutes is None:
         return jsonify({"ok": False, "message": "Selecciona una estimación válida."}), 400
 
@@ -998,11 +1199,8 @@ def edit_task(task_id):
         exists = db.execute("SELECT id, planned_date FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if not exists:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
-        if due_date and planned_date and planned_date > due_date and exists["planned_date"] != planned_date:
-            return jsonify({
-                "ok": False,
-                "message": "El día para estudiar no puede ser posterior a la fecha límite.",
-            }), 400
+        if exists["planned_date"] != planned_date:
+            db.execute("DELETE FROM planned_sessions WHERE task_id = ?", (task_id,))
         subject_id = get_or_create_subject(db, subject_name)
         db.execute(
             """UPDATE tasks SET title = ?, priority = ?, due_date = ?, planned_date = ?,
@@ -1021,6 +1219,10 @@ def edit_task(task_id):
         if due_date:
             db.execute(
                 "DELETE FROM task_study_days WHERE task_id = ? AND study_date > ?",
+                (task_id, due_date),
+            )
+            db.execute(
+                "DELETE FROM planned_sessions WHERE task_id = ? AND planned_date > ?",
                 (task_id, due_date),
             )
 
@@ -1082,7 +1284,9 @@ def get_task_study_days(task_id):
 @app.route("/api/tasks/<int:task_id>/study-days", methods=["PUT"])
 def update_task_study_days(task_id):
     """Save a flexible set of study dates, never later than the task deadline."""
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON con la lista de días."}),400
     raw_days = payload.get("days")
     if not isinstance(raw_days, list):
         return jsonify({"ok": False, "message": "Envía una lista de días de estudio."}), 400
@@ -1131,6 +1335,7 @@ def update_task_study_days(task_id):
                 "message": "Sin fecha límite, puedes planificar hasta un año por adelantado. Define una fecha límite para ampliar el plan.",
             }), 400
 
+        db.execute("DELETE FROM planned_sessions WHERE task_id = ?", (task_id,))
         db.execute("DELETE FROM task_study_days WHERE task_id = ?", (task_id,))
         db.executemany(
             "INSERT INTO task_study_days (task_id, study_date) VALUES (?, ?)",
@@ -1153,7 +1358,9 @@ def update_task_study_days(task_id):
 @app.route("/api/settings/theme", methods=["PUT"])
 def update_theme():
     """Persist the selected appearance in the local settings database."""
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON con el tema."}),400
     theme = payload.get("theme")
     if theme not in {"dark", "light"}:
         return jsonify({"ok": False, "message": "Selecciona un tema válido."}), 400
@@ -1172,7 +1379,9 @@ def update_theme():
 
 @app.route("/api/settings/study-goal", methods=["PUT"])
 def update_study_goal():
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON con la meta diaria."}),400
     try:
         minutes = int(payload.get("minutes"))
     except (TypeError, ValueError):
@@ -1196,9 +1405,92 @@ def update_study_goal():
     return jsonify({"ok": True, "minutes": minutes})
 
 
+@app.route("/api/productivity/profile", methods=["GET","PUT"])
+def productivity_profile_api():
+    with get_db() as db:
+        current=get_productivity_profile(db)
+        if request.method=="GET":
+            return jsonify({"ok":True,"profile":current})
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict):
+            return jsonify({"ok":False,"message":"Envía un objeto JSON con tus preferencias."}),400
+        profile=normalize_productivity_profile(payload,current)
+        if profile is None:
+            return jsonify({"ok":False,"message":"Revisa días, horarios, sesiones, descansos y opciones."}),400
+        save_productivity_profile(db,profile)
+    return jsonify({"ok":True,"profile":profile,"message":"Preferencias guardadas en este equipo."})
+
+
+@app.route("/api/productivity/insights")
+def productivity_insights_api():
+    with get_db() as db:
+        data=build_productivity_insights(db,get_productivity_profile(db))
+    return jsonify(data)
+
+
+@app.route("/api/productivity/plan", methods=["GET","POST"])
+def productivity_plan_api():
+    with get_db() as db:
+        if request.method=="GET":
+            rows=db.execute(
+                """SELECT ps.id,ps.task_id,t.title AS task_title,s.name AS subject,t.priority,t.due_date,
+                          ps.planned_date,ps.start_time,
+                          substr(time(ps.start_time,'+'||ps.duration_minutes||' minutes'),1,5) AS end_time,
+                          ps.duration_minutes
+                   FROM planned_sessions ps JOIN tasks t ON t.id=ps.task_id
+                   LEFT JOIN subjects s ON s.id=t.subject_id
+                   WHERE ps.planned_date>=? AND t.completed=0
+                   ORDER BY ps.planned_date,ps.start_time,ps.id""",(date.today().isoformat(),)).fetchall()
+            return jsonify({"ok":True,"items":[dict(x) for x in rows],"count":len(rows)})
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict):
+            return jsonify({"ok":False,"message":"Envía un objeto JSON para generar la planificación."}),400
+        profile=get_productivity_profile(db)
+        horizon=payload.get("horizon_days",profile["planning_horizon_days"])
+        if type(horizon) is not int or horizon not in {7,14,21,30}:
+            return jsonify({"ok":False,"message":"Selecciona un horizonte de 7, 14, 21 o 30 días."}),400
+        plan=build_productivity_plan(db,profile,horizon)
+    return jsonify(plan)
+
+
+@app.route("/api/productivity/plan/apply",methods=["POST"])
+def apply_productivity_plan_api():
+    payload=request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON para guardar la propuesta."}),400
+    horizon=payload.get("horizon_days")
+    if type(horizon) is not int or horizon not in {7,14,21,30}:
+        return jsonify({"ok":False,"message":"Selecciona un horizonte válido."}),400
+    with get_db() as db:
+        plan=build_productivity_plan(db,get_productivity_profile(db),horizon)
+        if not plan["items"]:
+            return jsonify({"ok":False,"message":"No hay sesiones que se puedan programar con la disponibilidad actual.",
+                            "unscheduled":plan["unscheduled"]}),409
+        today_iso=date.today().isoformat()
+        db.execute("DELETE FROM planned_sessions WHERE planned_date>=?",(today_iso,))
+        touched=set()
+        for item in plan["items"]:
+            db.execute(
+                """INSERT OR REPLACE INTO planned_sessions(task_id,planned_date,start_time,duration_minutes)
+                   VALUES(?,?,?,?)""",
+                (item["task_id"],item["planned_date"],item["start_time"],item["duration_minutes"]))
+            db.execute("INSERT OR IGNORE INTO task_study_days(task_id,study_date) VALUES(?,?)",
+                       (item["task_id"],item["planned_date"]))
+            touched.add(item["task_id"])
+        for task_id in touched:
+            first=db.execute("SELECT MIN(study_date) AS first_day FROM task_study_days WHERE task_id=? AND study_date>=?",
+                             (task_id,today_iso)).fetchone()["first_day"]
+            db.execute("UPDATE tasks SET planned_date=? WHERE id=?",(first,task_id))
+    return jsonify({"ok":True,"message":"La propuesta se guardó y se integró con tu calendario.",
+                    "items":plan["items"],"count":len(plan["items"]),
+                    "scheduled_minutes":plan["scheduled_minutes"],"unscheduled":plan["unscheduled"]})
+
+
 @app.route("/api/work/start", methods=["POST"])
 def start_work():
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON con la tarea que quieres iniciar."}),400
     try:
         task_id = int(payload.get("task_id"))
     except (TypeError, ValueError):
@@ -1238,7 +1530,9 @@ def start_work():
 
 @app.route("/api/work/stop", methods=["POST"])
 def stop_work():
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload,dict):
+        return jsonify({"ok":False,"message":"Envía un objeto JSON con el resumen de la sesión."}),400
     comment = str(payload.get("comment", "")).strip()[:1000]
     next_step = str(payload.get("next_step", "")).strip()[:500]
     ended_at = datetime.now().astimezone().isoformat(timespec="seconds")

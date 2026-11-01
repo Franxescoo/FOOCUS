@@ -42,18 +42,181 @@ jobs:
           if ($env:GITHUB_EVENT_NAME -eq "push" -and $env:GITHUB_REF -eq "refs/heads/main") {
             git fetch --force --tags
             $latestTag = git tag --list "v[0-9]*" --sort=-v:refname | Select-Object -First 1
+            $baselineVersion = (Get-Content -Path "VERSION" -Raw).Trim()
+            if ($baselineVersion -notmatch '^\d+\.\d+\.\d+
+          } else {
+            "release_version=" | Add-Content -Path $env:GITHUB_OUTPUT
+            $appVersion = "dev-$env:GITHUB_RUN_NUMBER"
+          }
+          "APP_VERSION = '$appVersion'" | Set-Content -Path focusflow_build.py -Encoding ascii
+          $installerScript = Get-Content -Path "installer/FocusFlow.iss" -Raw
+          $installerScript = [regex]::Replace($installerScript, '(?m)^#define MyAppVersion ".*"$', ('#define MyAppVersion "' + $appVersion + '"'))
+          Set-Content -Path "installer/FocusFlow.iss" -Value $installerScript -Encoding utf8
+      - name: Package FOOCUS for Windows
+        shell: pwsh
+        run: |
+          python build_icon.py
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --icon "static/foocus.ico" --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
+
+      - name: Download Microsoft Edge WebView2 bootstrapper
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer | Out-Null
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer/MicrosoftEdgeWebView2Setup.exe"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $compiler)) {
+            $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $compiler)) {
+            throw "Inno Setup compiler was not found."
+          }
+          & $compiler "installer/FocusFlow.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE."
+          }
+          if (-not (Test-Path "dist-installer/FOOCUS-Setup.exe")) {
+            throw "FOOCUS installer was not created."
+          }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FOOCUS-Windows-Installer
+          path: dist-installer/FOOCUS-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message != 'fix-workflow-expression' }}
+    needs: build-installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: FOOCUS-Windows-Installer
+          path: dist-installer
+
+      - name: Publish latest Windows release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build-installer.outputs.release_version }}
+          name: FOOCUS V${{ needs.build-installer.outputs.release_version }}+
+          body: |
+            FOOCUS V${{ needs.build-installer.outputs.release_version }}+
+
+            Instalador generado automáticamente desde el commit ${{ github.sha }}. Las novedades aparecen en la sección What's Changed.
+          files: dist-installer/FOOCUS-Setup.exe
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
+) {
+              throw "VERSION must contain a numeric semantic version such as 1.1.0."
+            }
             if ([string]::IsNullOrWhiteSpace($latestTag)) {
-              $version = "1.0.0"
+              $version = $baselineVersion
             } else {
-              $parts = $latestTag.TrimStart("v").Split(".")
-              if ($parts.Count -ne 3 -or $parts[0] -notmatch '^\d+$' -or $parts[1] -notmatch '^\d+$' -or $parts[2] -notmatch '^\d+$') {
+              $latestVersion = $latestTag.TrimStart("v")
+              if ($latestVersion -notmatch '^\d+\.\d+\.\d+
+          } else {
+            "release_version=" | Add-Content -Path $env:GITHUB_OUTPUT
+            $appVersion = "dev-$env:GITHUB_RUN_NUMBER"
+          }
+          "APP_VERSION = '$appVersion'" | Set-Content -Path focusflow_build.py -Encoding ascii
+          $installerScript = Get-Content -Path "installer/FocusFlow.iss" -Raw
+          $installerScript = [regex]::Replace($installerScript, '(?m)^#define MyAppVersion ".*"$', ('#define MyAppVersion "' + $appVersion + '"'))
+          Set-Content -Path "installer/FocusFlow.iss" -Value $installerScript -Encoding utf8
+      - name: Package FOOCUS for Windows
+        shell: pwsh
+        run: |
+          python build_icon.py
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name FocusFlow --icon "static/foocus.ico" --add-data "templates;templates" --add-data "static;static" --collect-all webview --collect-all pythonnet --collect-all clr_loader --hidden-import clr desktop_launcher.py
+
+      - name: Download Microsoft Edge WebView2 bootstrapper
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer | Out-Null
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer/MicrosoftEdgeWebView2Setup.exe"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $compiler)) {
+            $compiler = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $compiler)) {
+            throw "Inno Setup compiler was not found."
+          }
+          & $compiler "installer/FocusFlow.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE."
+          }
+          if (-not (Test-Path "dist-installer/FOOCUS-Setup.exe")) {
+            throw "FOOCUS installer was not created."
+          }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FOOCUS-Windows-Installer
+          path: dist-installer/FOOCUS-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.head_commit.message != 'fix-workflow-expression' }}
+    needs: build-installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: FOOCUS-Windows-Installer
+          path: dist-installer
+
+      - name: Publish latest Windows release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build-installer.outputs.release_version }}
+          name: FOOCUS V${{ needs.build-installer.outputs.release_version }}
+          body: |
+            FOOCUS V${{ needs.build-installer.outputs.release_version }}
+
+            Instalador generado automáticamente desde el commit ${{ github.sha }}. Las novedades aparecen en la sección What's Changed.
+          files: dist-installer/FOOCUS-Setup.exe
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
+) {
                 throw "Latest semantic version tag is invalid: $latestTag"
               }
-              $parts[2] = ([int]$parts[2] + 1).ToString()
-              $version = "$($parts[0]).$($parts[1]).$($parts[2])"
+              if ([version]$latestVersion -lt [version]$baselineVersion) {
+                $version = $baselineVersion
+              } else {
+                $parts = $latestVersion.Split(".")
+                $parts[2] = ([int]$parts[2] + 1).ToString()
+                $version = "$($parts[0]).$($parts[1]).$($parts[2])"
+              }
             }
             "release_version=$version" | Add-Content -Path $env:GITHUB_OUTPUT
-            $appVersion = "V$version"
+            $appVersion = "V$version+"
           } else {
             "release_version=" | Add-Content -Path $env:GITHUB_OUTPUT
             $appVersion = "dev-$env:GITHUB_RUN_NUMBER"

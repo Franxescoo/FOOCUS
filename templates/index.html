@@ -8,8 +8,9 @@
   <title>FOOCUS | Organiza tu día</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='foocus-app-icon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='productivity.css') }}">
 </head>
-<body>
+<body data-session-minutes="{{ productivity_profile.session_minutes }}" data-break-minutes="{{ productivity_profile.break_minutes }}">
   <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
   <main class="layout">
     <header class="topbar">
@@ -66,6 +67,8 @@
           <button class="sidebar-link" type="button" title="Tareas" aria-label="Tareas" data-screen-target="tasks"><span class="sidebar-link-icon" aria-hidden="true">☷</span><span class="sidebar-link-label">Tareas</span></button>
           <button class="sidebar-link" type="button" title="Concentración" aria-label="Concentración" data-screen-target="focus"><span class="sidebar-link-icon" aria-hidden="true">◷</span><span class="sidebar-link-label">Concentración</span></button>
           <button class="sidebar-link" type="button" title="Estadísticas" aria-label="Estadísticas" data-screen-target="stats"><span class="sidebar-link-icon" aria-hidden="true">▥</span><span class="sidebar-link-label">Estadísticas</span></button>
+          <button class="sidebar-link" type="button" title="Planificador inteligente" aria-label="Planificador inteligente" data-screen-target="planner"><span class="sidebar-link-icon" aria-hidden="true">✦</span><span class="sidebar-link-label">Planificador</span></button>
+          <button class="sidebar-link" type="button" title="Personalización" aria-label="Personalización" data-screen-target="personalize"><span class="sidebar-link-icon" aria-hidden="true">⚙</span><span class="sidebar-link-label">Personalizar</span></button>
         </nav>
         <div class="sidebar-footer">
           <span class="sidebar-status-dot" aria-hidden="true"></span>
@@ -73,7 +76,7 @@
         </div>
       </aside>
       <div class="app-content">
-    <section class="welcome" data-app-screen="home">
+    <section class="welcome" data-app-screen="home" data-widget="welcome">
       <div class="welcome-copy">
         <p class="eyebrow">TU ESPACIO DE PRODUCTIVIDAD</p>
         <h1>Haz espacio para<br><span>lo importante.</span></h1>
@@ -92,7 +95,7 @@
 
 
         <div class="main-column">
-<section class="stats" aria-label="Resumen de tareas" data-app-screen="home">
+<section class="stats" aria-label="Resumen de tareas" data-app-screen="home" data-widget="summary">
           <article class="stat-card"><span class="stat-label">TAREAS TOTALES</span><strong>{{ total }}</strong><span class="stat-detail">En tu lista</span></article>
           <article class="stat-card"><span class="stat-label">COMPLETADAS</span><strong>{{ completed }}</strong><span class="stat-detail">Buen trabajo</span></article>
           <article class="stat-card"><span class="stat-label">PENDIENTES</span><strong>{{ total - completed }}</strong><span class="stat-detail">Paso a paso</span></article>
@@ -108,6 +111,11 @@
             <article><span>Tareas completadas</span><strong id="completion-rate">{{ completion_rate }}%</strong><small>{{ completed }} de {{ total }} tareas</small></article>
             <article><span>Promedio por sesión</span><strong id="average-session-duration">{% if total_session_count %}{{ (average_session_seconds + 30) // 60 }} min{% else %}—{% endif %}</strong><small>Duración de bloques finalizados</small></article>
           </div>
+          <section class="plus-insights" id="productivity-insights" data-widget="analytics" aria-labelledby="productivity-insights-title">
+            <div class="plus-insights-heading"><div><p class="eyebrow">PERFIL ADAPTATIVO</p><h3 id="productivity-insights-title">Lo que FOOCUS observa de tu ritmo</h3></div><span class="plus-insights-sample" id="insights-sample">Analizando actividad…</span></div>
+            <div class="plus-insight-metrics" id="insight-metrics"></div>
+            <div class="plus-recommendations" id="insight-recommendations" role="status" aria-live="polite"><p>Las recomendaciones aparecerán cuando haya suficientes sesiones registradas.</p></div>
+          </section>
           <section class="study-goal" aria-labelledby="study-goal-title" data-today-seconds="{{ today_work_seconds }}">
             <div class="study-goal-head">
               <div><p class="eyebrow">UN OBJETIVO REALISTA</p><h3 id="study-goal-title">Meta diaria de estudio</h3><p>La meta se guarda en este equipo junto con la base de datos de FOOCUS.</p></div>
@@ -139,7 +147,7 @@
           <p class="activity-footnote">El mapa refleja las sesiones que cierres con «Terminar y guardar». No es una conexión a GitHub: es tu propio historial de FOOCUS.</p>
         </section>
 
-        <section class="anti-procrastination panel" id="start-small" data-app-screen="home" aria-labelledby="start-small-title">
+        <section class="anti-procrastination panel" id="start-small" data-app-screen="home" data-widget="starter" aria-labelledby="start-small-title">
           <div class="section-heading"><div><p class="eyebrow">PLAN ANTI-PROCRASTINACIÓN · 5 MIN</p><h2 id="start-small-title">Desbloquea tu próxima tarea.</h2><p class="notes-hint">Elige una tarea y conviértela en una acción pequeña que puedas empezar ahora.</p></div><span class="section-icon" aria-hidden="true">↗</span></div>
           <div class="starter-steps" aria-label="Tres pasos para empezar">
             <article class="starter-step"><span class="starter-step-number" aria-hidden="true">01</span><div class="starter-step-copy"><strong>Elige una tarea</strong><small>Solo una que esté pendiente.</small></div></article>
@@ -157,6 +165,71 @@
           <div class="starter-guidance" id="starter-guidance" role="status">Selecciona una tarea, define una acción pequeña y pulsa «Empezar 5 minutos».</div>
           <div class="starter-actions"><button type="button" class="primary-button" id="starter-begin">Empezar 5 minutos</button><button type="button" class="focus-reset" id="starter-suggest">Elegir por mí</button></div>
           <p class="starter-footnote">El objetivo es romper la barrera de inicio, no terminarlo todo. Después de cinco minutos puedes parar sin culpa.</p>
+        </section>
+
+        <section class="panel plus-panel" id="intelligent-planner" data-app-screen="planner" hidden aria-labelledby="intelligent-planner-title">
+          <div class="section-heading"><div><p class="eyebrow">PLANIFICACIÓN ASISTIDA</p><h2 id="intelligent-planner-title">Planificador inteligente</h2><p class="notes-hint">FOOCUS distribuye tus tareas según fechas, disponibilidad y preferencias. Tú decides qué guardar.</p></div><span class="section-icon" aria-hidden="true">✦</span></div>
+          <div class="plus-toolbar">
+            <label class="field" for="planner-horizon">Planificar próximos días<select id="planner-horizon"><option value="7">7 días</option><option value="14">14 días</option><option value="21">21 días</option><option value="30">30 días</option></select></label>
+            <button class="primary-button" type="button" id="generate-plan">Generar propuesta</button>
+          </div>
+          <p class="plus-status" id="planner-status" role="status" aria-live="polite">La propuesta se calcula localmente y no cambia tu calendario hasta que la aceptes.</p>
+          <div id="planner-summary" class="plus-summary" hidden></div>
+          <div id="planner-results" class="plus-plan-list" aria-live="polite"></div>
+          <div class="plus-actions"><button class="primary-button" type="button" id="apply-plan" disabled>Aceptar y guardar propuesta</button></div>
+          <div class="plus-saved-block"><h3>Plan guardado</h3><p class="notes-hint">Las sesiones aceptadas también se reflejan en tu calendario de estudio.</p><div id="saved-plan" class="plus-plan-list"><p class="plus-empty">Cargando tu planificación guardada…</p></div></div>
+        </section>
+
+        <section class="panel plus-panel" id="personalization-settings" data-app-screen="personalize" hidden aria-labelledby="personalization-title">
+          <div class="section-heading"><div><p class="eyebrow">TU ESPACIO, TUS REGLAS</p><h2 id="personalization-title">Personalización</h2><p class="notes-hint">Configura cómo FOOCUS organiza el tiempo, se presenta y aprende de tu actividad.</p></div><span class="section-icon" aria-hidden="true">⚙</span></div>
+          <div class="plus-settings-grid">
+            <section class="plus-setting-card">
+              <h3>Perfil adaptativo</h3><p>Analiza tus sesiones guardadas para detectar patrones y ofrecer recomendaciones explicables.</p>
+              <label class="plus-switch"><input id="profile-adaptive" type="checkbox" checked><span>Activar recomendaciones adaptativas</span></label>
+            </section>
+            <section class="plus-setting-card">
+              <h3>Disponibilidad semanal</h3><p>Selecciona los días y el horario en que normalmente puedes estudiar.</p>
+              <div class="plus-day-options" id="available-days">
+                <label><input type="checkbox" value="0" data-available-day checked><span>Lun</span></label>
+                <label><input type="checkbox" value="1" data-available-day checked><span>Mar</span></label>
+                <label><input type="checkbox" value="2" data-available-day checked><span>Mié</span></label>
+                <label><input type="checkbox" value="3" data-available-day checked><span>Jue</span></label>
+                <label><input type="checkbox" value="4" data-available-day checked><span>Vie</span></label>
+                <label><input type="checkbox" value="5" data-available-day><span>Sáb</span></label>
+                <label><input type="checkbox" value="6" data-available-day><span>Dom</span></label>
+              </div>
+              <div class="plus-form-row">
+                <label class="field" for="profile-start-time">Desde<input id="profile-start-time" type="time" value="16:00"></label>
+                <label class="field" for="profile-end-time">Hasta<input id="profile-end-time" type="time" value="20:00"></label>
+              </div>
+            </section>
+            <section class="plus-setting-card">
+              <h3>Sesiones y descansos</h3><p>Elige tu ritmo de trabajo y la capacidad máxima de estudio diario.</p>
+              <div class="plus-form-row">
+                <label class="field" for="profile-session-minutes">Duración de sesión<select id="profile-session-minutes"><option value="15">15 min</option><option value="25">25 min</option><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option><option value="120">120 min</option></select></label>
+                <label class="field" for="profile-break-minutes">Descanso entre sesiones<select id="profile-break-minutes"><option value="5">5 min</option><option value="10" selected>10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option></select></label>
+              </div>
+              <label class="field" for="profile-daily-capacity">Máximo de trabajo al día<select id="profile-daily-capacity"><option value="60">1 hora</option><option value="90">1 h 30 min</option><option value="120">2 horas</option><option value="180" selected>3 horas</option><option value="240">4 horas</option><option value="300">5 horas</option><option value="360">6 horas</option><option value="480">8 horas</option><option value="600">10 horas</option></select></label>
+            </section>
+            <section class="plus-setting-card">
+              <h3>Apariencia</h3><p>Personaliza el acento de color y la densidad visual.</p>
+              <div class="plus-form-row">
+                <label class="field" for="profile-accent">Color de acento<select id="profile-accent"><option value="violet">Violeta</option><option value="blue">Azul</option><option value="green">Verde</option><option value="rose">Rosa</option></select></label>
+                <label class="plus-switch plus-compact"><input id="profile-compact" type="checkbox"><span>Vista compacta</span></label>
+              </div>
+            </section>
+            <section class="plus-setting-card plus-widget-settings">
+              <h3>Panel principal</h3><p>Elige qué módulos quieres mantener visibles.</p>
+              <div class="plus-widget-options">
+                <label><input type="checkbox" value="welcome" data-dashboard-widget checked><span>Bienvenida</span></label>
+                <label><input type="checkbox" value="summary" data-dashboard-widget checked><span>Resumen de tareas</span></label>
+                <label><input type="checkbox" value="starter" data-dashboard-widget checked><span>Primer paso</span></label>
+                <label><input type="checkbox" value="weekly" data-dashboard-widget checked><span>Plan semanal</span></label>
+                <label><input type="checkbox" value="analytics" data-dashboard-widget checked><span>Estadísticas adaptativas</span></label>
+              </div>
+            </section>
+          </div>
+          <div class="plus-actions"><button class="primary-button" type="button" id="save-productivity-profile">Guardar personalización</button><button class="focus-reset" type="button" id="reset-productivity-profile">Restaurar valores iniciales</button><span id="profile-save-status" class="plus-status" role="status" aria-live="polite"></span></div>
         </section>
 
         <section class="calendar-view panel" id="calendar-view" data-app-screen="calendar" hidden aria-labelledby="calendar-title">
@@ -209,7 +282,7 @@
           </div>
         </section>
 
-        <details class="weekly-planner panel" id="weekly-planner" data-app-screen="calendar" hidden>
+        <details class="weekly-planner panel" id="weekly-planner" data-app-screen="calendar" data-widget="weekly" hidden>
           <summary class="weekly-planner-summary">
             <span class="weekly-planner-icon" aria-hidden="true">▦</span>
             <span class="weekly-planner-copy"><strong>Plan de estudio · próximos 7 días</strong><small>Separa el día en que estudiarás de la fecha límite de entrega.</small></span>
@@ -381,7 +454,7 @@
                 </div>
                 <div class="editor-actions"><button class="primary-button" type="submit">Guardar</button><button class="focus-reset editor-cancel" type="button">Cancelar</button><span class="editor-status" role="status"></span></div>
               </form>
-              <form action="{{ url_for('delete_task', task_id=task.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta tarea?');">
+              <form class="delete-task-form" action="{{ url_for('delete_task', task_id=task.id) }}" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="delete-button" type="submit" aria-label="Eliminar tarea">×</button>
               </form>
@@ -401,9 +474,9 @@
 <section class="focus-card" id="focus-area" aria-label="Temporizador de enfoque">
           <div class="focus-copy"><p class="eyebrow">MODO CONCENTRACIÓN</p><h2>Una cosa a la vez.</h2><p>Dedica un bloque de tiempo a una tarea y descansa al terminar.</p></div>
           <div class="focus-controls">
-            <div class="focus-time" id="focus-time" role="timer" aria-live="off">25:00</div><div class="session-counter">Bloques de enfoque terminados hoy: <strong id="sessions-today">0</strong></div>
+            <div class="focus-time" id="focus-time" role="timer" aria-live="off">{{ '%02d' % productivity_profile.session_minutes }}:00</div><div class="session-counter">Bloques de enfoque terminados hoy: <strong id="sessions-today">0</strong></div>
             <div class="focus-buttons"><button type="button" class="primary-button" id="focus-start">Comenzar</button><button type="button" class="focus-reset" id="focus-reset">Reiniciar</button></div>
-            <div class="focus-presets"><button type="button" data-minutes="25" class="focus-preset active">25 min</button><button type="button" data-minutes="15" class="focus-preset">15 min</button><button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
+            <div class="focus-presets"><button type="button" data-minutes="{{ productivity_profile.session_minutes }}" class="focus-preset active">{{ productivity_profile.session_minutes }} min</button>{% if productivity_profile.session_minutes != 25 %}<button type="button" data-minutes="25" class="focus-preset">25 min</button>{% endif %}{% if productivity_profile.session_minutes != 15 %}<button type="button" data-minutes="15" class="focus-preset">15 min</button>{% endif %}<button type="button" data-minutes="5" class="focus-preset">5 min</button></div>
           </div>
         </section>
             </div>
@@ -431,7 +504,7 @@
       const navButtons = Array.from(document.querySelectorAll(".sidebar-link[data-screen-target]"));
       const screenButtons = Array.from(document.querySelectorAll("[data-screen-target]"));
       const screenItems = Array.from(document.querySelectorAll("[data-app-screen]"));
-      const validScreens = new Set(["home", "calendar", "tasks", "focus", "stats"]);
+      const validScreens = new Set(["home", "calendar", "tasks", "focus", "stats", "planner", "personalize"]);
 
       function showScreen(screen) {
         if (!validScreens.has(screen)) return;
@@ -466,9 +539,9 @@
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
       if (![taskSelect, grid, monthLabel, taskInfo, selectedCount, selectedSummary, status, clearButton, emptyState].every(Boolean)) return;
 
-      const today = new Date();
+      let today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayIso = toIso(today);
+      let todayIso = toIso(today);
       let visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       let selectedDays = new Set();
       let deadline = "";
@@ -748,6 +821,19 @@
         taskInfo.textContent = "No hay tareas pendientes. Crea una tarea para empezar a planificar.";
       }
       renderCalendar();
+      window.setInterval(() => {
+        const current = new Date();
+        current.setHours(0, 0, 0, 0);
+        const currentIso = toIso(current);
+        if (currentIso !== todayIso) {
+          today = current;
+          todayIso = currentIso;
+          if (visibleMonth.getMonth() !== current.getMonth() || visibleMonth.getFullYear() !== current.getFullYear()) {
+            visibleMonth = new Date(current.getFullYear(), current.getMonth(), 1);
+          }
+          renderCalendar();
+        }
+      }, 60 * 1000);
       window.FOOCUSCalendar = {activate() { renderCalendar(); }};
     })();
   </script>
@@ -817,8 +903,10 @@
       const localDate = new Date();
       const sessionDate = localDate.getFullYear() + "-" + String(localDate.getMonth() + 1).padStart(2, "0") + "-" + String(localDate.getDate()).padStart(2, "0");
       const sessionKey = "focusflow_sessions_" + sessionDate;
-      const allowedMinutes = [5, 15, 25];
-      let totalSeconds = 25 * 60;
+      const preferredSessionMinutes = Number(document.body.dataset.sessionMinutes) || 25;
+      const allowedMinutes = [5, 15, 25, 30, 45, 60, 90, 120];
+      let breakMinutes = Number(document.body.dataset.breakMinutes) || 10;
+      let totalSeconds = preferredSessionMinutes * 60;
       let remaining = totalSeconds;
       let interval = null;
       let endsAt = null;
@@ -862,7 +950,7 @@
         try { localStorage.setItem(sessionKey, String(sessions)); } catch (error) {}
         saveTimerState();
         if ("Notification" in window && Notification.permission === "granted") {
-          try { new Notification("FOOCUS", {body: "Terminó tu bloque de concentración. Tómate un descanso."}); } catch (error) {}
+          try { new Notification("FOOCUS", {body: "Terminó tu bloque de concentración. Tómate " + breakMinutes + " minutos de descanso."}); } catch (error) {}
         }
       }
 
@@ -952,6 +1040,20 @@
         draw();
         saveTimerState();
       }));
+      window.addEventListener("foocus:profile-updated", event => {
+        const sessionMinutes = Number(event.detail?.sessionMinutes);
+        const restMinutes = Number(event.detail?.breakMinutes);
+        if (allowedMinutes.includes(sessionMinutes) && !interval && sessionMinutes !== preferredSessionMinutes) {
+          totalSeconds = sessionMinutes * 60;
+          remaining = totalSeconds;
+          display.classList.remove("is-finished");
+          start.textContent = "Comenzar";
+          presets.forEach(button => button.classList.toggle("active", Number(button.dataset.minutes) === sessionMinutes));
+          draw();
+          saveTimerState();
+        }
+        if ([5,10,15,20,30].includes(restMinutes)) breakMinutes = restMinutes;
+      });
       draw();
       if (restoredExpiredBlock) completeBlock();
       else if (interval) tick();
@@ -1757,5 +1859,6 @@
     })();
   </script>
 
+  <script src="{{ url_for('static', filename='productivity.js') }}" defer></script>
 </body>
 </html>

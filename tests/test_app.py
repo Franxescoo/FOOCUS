@@ -1048,6 +1048,128 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(count, 0)
 
 
+
+    def test_semantic_version_parser_accepts_evolution_display_suffix(self):
+        self.assertEqual(focusflow.parse_semantic_version("V1.1.0+"), (1, 1, 0))
+        self.assertEqual(focusflow.parse_semantic_version("v1.1.0"), (1, 1, 0))
+
+    def test_productivity_profile_is_validated_and_persisted(self):
+        payload = {
+            "adaptive_enabled": True, "available_days": [0, 2, 4, 6],
+            "start_time": "15:30", "end_time": "21:00",
+            "session_minutes": 60, "break_minutes": 15,
+            "daily_capacity_minutes": 240, "planning_horizon_days": 14,
+            "accent": "blue", "compact_mode": True,
+            "dashboard_widgets": ["summary", "analytics"],
+        }
+        saved = self.client.put("/api/productivity/profile", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json["profile"]["session_minutes"], 60)
+        loaded = self.client.get("/api/productivity/profile")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(loaded.json["profile"]["available_days"], [0, 2, 4, 6])
+        self.assertEqual(loaded.json["profile"]["accent"], "blue")
+
+    def test_productivity_profile_rejects_invalid_schedule(self):
+        response = self.client.put(
+            "/api/productivity/profile",
+            json={"available_days": [], "start_time": "21:00", "end_time": "08:00"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_intelligent_planner_generates_and_saves_sessions(self):
+        deadline = (date.today() + timedelta(days=10)).isoformat()
+        self.create_task(title="Proyecto FOOCUS", priority="Alta", due_date=deadline,
+                         subject="Programación", estimated_minutes="120")
+        profile = {
+            "adaptive_enabled": True, "available_days": list(range(7)),
+            "start_time": "16:00", "end_time": "20:00",
+            "session_minutes": 45, "break_minutes": 10,
+            "daily_capacity_minutes": 120, "planning_horizon_days": 7,
+            "accent": "violet", "compact_mode": False,
+            "dashboard_widgets": ["welcome", "summary"],
+        }
+        self.assertEqual(self.client.put(
+            "/api/productivity/profile", json=profile, headers=self.csrf_headers()
+        ).status_code, 200)
+        proposal = self.client.post(
+            "/api/productivity/plan", json={"horizon_days": 7}, headers=self.csrf_headers()
+        )
+        self.assertEqual(proposal.status_code, 200)
+        self.assertGreaterEqual(len(proposal.json["items"]), 1)
+        for item in proposal.json["items"]:
+            self.assertLessEqual(item["planned_date"], deadline)
+            self.assertLessEqual(item["duration_minutes"], 45)
+        applied = self.client.post(
+            "/api/productivity/plan/apply", json={"horizon_days": 7}, headers=self.csrf_headers()
+        )
+        self.assertEqual(applied.status_code, 200)
+        self.assertTrue(applied.json["ok"])
+        stored = self.client.get("/api/productivity/plan")
+        self.assertGreaterEqual(stored.json["count"], 1)
+        with focusflow.get_db() as db:
+            count = db.execute("SELECT COUNT(*) FROM planned_sessions").fetchone()[0]
+            days = db.execute("SELECT COUNT(*) FROM task_study_days").fetchone()[0]
+        self.assertGreaterEqual(count, 1)
+        self.assertGreaterEqual(days, 1)
+
+    def test_productivity_insights_use_saved_local_sessions(self):
+        self.create_task(title="Sesiones de prueba", due_date="")
+        task_id = self.task_id()
+        for offset in range(3):
+            started = datetime.now().astimezone() - timedelta(days=offset)
+            ended = started + timedelta(minutes=45)
+            with focusflow.get_db() as db:
+                db.execute(
+                    """INSERT INTO work_sessions
+                       (task_id,started_at,ended_at,duration_seconds,comment,next_step)
+                       VALUES (?,?,?,?,'','')""",
+                    (task_id, started.isoformat(timespec="seconds"),
+                     ended.isoformat(timespec="seconds"), 2700),
+                )
+        data = self.client.get("/api/productivity/insights")
+        self.assertEqual(data.status_code, 200)
+        self.assertEqual(data.json["sample_size"], 3)
+        self.assertEqual(data.json["metrics"]["average_session_minutes"], 45)
+        self.assertGreaterEqual(len(data.json["recommendations"]), 1)
+
+    def test_json_non_object_payloads_return_400_not_500(self):
+        self.create_task(due_date="")
+        task_id = self.task_id()
+        endpoints = [
+            (f"/api/tasks/{task_id}", "patch"),
+            (f"/api/tasks/{task_id}/study-days", "put"),
+            ("/api/settings/theme", "put"),
+            ("/api/settings/study-goal", "put"),
+            ("/api/work/start", "post"),
+            ("/api/work/stop", "post"),
+        ]
+        for endpoint, method in endpoints:
+            response = getattr(self.client, method)(
+                endpoint, json=["not", "an", "object"], headers=self.csrf_headers()
+            )
+            self.assertEqual(response.status_code, 400, endpoint)
+
+    def test_create_task_rejects_planned_dates_beyond_one_year(self):
+        far_future = (date.today() + timedelta(days=366)).isoformat()
+        response = self.client.post(
+            "/tasks",
+            data={"title":"Plan demasiado lejano","priority":"Media","due_date":"",
+                  "planned_date":far_future,"csrf_token":self.csrf_token},
+        )
+        self.assertEqual(response.status_code, 400)
+        with focusflow.get_db() as db:
+            count = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        self.assertEqual(count, 0)
+
+    def test_delete_confirmation_is_registered_without_inline_handler(self):
+        self.create_task(due_date="")
+        page = self.client.get("/").data
+        self.assertNotIn(b"onsubmit=", page)
+        self.assertIn(b'class="delete-task-form"', page)
+        self.assertIn(b"productivity.js", page)
+
     def test_security_headers_and_windows_download_section_removed(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
