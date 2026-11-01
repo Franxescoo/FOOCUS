@@ -454,17 +454,31 @@
   }
 
   function duplicateSelected() {
-    const originals = state.elements.filter(item => selected.has(item.key));
+    const selectedKeys = new Set(selected);
+    const originalsByKey = new Map(state.elements.map(item => [item.key, item]));
+    const pending = [...selectedKeys];
+    while (pending.length) {
+      const current = originalsByKey.get(pending.pop());
+      if (!current || current.kind !== "group") continue;
+      (current.content.members || []).forEach(memberKey => {
+        if (!selectedKeys.has(memberKey) && originalsByKey.has(memberKey)) {
+          selectedKeys.add(memberKey);
+          pending.push(memberKey);
+        }
+      });
+    }
+    const originals = state.elements.filter(item => selectedKeys.has(item.key));
     if (!originals.length) {
       byId("canvas-status").textContent = "Selecciona al menos un elemento para duplicar.";
       return;
     }
     remember();
-    const copies = originals.map((item, index) => {
+    const keyMap = new Map(originals.map(item => [item.key, key()]));
+    const copies = originals.map(item => {
       const copy = clone(item);
-      copy.key = key();
-      copy.x = Math.max(0, item.x + 28 + index * 12);
-      copy.y = Math.max(0, item.y + 28 + index * 12);
+      copy.key = keyMap.get(item.key);
+      copy.x = Math.max(0, item.x + 28);
+      copy.y = Math.max(0, item.y + 28);
       copy.task_id = null;
       copy.task_snapshot_title = "";
       copy.linked_task_title = "";
@@ -472,14 +486,20 @@
       copy.linked_task_due_date = "";
       copy.linked_task_completed = null;
       copy.content.title = (copy.content.title || "Elemento") + " (copia)";
+      if (copy.kind === "group") {
+        copy.content.members = (item.content.members || []).map(memberKey => keyMap.get(memberKey)).filter(Boolean);
+      }
       return copy;
     });
+    const duplicatedConnections = state.connections
+      .filter(link => keyMap.has(link.source) && keyMap.has(link.target))
+      .map(link => ({key:key(), source:keyMap.get(link.source), target:keyMap.get(link.target), label:link.label || ""}));
     state.elements.push(...copies);
+    state.connections.push(...duplicatedConnections);
     selected = new Set(copies.map(item => item.key));
     renderFree();
     changed();
   }
-
   function deleteSelected() {
     if (!selected.size) return;
     remember();
