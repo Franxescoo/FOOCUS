@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import urllib.error
 import urllib.request
+import zipfile
 
 from flask import (
     Flask,
@@ -1763,6 +1764,308 @@ def update_task_completion_api(task_id):
         if cursor.rowcount == 0:
             return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
     return jsonify({"ok": True, "task_id": task_id, "completed": payload["completed"]})
+
+
+CANVAS_ATTACHMENT_MAX_BYTES = 7 * 1024 * 1024
+CANVAS_ATTACHMENT_EXTENSIONS = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp", ".pdf": "application/pdf",
+    ".txt": "text/plain", ".md": "text/markdown", ".csv": "text/csv",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def canvas_attachment_root():
+    return (DATABASE.parent / "canvas_attachments").resolve()
+
+
+def canvas_attachment_path(relative_path):
+    if not isinstance(relative_path, str) or not relative_path:
+        return None
+    root = canvas_attachment_root()
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def validate_canvas_file(filename, content):
+    safe_name = secure_filename(filename or "")
+    extension = Path(safe_name).suffix.lower()
+    if not safe_name or extension not in CANVAS_ATTACHMENT_EXTENSIONS:
+        return None, "Tipo de archivo no permitido. Usa imágenes, PDF, TXT, MD, CSV, DOCX, XLSX o PPTX."
+    if not content or len(content) > CANVAS_ATTACHMENT_MAX_BYTES:
+        return None, "El archivo está vacío o supera el límite de 7 MB."
+
+    valid = False
+    mime_type = CANVAS_ATTACHMENT_EXTENSIONS[extension]
+    if extension == ".png":
+        valid = content.startswith(b"\x89PNG\r\n\x1a\n")
+    elif extension in {".jpg", ".jpeg"}:
+        valid = content.startswith(b"\xff\xd8\xff")
+    elif extension == ".webp":
+        valid = len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+    elif extension == ".pdf":
+        valid = content.startswith(b"%PDF-")
+    elif extension in {".txt", ".md", ".csv"}:
+        try:
+            decoded = content.decode("utf-8-sig")
+            valid = "\x00" not in decoded
+        except UnicodeDecodeError:
+            valid = False
+    elif extension in {".docx", ".xlsx", ".pptx"}:
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                names = set(archive.namelist())
+            required = {
+                ".docx": "word/document.xml",
+                ".xlsx": "xl/workbook.xml",
+                ".pptx": "ppt/presentation.xml",
+            }[extension]
+            valid = "[Content_Types].xml" in names and required in names
+        except (zipfile.BadZipFile, OSError):
+            valid = False
+    if not valid:
+        return None, "El contenido del archivo no coincide con su extensión."
+    return {"name": safe_name[:180], "mime_type": mime_type, "extension": extension}, None
+
+
+@app.route("/api/canvas/<int:board_id>/attachments", methods=["GET", "POST"])
+def canvas_attachments_api(board_id):
+    if request.method == "GET":
+        with get_db() as db:
+            board = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+            if not board:
+                return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+            rows = db.execute(
+                """SELECT id, element_key, attachment_key, kind, original_name, mime_type,
+                          size_bytes, url, created_at
+                   FROM canvas_attachments WHERE board_id = ? ORDER BY created_at DESC, id DESC""",
+                (board_id,),
+            ).fetchall()
+            element_rows = db.execute(
+                "SELECT element_key, content_json FROM canvas_elements WHERE board_id = ?",
+                (board_id,),
+            ).fetchall()
+        element_titles = {}
+        for element in element_rows:
+            try:
+                data = json.loads(element["content_json"])
+            except (TypeError, ValueError, json.JSONDecodeError):
+                data = {}
+            element_titles[element["element_key"]] = data.get("title", "") if isinstance(data, dict) else ""
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["element_title"] = element_titles.get(item["element_key"], "Elemento eliminado")
+            item["download_url"] = (
+                url_for("canvas_attachment_download_api", board_id=board_id, attachment_id=item["id"])
+                if item["kind"] == "file" else None
+            )
+            items.append(item)
+        return jsonify({"ok": True, "items": items})
+
+    board_id_exists = None
+    with get_db() as db:
+        board_id_exists = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not board_id_exists:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+
+    if request.is_json:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "message": "Envía un enlace y un elemento válidos."}), 400
+        element_key = payload.get("element_key")
+        url = payload.get("url")
+        if not isinstance(element_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", element_key):
+            return jsonify({"ok": False, "message": "Selecciona un elemento válido."}), 400
+        if not isinstance(url, str) or len(url) > 2048:
+            return jsonify({"ok": False, "message": "El enlace no es válido."}), 400
+        parsed = urlsplit(url.strip())
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+            return jsonify({"ok": False, "message": "Solo se permiten enlaces HTTP o HTTPS válidos."}), 400
+        clean_url = url.strip()
+        with get_db() as db:
+            element = db.execute(
+                "SELECT element_key FROM canvas_elements WHERE board_id = ? AND element_key = ?",
+                (board_id, element_key),
+            ).fetchone()
+            if not element:
+                return jsonify({"ok": False, "message": "El elemento seleccionado ya no existe."}), 404
+            cursor = db.execute(
+                """INSERT INTO canvas_attachments
+                   (board_id, element_key, attachment_key, kind, original_name, mime_type, size_bytes, url)
+                   VALUES (?, ?, ?, 'link', ?, 'text/uri-list', 0, ?)""",
+                (board_id, element_key, secrets.token_hex(16), clean_url[:180], clean_url),
+            )
+            attachment_id = cursor.lastrowid
+        return jsonify({
+            "ok": True, "item": {
+                "id": attachment_id, "element_key": element_key, "kind": "link",
+                "original_name": clean_url[:180], "url": clean_url,
+            },
+        }), 201
+
+    element_key = request.form.get("element_key", "")
+    uploaded = request.files.get("file")
+    if not isinstance(element_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", element_key):
+        return jsonify({"ok": False, "message": "Selecciona un elemento válido."}), 400
+    if uploaded is None or not uploaded.filename:
+        return jsonify({"ok": False, "message": "Selecciona un archivo para adjuntar."}), 400
+    content = uploaded.read(CANVAS_ATTACHMENT_MAX_BYTES + 1)
+    normalized, error = validate_canvas_file(uploaded.filename, content)
+    if error:
+        return jsonify({"ok": False, "message": error}), 400
+
+    with get_db() as db:
+        element = db.execute(
+            "SELECT element_key FROM canvas_elements WHERE board_id = ? AND element_key = ?",
+            (board_id, element_key),
+        ).fetchone()
+        if not element:
+            return jsonify({"ok": False, "message": "El elemento seleccionado ya no existe."}), 404
+
+    attachment_key = secrets.token_hex(16)
+    relative_path = "board-" + str(board_id) + "/" + attachment_key + normalized["extension"]
+    destination = canvas_attachment_path(relative_path)
+    if destination is None:
+        return jsonify({"ok": False, "message": "No se pudo preparar el almacenamiento local."}), 500
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        destination.write_bytes(content)
+        with get_db() as db:
+            cursor = db.execute(
+                """INSERT INTO canvas_attachments
+                   (board_id, element_key, attachment_key, kind, original_name, mime_type, size_bytes, relative_path)
+                   VALUES (?, ?, ?, 'file', ?, ?, ?, ?)""",
+                (board_id, element_key, attachment_key, normalized["name"],
+                 normalized["mime_type"], len(content), relative_path),
+            )
+            attachment_id = cursor.lastrowid
+    except Exception:
+        try:
+            destination.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    return jsonify({
+        "ok": True, "item": {
+            "id": attachment_id, "element_key": element_key, "kind": "file",
+            "original_name": normalized["name"], "mime_type": normalized["mime_type"],
+            "size_bytes": len(content),
+        },
+    }), 201
+
+
+@app.route("/api/canvas/<int:board_id>/attachments/<int:attachment_id>/download", methods=["GET"])
+def canvas_attachment_download_api(board_id, attachment_id):
+    with get_db() as db:
+        row = db.execute(
+            """SELECT original_name, mime_type, relative_path, kind
+               FROM canvas_attachments WHERE id = ? AND board_id = ?""",
+            (attachment_id, board_id),
+        ).fetchone()
+    if not row or row["kind"] != "file":
+        return jsonify({"ok": False, "message": "No encontramos ese archivo."}), 404
+    path = canvas_attachment_path(row["relative_path"])
+    if path is None or not path.is_file():
+        return jsonify({"ok": False, "message": "El archivo ya no está disponible en este equipo."}), 404
+    inline = row["mime_type"].startswith("image/")
+    response = send_file(
+        path, mimetype=row["mime_type"], as_attachment=not inline,
+        download_name=row["original_name"], conditional=False,
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@app.route("/api/canvas/<int:board_id>/attachments/<int:attachment_id>", methods=["DELETE"])
+def delete_canvas_attachment_api(board_id, attachment_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT relative_path FROM canvas_attachments WHERE id = ? AND board_id = ?",
+            (attachment_id, board_id),
+        ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese adjunto."}), 404
+        relative_path = row["relative_path"]
+        db.execute("DELETE FROM canvas_attachments WHERE id = ?", (attachment_id,))
+        still_referenced = False
+        if relative_path:
+            still_referenced = db.execute(
+                "SELECT 1 FROM canvas_attachments WHERE relative_path = ? LIMIT 1",
+                (relative_path,),
+            ).fetchone() is not None
+    if relative_path and not still_referenced:
+        path = canvas_attachment_path(relative_path)
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return jsonify({"ok": True, "message": "Adjunto eliminado."})
+
+
+@app.route("/api/canvas/<int:board_id>/elements/<element_key>/convert-task", methods=["POST"])
+def convert_canvas_element_to_task_api(board_id, element_key):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", element_key):
+        return jsonify({"ok": False, "message": "El identificador del elemento no es válido."}), 400
+    with get_db() as db:
+        board = db.execute("SELECT id, mode FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not board:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        if board["mode"] != "structured":
+            return jsonify({"ok": False, "message": "Solo las tarjetas de Canvas estructurado pueden convertirse en tareas globales."}), 400
+        element = db.execute(
+            """SELECT element_key, kind, task_id, task_snapshot_title, content_json
+               FROM canvas_elements WHERE board_id = ? AND element_key = ?""",
+            (board_id, element_key),
+        ).fetchone()
+        if not element or element["kind"] != "card":
+            return jsonify({"ok": False, "message": "No encontramos esa tarjeta."}), 404
+        if element["task_id"] is not None:
+            task = db.execute(
+                "SELECT id, title, priority, due_date, planned_date, completed, estimated_minutes FROM tasks WHERE id = ?",
+                (element["task_id"],),
+            ).fetchone()
+            if task:
+                return jsonify({"ok": True, "already_linked": True, "task": dict(task)})
+        try:
+            data = json.loads(element["content_json"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            data = {}
+        title = str(data.get("title", "")).strip()[:160] if isinstance(data, dict) else ""
+        if not title:
+            return jsonify({"ok": False, "message": "Agrega un título antes de convertir esta tarjeta."}), 400
+        priority = data.get("priority", "Media")
+        if priority not in VALID_PRIORITIES:
+            priority = "Media"
+        due_date = data.get("due_date", "")
+        if due_date and valid_due_date(due_date) is False:
+            return jsonify({"ok": False, "message": "La fecha de la tarjeta no es válida."}), 400
+        subject_id = None
+        cursor = db.execute(
+            """INSERT INTO tasks (title, priority, due_date, planned_date, subject_id, estimated_minutes)
+               VALUES (?, ?, ?, NULL, ?, 30)""",
+            (title, priority, due_date or None, subject_id),
+        )
+        task_id = cursor.lastrowid
+        db.execute(
+            "UPDATE canvas_elements SET task_id = ?, task_snapshot_title = ?, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND element_key = ?",
+            (task_id, title, board_id, element_key),
+        )
+    return jsonify({
+        "ok": True, "already_linked": False,
+        "task": {
+            "id": task_id, "title": title, "priority": priority, "due_date": due_date or None,
+            "planned_date": None, "completed": 0, "estimated_minutes": 30,
+        },
+    }), 201
 
 
 @app.route("/api/canvas/task-options", methods=["GET"])
