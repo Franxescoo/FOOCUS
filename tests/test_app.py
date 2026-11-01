@@ -1266,6 +1266,91 @@ class FocusFlowTaskTests(unittest.TestCase):
         )
         self.assertEqual(unconfirmed_delete.status_code, 400)
 
+    def test_canvas_free_content_is_saved_and_validated_as_one_snapshot(self):
+        created = self.client.post("/api/canvas", json={"title":"Ideas", "mode":"free"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        payload = {
+            "columns": [],
+            "elements": [
+                {"key":"note-a","kind":"note","x":120,"y":90,"width":250,"height":160,
+                 "content":{"title":"Idea principal","body":"Investigar alternativas"}},
+                {"key":"text-b","kind":"text","x":420,"y":110,"width":250,"height":160,
+                 "content":{"title":"Referencias","body":"Anotar fuentes"}}
+            ],
+            "connections": [{"key":"edge-a","source":"note-a","target":"text-b","label":"relacionado"}]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json["counts"], {"columns":0,"elements":2,"connections":1})
+        loaded = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(len(loaded.json["elements"]), 2)
+        self.assertEqual(loaded.json["elements"][0]["content"]["title"], "Idea principal")
+        self.assertEqual(loaded.json["connections"][0]["label"], "relacionado")
+
+        invalid = dict(payload)
+        invalid["connections"] = [{"key":"bad-edge","source":"note-a","target":"missing","label":""}]
+        rejected = self.client.put(f"/api/canvas/{board_id}/content", json=invalid, headers=self.csrf_headers())
+        self.assertEqual(rejected.status_code, 400)
+        still_saved = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(len(still_saved.json["elements"]), 2)
+        self.assertEqual(len(still_saved.json["connections"]), 1)
+
+    def test_canvas_structured_content_roundtrip_and_task_reference_snapshot(self):
+        self.create_task(title="Preparar informe", due_date="")
+        task_id = self.task_id()
+        created = self.client.post("/api/canvas", json={"title":"Plan de trabajo","mode":"structured"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        payload = {
+            "columns":[{"key":"todo","title":"Por hacer"}],
+            "elements":[{
+                "key":"card-a","kind":"card","column_key":"todo","x":0,"y":0,"width":280,"height":190,
+                "task_id":task_id,
+                "content":{"title":"Preparar informe","description":"Revisar resultados","priority":"Alta",
+                           "due_date":"","status":"En curso"}
+            }],
+            "connections":[]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        loaded = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(loaded.json["columns"][0]["title"], "Por hacer")
+        self.assertEqual(loaded.json["elements"][0]["task_id"], task_id)
+        self.assertEqual(loaded.json["elements"][0]["linked_task_title"], "Preparar informe")
+
+        with focusflow.get_db() as db:
+            db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        orphaned = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertIsNone(orphaned.json["elements"][0]["task_id"])
+        self.assertEqual(orphaned.json["elements"][0]["linked_task_title"], "Preparar informe")
+
+    def test_canvas_content_rejects_wrong_mode_invalid_dimensions_and_missing_columns(self):
+        free_board = self.client.post("/api/canvas", json={"title":"Libre"}, headers=self.csrf_headers()).json["item"]["id"]
+        structured_board = self.client.post("/api/canvas", json={"title":"Estructurado","mode":"structured"}, headers=self.csrf_headers()).json["item"]["id"]
+
+        wrong_mode = self.client.put(f"/api/canvas/{free_board}/content", json={
+            "columns":[{"key":"col","title":"Columna"}], "elements":[], "connections":[]
+        }, headers=self.csrf_headers())
+        self.assertEqual(wrong_mode.status_code, 400)
+
+        missing_column = self.client.put(f"/api/canvas/{structured_board}/content", json={
+            "columns":[{"key":"one","title":"Una"}],
+            "elements":[{"key":"card","kind":"card","column_key":"missing","content":{"title":"Sin columna"}}],
+            "connections":[]
+        }, headers=self.csrf_headers())
+        self.assertEqual(missing_column.status_code, 400)
+
+        bad_size = self.client.put(f"/api/canvas/{free_board}/content", json={
+            "columns":[], "elements":[{"key":"huge","kind":"note","width":99999,"content":{}}], "connections":[]
+        }, headers=self.csrf_headers())
+        self.assertEqual(bad_size.status_code, 400)
+
+        no_csrf = self.client.put(f"/api/canvas/{free_board}/content", json={"columns":[],"elements":[],"connections":[]})
+        self.assertEqual(no_csrf.status_code, 400)
+
     def test_json_non_object_payloads_return_400_not_500(self):
         self.create_task(due_date="")
         task_id = self.task_id()
