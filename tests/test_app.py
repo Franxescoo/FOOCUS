@@ -286,6 +286,11 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b"canvas.js", response.data)
         self.assertIn(b"canvas.css", response.data)
         self.assertIn(b"canvas-editor.js", response.data)
+        self.assertIn(b"id=\"canvas-zoom-in\"", response.data)
+        self.assertIn(b"id=\"canvas-zoom-out\"", response.data)
+        self.assertIn(b"id=\"canvas-zoom-fit\"", response.data)
+        self.assertIn(b"id=\"canvas-attachment-file-form\"", response.data)
+        self.assertIn(b"id=\"canvas-attachment-link-form\"", response.data)
 
     def test_cursor_aura_is_decorative_and_respects_accessibility(self):
         response = self.client.get("/")
@@ -1315,8 +1320,28 @@ class FocusFlowTaskTests(unittest.TestCase):
         )
         self.assertEqual(unconfirmed_delete.status_code, 400)
 
-    def test_canvas_free_content_is_saved_and_validated_as_one_snapshot(self):
-        created = self.client.post("/api/canvas", json={"title":"Ideas", "mode":"free"}, headers=self.csrf_headers())
+    def test_canvas_viewport_persists_scroll_position_and_validated_zoom(self):
+        created = self.client.post("/api/canvas", json={"title":"Vista","mode":"free"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        saved = self.client.put(
+            f"/api/canvas/{board_id}/viewport",
+            json={"x":120,"y":240,"zoom":1.35},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json["viewport"], {"x":120,"y":240,"zoom":1.35})
+        detail = self.client.get(f"/api/canvas/{board_id}")
+        self.assertEqual(json.loads(detail.json["item"]["viewport_json"]), {"x":120,"y":240,"zoom":1.35})
+
+        invalid = self.client.put(
+            f"/api/canvas/{board_id}/viewport",
+            json={"x":-1,"y":240,"zoom":3},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_canvas_free_content_is_saved_and_validated_as_one_snapshot(self):        created = self.client.post("/api/canvas", json={"title":"Ideas", "mode":"free"}, headers=self.csrf_headers())
         self.assertEqual(created.status_code, 201)
         board_id = created.json["item"]["id"]
         payload = {
