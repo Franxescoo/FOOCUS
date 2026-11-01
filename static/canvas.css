@@ -441,6 +441,13 @@ html[data-theme="dark"] .canvas-attachment-row { background: #202235; }
   position: relative;
   width: 2400px;
   height: 1600px;
+  flex: 0 0 auto;
+}
+.canvas-free-plane {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 2400px;
+  height: 1600px;
   transform-origin: 0 0;
 }
 .canvas-free-world { position: absolute; inset: 0 auto auto 0; }
