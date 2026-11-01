@@ -276,8 +276,19 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'function clearTaskFilters()', page)
         self.assertIn(b'button.setAttribute("aria-pressed", String(active))', page)
 
-    def test_canvas_library_screen_is_registered_in_navigation(self):
-        response = self.client.get("/")
+    def test_canvas_linked_cards_use_existing_focus_session_and_timer_flow(self):
+        page = self.client.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"window.focusFlowStartTask = async taskId", page.data)
+        self.assertIn(b"window.focusFlowSetWorking", page.data)
+        root = Path(__file__).resolve().parents[1]
+        editor_script = (root / "static" / "canvas-editor.js").read_text(encoding="utf-8")
+        self.assertIn('textContent = "Iniciar concentración"', editor_script)
+        self.assertIn("window.FOOCUSShowScreen?.(\"focus\")", editor_script)
+        self.assertIn("window.focusFlowStartTask(card.task_id)", editor_script)
+        self.assertIn('document.querySelector(\'[data-minutes="\' + preferredMinutes + \'"]\')', editor_script)
+
+    def test_canvas_library_screen_is_registered_in_navigation(self):        response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'data-screen-target="canvas"', response.data)
         self.assertIn(b'data-app-screen="canvas"', response.data)
