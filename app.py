@@ -1585,8 +1585,6 @@ def normalize_canvas_content(db, board, payload):
             return None, "Una conexión tiene un identificador no válido."
         if key in connection_keys:
             return None, "Hay identificadores de conexión repetidos."
-        if source not in element_keys and not isinstance(source, str):
-            return None, "El origen de una conexión no es válido."
         if not isinstance(source, str) or not isinstance(target, str) or source not in element_keys or target not in element_keys or source == target:
             return None, "Una conexión debe unir dos elementos distintos del mismo tablero."
         if not isinstance(label, str) or len(label) > 100:
