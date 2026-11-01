@@ -6,6 +6,7 @@
   --muted: #777b91;
   --purple: #6756d9;
   --purple-dark: #5140bd;
+  --accent-rgb: 103 86 217;
   --line: #e9e8f2;
   --surface: #fff;
   --bg: #f7f7fc;
@@ -25,9 +26,9 @@
   opacity: 0;
   background: radial-gradient(
     circle at center,
-    rgb(132 119 255 / 14%) 0%,
-    rgb(103 86 217 / 8%) 30%,
-    rgb(99 154 255 / 3.5%) 49%,
+    rgb(var(--accent-rgb) / 14%) 0%,
+    rgb(var(--accent-rgb) / 8%) 30%,
+    rgb(var(--accent-rgb) / 3.5%) 49%,
     transparent 72%
   );
   filter: blur(14px);
@@ -36,9 +37,9 @@
 }.cursor-aura.is-visible { opacity: 1; }html[data-theme="dark"] .cursor-aura {
   background: radial-gradient(
     circle at center,
-    rgb(139 125 255 / 20%) 0%,
-    rgb(103 86 217 / 12%) 31%,
-    rgb(91 121 226 / 6%) 51%,
+    rgb(var(--accent-rgb) / 20%) 0%,
+    rgb(var(--accent-rgb) / 12%) 31%,
+    rgb(var(--accent-rgb) / 6%) 51%,
     transparent 73%
   );
   filter: blur(18px);
@@ -1296,7 +1297,7 @@ html[data-theme="dark"] .update-download-panel.is-error .update-download-symbol 
 
 
 /* Small consistency fixes for the existing FOOCUS layout and dark theme. */
-html[data-theme="dark"] .brand-logo { filter: drop-shadow(0 2px 5px rgb(103 86 217 / 16%)); }
+html[data-theme="dark"] .brand-wordmark { filter: drop-shadow(0 2px 5px rgb(var(--accent-rgb) / 18%)); }
 html[data-theme="dark"] .hero-orbit { border-color: #514c7a; }
 html[data-theme="dark"] .hero-sun { background: linear-gradient(145deg, #383354, #253a59); }
 html[data-theme="dark"] .card-back span { background: #41435b; }
@@ -1783,4 +1784,20 @@ html[data-theme="dark"] .calendar-task-info, html[data-theme="dark"] .calendar-s
 @media (prefers-reduced-motion: reduce) {
   .sidebar-link, .calendar-day, .calendar-month-button { transition: none; }
   .calendar-day:not(:disabled):hover { transform: none; }
+}
+
+
+/* Dynamic FOOCUS wordmark: follows the accent selected in Personalization. */
+.brand { gap: 0; color: var(--purple); }
+.brand-wordmark {
+  display: block;
+  width: 154px;
+  height: auto;
+  max-width: 100%;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+html[data-theme="dark"] .brand { color: var(--purple); }
+@media (max-width: 600px) {
+  .brand-wordmark { width: 136px; }
 }
