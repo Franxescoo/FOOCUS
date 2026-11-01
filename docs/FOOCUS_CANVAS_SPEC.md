@@ -147,20 +147,20 @@ Los binarios se guardan fuera de SQLite en una carpeta local de datos por tabler
 
 ### Persistencia propuesta
 
-Los nombres siguientes son orientativos y deben confirmarse con una migración revisada:
+Las tablas principales ya están incorporadas de forma aditiva en la rama de Canvas. La descripción conserva los nombres del esquema implementado; cualquier cambio posterior deberá pasar por una migración compatible:
 
 | Tabla nueva | Campos/propósito principal |
 |---|---|
 | `workspaces` | `id`, nombre, descripción opcional, color, fechas de creación/actualización. |
 | `canvas_boards` | `id`, `workspace_id` nullable, título, modo, viewport y preferencias en JSON validado, fechas. |
-| `canvas_elements` | `id`, `board_id`, tipo, x/y, ancho/alto, orden visual, contenido JSON, `task_id` nullable, fechas. |
+| `canvas_elements` | `id`, `board_id`, tipo, x/y, ancho/alto, contenido JSON (incluye subtareas y miembros de grupos), `task_id` nullable, snapshot del título global, fechas. |
 | `canvas_connections` | `id`, `board_id`, elemento origen/destino y estilo/metadatos. |
 | `canvas_columns` | `id`, `board_id`, título y posición. |
 | `canvas_attachments` | `id`, elemento/tablero, tipo, nombre, MIME, tamaño, ruta relativa o URL. |
 | `canvas_history` | `id`, `board_id`, número de versión, descripción, snapshot serializado, fecha. |
 | `canvas_preferences` | Preferencias particulares del tablero, si no se mantienen dentro de un JSON validado de `canvas_boards`. |
 
-Los grupos visuales del modo libre se modelarán inicialmente como elementos/contenedores, evitando una tabla extra si no aparece una necesidad real. Las operaciones de deshacer/rehacer serán una pila en memoria durante la sesión de edición; el historial persistente se guardará en `canvas_history`. No se necesita una tabla de operaciones persistentes para satisfacer la decisión actual.
+Los grupos visuales del modo libre se modelan como elementos/contenedores dentro de `canvas_elements`, con referencias validadas a sus miembros; no requieren una tabla adicional. Las operaciones de deshacer/rehacer serán una pila en memoria durante la sesión de edición; el historial persistente se guardará en `canvas_history`. No se necesita una tabla de operaciones persistentes para satisfacer la decisión actual.
 
 Restricciones recomendadas:
 - FK de tablero a espacio con `ON DELETE SET NULL` después de confirmar la operación de eliminación del espacio.
@@ -180,15 +180,15 @@ Restricciones recomendadas:
 | GET | `/api/canvas` | Listar tableros visibles. |
 | POST | `/api/canvas` | Crear tablero. |
 | GET | `/api/canvas/{id}` | Obtener tablero y contenido. |
-| PUT | `/api/canvas/{id}` | Actualizar metadatos/relación/viewport. |
+| PUT | `/api/canvas/{id}` | Actualizar metadatos y relación del tablero. |
 | DELETE | `/api/canvas/{id}` | Eliminar con confirmación. |
 | PUT | `/api/canvas/{id}/content` | Guardar contenido del tablero. |
-| POST | `/api/canvas/{id}/attachments` | Añadir archivo o enlace. |
+| GET | `/api/canvas/{id}/attachments` | Listar adjuntos del tablero. |\n| POST | `/api/canvas/{id}/attachments` | Añadir archivo multipart o enlace HTTP/HTTPS. |\n| DELETE | `/api/canvas/{id}/attachments/{attachment_id}` | Quitar un adjunto y limpiar su archivo local cuando ya no se referencia. |\n| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir/descargar un archivo adjunto. |\n| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
 | GET | `/api/canvas/{id}/history` | Consultar versiones. |
 | POST | `/api/canvas/{id}/history` | Crear versión nombrada/manual. |
-| POST | `/api/canvas/{id}/restore/{version_id}` | Restaurar versión como nuevo estado. |
+| POST | `/api/canvas/{id}/history/{version_id}/restore` | Restaurar una versión como nueva versión. |\n| GET | `/api/canvas/task-options` | Listar tareas globales disponibles para vincular. |\n| PUT | `/api/tasks/{task_id}/completion` | Actualizar el estado completado de una tarea global. |\n| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global (idempotente). |
 
-La integración de tareas deberá reutilizar los servicios o rutas existentes de tareas; no se creará un segundo CRUD global.
+La integración de tareas reutiliza el CRUD global existente; no se crea un segundo CRUD de tareas. La conversión crea un registro global una sola vez y conserva una única fuente de verdad. El editor libre usa elementos HTML posicionados con una capa SVG para conexiones; el modo estructurado usa tarjetas HTML/CSS.\n\nLos adjuntos binarios se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. En el alcance actual: PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX; tamaño máximo de 7 MB por archivo y 8 MB para la petición. Se valida el contenido según formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar conexión para abrirse.
 
 ## 5. Guardado e historial
 
@@ -239,10 +239,10 @@ Cada criterio debe verificarse con una prueba automatizada o un escenario manual
 | CAN-012 | Desplazar el lienzo mediante arrastre. |
 | CAN-013 | Acercar y alejar el lienzo. |
 | CAN-014 | Seleccionar varios elementos. |
-| CAN-015 | Crear y mover grupos visuales. |
+| CAN-015 | Crear grupos desde varios elementos seleccionados y mover el grupo junto con sus miembros. |
 | CAN-016 | Crear conexiones entre dos elementos. |
 | CAN-017 | Mantener las conexiones correctas al mover elementos. |
-| CAN-018 | Duplicar elementos con identificadores nuevos. |
+| CAN-018 | Duplicar elementos con identificadores nuevos; duplicar un grupo crea copias de sus miembros y conexiones internas. |
 | CAN-019 | Encuadrar todos los elementos visibles en el lienzo. |
 
 ### C. Canvas estructurado
@@ -253,7 +253,7 @@ Cada criterio debe verificarse con una prueba automatizada o un escenario manual
 | CAN-021 | Renombrar y reordenar columnas. |
 | CAN-022 | Crear tarjetas. |
 | CAN-023 | Mover tarjetas entre columnas. |
-| CAN-024 | Editar los datos de una tarjeta. |
+| CAN-024 | Editar los datos de una tarjeta, incluidas subtareas (hasta 40 por tarjeta). |
 | CAN-025 | Establecer prioridad y fecha en una tarjeta. |
 | CAN-026 | Al eliminar una columna con tarjetas, permitir reubicarlas o cancelar. |
 | CAN-027 | Mantener los cambios después de cerrar y abrir FOOCUS. |
@@ -328,6 +328,22 @@ Cada criterio debe verificarse con una prueba automatizada o un escenario manual
 3. **Recuperación:** autosave, guardado manual, undo/redo, reinicio, consultar y restaurar una versión.
 4. **Adjuntos:** adjuntar imagen/PDF/enlace, duplicar elemento, borrar una referencia y comprobar que el fichero sigue disponible mientras exista otra referencia.
 5. **Compatibilidad:** abrir base de datos anterior, ejecutar migración, comprobar tareas/asignaturas/sesiones/calendario/ajustes y crear un Canvas.
+
+## 8. Estado de implementación en el PR de Canvas
+
+Este estado describe el código incorporado en la rama `feature/foocus-canvas-foundation`; no significa que la funcionalidad esté ya integrada en `main` ni que se haya publicado una versión estable.
+
+| Fase | Estado de código | Validación pendiente |
+|---|---|---|
+| 0. Auditoría y arquitectura | Completada. Se eligió una capa HTML posicionada con SVG para conexiones y HTML/CSS para tarjetas estructuradas. | Pruebas de rendimiento con tableros grandes y pulido visual. |
+| 1. Datos, espacios y catálogo | Implementada. Migraciones aditivas, espacios, tableros independientes/asociados y navegación desde Canvas/espacios. | Revisión visual de Windows. |
+| 2. Canvas libre | Implementada en la rama: notas, texto, grupos con miembros, conexiones, selección múltiple, movimiento, redimensionado, duplicación, zoom, encuadre y viewport persistente. | Validación manual de usabilidad con tableros reales. |
+| 3. Canvas estructurado | Implementada en la rama: columnas reordenables, tarjetas, subtareas, prioridades, fechas, estados y movimiento entre columnas. | Validación manual de los flujos completos. |
+| 4. Guardado e historial | Implementada en la rama: autosave, guardado manual, undo/redo en sesión, versiones persistentes y restauración. | Prueba manual de recuperación tras cierre inesperado. |
+| 5. Tareas y adjuntos | Implementada en la rama: tareas propias/vinculadas, conversión a tarea global, archivos locales y enlaces externos. | Validación manual de archivos compatibles y sincronización de tareas. |
+| 6. Estabilización e instalador | Pruebas automatizadas y compilación de Windows en validación continua. | La prueba final debe corresponder al último commit y falta instalar/probar manualmente en Windows. |
+
+La rama continúa en PR de borrador. No se debe declarar Canvas listo para distribución hasta que las pruebas de Actions y la instalación manual en Windows pasen sobre el mismo commit final.
 
 ## 8. Fases de implementación
 
