@@ -6,6 +6,7 @@ import hmac
 import io
 import json
 import math
+import mimetypes
 import os
 import re
 from pathlib import Path
@@ -24,9 +25,13 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     session,
     url_for,
 )
+
+from urllib.parse import urlsplit
+from werkzeug.utils import secure_filename
 
 try:
     from focusflow_build import APP_VERSION
@@ -41,7 +46,7 @@ app.config.update(
     TEMPLATES_AUTO_RELOAD=True,
     SEND_FILE_MAX_AGE_DEFAULT=0,
     SESSION_COOKIE_HTTPONLY=True,
-    MAX_CONTENT_LENGTH=64 * 1024,
+    MAX_CONTENT_LENGTH=8 * 1024 * 1024,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("FOCUSFLOW_SECURE_COOKIE", "").lower()
     in {"1", "true", "yes"},
@@ -316,6 +321,23 @@ def init_db():
             )
         """)
         db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_history_board_version ON canvas_history(board_id, version_number DESC)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                element_key TEXT NOT NULL,
+                attachment_key TEXT NOT NULL UNIQUE,
+                kind TEXT NOT NULL CHECK (kind IN ('file','link')),
+                original_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                relative_path TEXT,
+                url TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_attachments_board_element ON canvas_attachments(board_id, element_key)")
 
 
 def csrf_token():
