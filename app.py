@@ -2080,6 +2080,31 @@ def canvas_task_options_api():
     return jsonify({"ok": True, "items": [dict(row) for row in rows]})
 
 
+@app.route("/api/canvas/<int:board_id>/viewport", methods=["PUT"])
+def canvas_board_viewport_api(board_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "message": "Envía la posición y el zoom del lienzo."}), 400
+    values = {}
+    for field in ("x", "y"):
+        value = payload.get(field, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0 or value > 1000000:
+            return jsonify({"ok": False, "message": "La posición del lienzo no es válida."}), 400
+        values[field] = int(value)
+    zoom = payload.get("zoom", 1)
+    if isinstance(zoom, bool) or not isinstance(zoom, (int, float)) or not math.isfinite(zoom) or zoom < 0.25 or zoom > 2:
+        return jsonify({"ok": False, "message": "El nivel de zoom debe estar entre 25% y 200%."}), 400
+    values["zoom"] = round(float(zoom), 2)
+    with get_db() as db:
+        cursor = db.execute(
+            "UPDATE canvas_boards SET viewport_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(values, separators=(",", ":"), allow_nan=False), board_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+    return jsonify({"ok": True, "viewport": values})
+
+
 @app.route("/api/canvas/<int:board_id>/content", methods=["GET", "PUT"])
 def canvas_board_content_api(board_id):
     with get_db() as db:
