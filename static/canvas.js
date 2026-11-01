@@ -142,6 +142,13 @@
       location.textContent = board.workspace_name ? "Espacio: " + board.workspace_name : "Tablero independiente";
       const actions = document.createElement("div");
       actions.className = "canvas-item-actions";
+      actions.append(makeButton("Abrir tablero", "primary-button", async () => {
+        if (typeof window.FOOCUSCanvasOpenEditor !== "function") {
+          setStatus("No se pudo cargar el editor Canvas.", true);
+          return;
+        }
+        await window.FOOCUSCanvasOpenEditor(board);
+      }));
       actions.append(makeButton("Renombrar", "focus-reset", async () => {
         const nextTitle = window.prompt("Nuevo nombre del tablero:", board.title);
         if (nextTitle === null || !nextTitle.trim()) return;
@@ -253,5 +260,6 @@
     finally { submit.disabled = false; }
   });
 
+  window.FOOCUSCanvasRefresh = refresh;
   refresh();
 })();
