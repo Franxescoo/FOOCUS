@@ -567,6 +567,12 @@
             <button class="focus-reset" id="canvas-add-group" type="button">+ Grupo</button>
             <button class="focus-reset" id="canvas-connect-elements" type="button">Conectar seleccionados</button>
             <button class="focus-reset" id="canvas-delete-element" type="button">Eliminar selección</button>
+            <span class="canvas-zoom-controls">
+              <button class="focus-reset" id="canvas-zoom-out" type="button" aria-label="Alejar">−</button>
+              <span id="canvas-zoom-label">100%</span>
+              <button class="focus-reset" id="canvas-zoom-in" type="button" aria-label="Acercar">+</button>
+              <button class="focus-reset" id="canvas-zoom-fit" type="button">Encajar</button>
+            </span>
           </div>
           <div id="canvas-structured-tools" hidden><button class="focus-reset" id="canvas-add-column" type="button">+ Columna</button></div>
           <div class="canvas-history-tools">
@@ -603,8 +609,10 @@
         </section>
         <p class="canvas-editor-hint" id="canvas-editor-hint"></p>
         <div class="canvas-free-stage" id="canvas-free-stage" hidden tabindex="0" aria-label="Lienzo libre">
-          <svg class="canvas-connection-layer" id="canvas-connection-layer" viewBox="0 0 2400 1600" aria-hidden="true"></svg>
-          <div class="canvas-free-world" id="canvas-free-world"></div>
+          <div class="canvas-free-content" id="canvas-free-content">
+            <svg class="canvas-connection-layer" id="canvas-connection-layer" viewBox="0 0 2400 1600" aria-hidden="true"></svg>
+            <div class="canvas-free-world" id="canvas-free-world"></div>
+          </div>
         </div>
         <div class="canvas-structured-board" id="canvas-structured-board" hidden></div>
       </section>
