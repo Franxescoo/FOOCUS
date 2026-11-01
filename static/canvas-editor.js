@@ -637,6 +637,7 @@
                 method:"POST", body:JSON.stringify({})
               });
               const task = result.task;
+              remember();
               card.task_id = task.id;
               card.task_snapshot_title = task.title;
               card.linked_task_title = task.title;
@@ -929,6 +930,7 @@
       byId("canvas-status").textContent = "Crea o selecciona un elemento antes de adjuntar un archivo.";
       return;
     }
+    if (dirty) { await save(false); if (dirty) return; }
     const fileInput = byId("canvas-attachment-file");
     if (!fileInput.files || !fileInput.files.length) return;
     const formData = new FormData();
@@ -953,6 +955,7 @@
       byId("canvas-status").textContent = "Crea o selecciona un elemento antes de agregar un enlace.";
       return;
     }
+    if (dirty) { await save(false); if (dirty) return; }
     const url = byId("canvas-attachment-url").value.trim();
     const submit = attachmentLinkForm.querySelector('button[type="submit"]');
     submit.disabled = true;
