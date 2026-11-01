@@ -1478,6 +1478,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         downloaded = self.client.get(file_item["download_url"])
         self.assertEqual(downloaded.status_code, 200)
         self.assertIn(b"FOOCUS project notes", downloaded.data)
+        downloaded.close()
 
         rejected = self.client.post(
             f"/api/canvas/{board_id}/attachments",
