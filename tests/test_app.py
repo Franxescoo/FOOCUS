@@ -1560,6 +1560,36 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(linked.json["elements"][0]["task_id"], task_id)
         self.assertEqual(linked.json["elements"][0]["linked_task_title"], "Preparar presentación")
 
+    def test_canvas_free_groups_keep_validated_member_relationships(self):
+        board = self.client.post("/api/canvas", json={"title":"Mapa mental"}, headers=self.csrf_headers()).json["item"]
+        board_id = board["id"]
+        payload = {
+            "columns": [],
+            "elements": [
+                {"key":"group-a","kind":"group","x":60,"y":60,"width":500,"height":360,
+                 "content":{"title":"Plan de proyecto","body":"","members":["note-a","note-b"]}},
+                {"key":"note-a","kind":"note","x":100,"y":120,"content":{"title":"Investigación"}},
+                {"key":"note-b","kind":"note","x":300,"y":140,"content":{"title":"Implementación"}}
+            ],
+            "connections":[]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        loaded = self.client.get(f"/api/canvas/{board_id}/content")
+        group = next(item for item in loaded.json["elements"] if item["key"] == "group-a")
+        self.assertEqual(group["content"]["members"], ["note-a","note-b"])
+
+        broken = {
+            "columns": [],
+            "elements": [{
+                "key":"group-a","kind":"group","x":60,"y":60,"width":500,"height":360,
+                "content":{"title":"Grupo inválido","members":["missing-element"]}
+            }],
+            "connections":[]
+        }
+        rejected = self.client.put(f"/api/canvas/{board_id}/content", json=broken, headers=self.csrf_headers())
+        self.assertEqual(rejected.status_code, 400)
+
     def test_canvas_content_rejects_wrong_mode_invalid_dimensions_and_missing_columns(self):
         free_board = self.client.post("/api/canvas", json={"title":"Libre"}, headers=self.csrf_headers()).json["item"]["id"]
         structured_board = self.client.post("/api/canvas", json={"title":"Estructurado","mode":"structured"}, headers=self.csrf_headers()).json["item"]["id"]
