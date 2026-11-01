@@ -751,7 +751,35 @@
           changed();
         });
         actions.append(target);
-        if (!card.task_id) {
+        if (card.task_id) {
+          const startFocus = document.createElement("button");
+          startFocus.type = "button";
+          startFocus.className = "primary-button canvas-start-focus";
+          startFocus.textContent = "Iniciar concentración";
+          startFocus.addEventListener("click", async () => {
+            startFocus.disabled = true;
+            startFocus.textContent = "Iniciando…";
+            try {
+              window.FOOCUSShowScreen?.("focus");
+              await window.focusFlowStartTask(card.task_id);
+              const preferredMinutes = Number(document.body.dataset.sessionMinutes) || 25;
+              const preset = document.querySelector('[data-minutes="' + preferredMinutes + '"]');
+              if (preset && !preset.classList.contains("active")) preset.click();
+              const timerStart = document.getElementById("focus-start");
+              if (timerStart && timerStart.textContent !== "Pausar") timerStart.click();
+              const subtitle = document.getElementById("active-work-subtitle");
+              if (subtitle) subtitle.textContent = "Sesión iniciada desde Canvas. Concéntrate en esta tarea.";
+              byId("canvas-status").textContent = "Sesión de concentración iniciada para «" + (card.linked_task_title || card.content.title) + "»."; 
+            } catch (error) {
+              byId("canvas-status").textContent = error.message || "No se pudo iniciar la sesión.";
+              byId("canvas-status").classList.add("is-error");
+            } finally {
+              startFocus.disabled = false;
+              startFocus.textContent = "Iniciar concentración";
+            }
+          });
+          actions.append(startFocus);
+        }        if (!card.task_id) {
           const convert = document.createElement("button");
           convert.type = "button";
           convert.className = "focus-reset";
