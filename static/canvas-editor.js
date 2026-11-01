@@ -360,6 +360,56 @@
           event.dataTransfer.setData("text/plain", card.key);
           event.dataTransfer.effectAllowed = "move";
         });
+        const linkRow = document.createElement("label");
+        linkRow.className = "canvas-task-link";
+        linkRow.textContent = "Vincular tarea de FOOCUS";
+        const linkSelect = document.createElement("select");
+        linkSelect.setAttribute("aria-label", "Vincular tarjeta con tarea global");
+        linkSelect.add(new Option("Tarea propia de Canvas", ""));
+        for (const task of taskOptions) {
+          const suffix = task.completed ? " · Completada" : "";
+          linkSelect.add(new Option(task.title + suffix, String(task.id)));
+        }
+        linkSelect.value = card.task_id === null ? "" : String(card.task_id);
+        linkSelect.addEventListener("change", () => {
+          remember();
+          if (!linkSelect.value) {
+            if (card.task_id) {
+              card.content.title = card.linked_task_title || card.content.title;
+              card.content.priority = card.linked_task_priority || card.content.priority || "Media";
+              card.content.due_date = card.linked_task_due_date || "";
+              card.content.status = card.linked_task_completed ? "Completada" : "Pendiente";
+            }
+            card.task_id = null;
+            card.task_snapshot_title = "";
+            card.linked_task_title = "";
+            card.linked_task_priority = "";
+            card.linked_task_due_date = "";
+            card.linked_task_completed = null;
+          } else {
+            const task = taskOptions.find(option => Number(option.id) === Number(linkSelect.value));
+            if (!task) return;
+            card.task_id = task.id;
+            card.linked_task_title = task.title;
+            card.linked_task_priority = task.priority;
+            card.linked_task_due_date = task.due_date || "";
+            card.linked_task_completed = Boolean(task.completed);
+            card.content.title = task.title;
+            card.content.priority = task.priority;
+            card.content.due_date = task.due_date || "";
+            card.content.status = task.completed ? "Completada" : "Pendiente";
+          }
+          renderStructured();
+          changed();
+        });
+        linkRow.append(linkSelect);
+        article.append(linkRow);
+        if (card.task_snapshot_title && !card.task_id) {
+          const orphanNote = document.createElement("small");
+          orphanNote.className = "canvas-orphan-task-note";
+          orphanNote.textContent = "La tarea global original ya no existe. El contenido se conservó."; 
+          article.append(orphanNote);
+        }
         article.append(inputField(card, "title", "Título", "text"));
         article.append(inputField(card, "description", "Descripción", "textarea"));
         const meta = document.createElement("div");
