@@ -478,3 +478,16 @@ html[data-theme="dark"] .canvas-attachment-row { background: #202235; }
 .canvas-free-stage { cursor: grab; }
 .canvas-free-stage.is-panning { cursor: grabbing; user-select: none; }
 .canvas-free-stage.is-panning .canvas-free-element { pointer-events: none; }
+
+
+.canvas-column-move {
+  flex: 0 0 28px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 800;
+}
+.canvas-column-move:hover { border-color: var(--purple); color: var(--purple); }
