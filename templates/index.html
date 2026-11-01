@@ -14,7 +14,24 @@
   <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
   <main class="layout">
     <header class="topbar">
-      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio"><img class="brand-logo" src="{{ url_for('static', filename='foocus-app-icon.svg') }}" alt="" width="32" height="32"><span>FOOCUS</span></a>
+      <a class="brand" href="{{ url_for('index') }}" aria-label="FOOCUS, inicio">
+        <svg class="brand-wordmark" viewBox="0 0 360 90" role="img" aria-labelledby="foocus-brand-title">
+          <title id="foocus-brand-title">FOOCUS — Estudia, organiza, avanza</title>
+          <defs>
+            <linearGradient id="foocus-brand-gradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="var(--purple)"/>
+              <stop offset="1" stop-color="var(--purple-dark)"/>
+            </linearGradient>
+          </defs>
+          <g font-family="Manrope, Inter, Arial, sans-serif" font-size="58" font-weight="800" fill="var(--purple)" letter-spacing="-2">
+            <text x="8" y="59">F</text>
+            <text x="205" y="59">CUS</text>
+          </g>
+          <path d="M126 42 C108 14 79 14 66 34 C50 57 77 75 100 56 L145 28 C168 10 196 28 180 50 C165 72 139 68 126 42 C112 16 87 15 66 34"
+                fill="none" stroke="url(#foocus-brand-gradient)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="10" y="82" font-family="Arial, sans-serif" font-size="10" fill="var(--muted)" letter-spacing="2">ESTUDIA · ORGANIZA · AVANZA</text>
+        </svg>
+      </a>
       <div class="topbar-actions"><span class="today">HOY · {{ today }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="{{ 'true' if saved_theme == 'dark' else 'false' }}" aria-label="{{ 'Activar modo claro' if saved_theme == 'dark' else 'Activar modo oscuro' }}"><span class="theme-icon" aria-hidden="true">{{ '☀' if saved_theme == 'dark' else '☾' }}</span><span class="theme-label">{{ 'Modo claro' if saved_theme == 'dark' else 'Modo oscuro' }}</span></button></div>
     </header>
 
