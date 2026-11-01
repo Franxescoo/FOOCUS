@@ -165,6 +165,7 @@
     const savedZoom = viewport && typeof viewport.zoom === "number" ? viewport.zoom : 1;
     zoom = 1;
     freeContent.style.transform = "scale(1)";
+    zoomLabel.textContent = "100%";
     applyZoom(savedZoom, false, false);
     window.requestAnimationFrame(() => {
       freeStage.scrollLeft = Math.max(0, Number(viewport && viewport.x) || 0);
@@ -973,6 +974,24 @@
   byId("canvas-add-text").addEventListener("click", () => addFree("text"));
   byId("canvas-add-group").addEventListener("click", () => addFree("group"));
   byId("canvas-connect-elements").addEventListener("click", connectSelected);
+  byId("canvas-zoom-out").addEventListener("click", () => applyZoom(zoom - 0.1));
+  byId("canvas-zoom-in").addEventListener("click", () => applyZoom(zoom + 0.1));
+  byId("canvas-zoom-fit").addEventListener("click", () => {
+    if (!state.elements.length) {
+      applyZoom(0.8, false);
+      freeStage.scrollLeft = 0;
+      freeStage.scrollTop = 0;
+      scheduleViewportSave();
+      return;
+    }
+    const maxX = Math.max(500, ...state.elements.map(item => item.x + item.width + 50));
+    const maxY = Math.max(350, ...state.elements.map(item => item.y + item.height + 50));
+    const fit = Math.min(2, (freeStage.clientWidth - 50) / maxX, (freeStage.clientHeight - 50) / maxY);
+    applyZoom(Math.max(0.25, fit), false);
+    freeStage.scrollLeft = 0;
+    freeStage.scrollTop = 0;
+    scheduleViewportSave();
+  });
   byId("canvas-delete-element").addEventListener("click", deleteSelected);
   byId("canvas-add-column").addEventListener("click", () => {
     const name = window.prompt("Nombre de la nueva columna:", "Nueva columna");
