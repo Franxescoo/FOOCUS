@@ -4,15 +4,22 @@
 
 **Estudia · Organiza · Avanza**
 
-FOOCUS es una aplicación local de escritorio y navegador para organizar tareas de estudio, planificar la semana y registrar el tiempo dedicado a cada tarea. Está desarrollada con Python, Flask, SQLite, Jinja, HTML, CSS y JavaScript.
+FOOCUS es una aplicación local de escritorio y navegador para organizar tu productividad personal: estudio, asignaciones, proyectos, trabajo y actividades propias. Incluye tareas, planificación, concentración y espacios visuales Canvas. Está desarrollada con Python, Flask, SQLite, Jinja, HTML, CSS y JavaScript.
 
 > **Proyecto realizado con asistencia de Inteligencia Artificial.** Se utilizó IA generativa como apoyo para implementar y mejorar funcionalidades, generar y revisar código, resolver problemas técnicos y redactar documentación. El desarrollo asistido por IA no sustituye las pruebas ni la revisión de los cambios.
 
 ## Funciones principales
 
-- Crear, editar, completar, buscar, filtrar y eliminar tareas.
-- Organizar tareas por asignatura, prioridad y fecha límite.
-- Estimar el tiempo de cada tarea y planificar el día de estudio.
+- Crear, editar, completar, buscar, filtrar y eliminar tareas personales o de estudio.
+- Organizar tareas por espacio de trabajo, asignatura, prioridad y fecha límite.
+- Crear Canvas independientes o asociados a espacios de trabajo y proyectos.
+- Usar Canvas libre con notas, textos, grupos, conexiones, selección múltiple, movimiento, redimensionado y zoom.
+- Usar Canvas estructurado con columnas, tarjetas, subtareas, prioridades y fechas.
+- Guardar Canvas automáticamente o de forma manual, deshacer/rehacer cambios y consultar/restaurar versiones anteriores.
+- Adjuntar imágenes, PDF y otros documentos compatibles (máx. 7 MB por archivo), además de enlaces externos.
+- Vincular tarjetas con tareas globales existentes o convertir una tarjeta propia en tarea global sin duplicados.
+- Iniciar una sesión de trabajo y concentración directamente desde una tarjeta vinculada.
+- Estimar el tiempo de cada tarea y planificar el día y la semana.
 - Revisar la carga de trabajo de los próximos siete días.
 - Registrar sesiones de trabajo, cronómetro, avances y siguientes pasos.
 - Consultar historial de sesiones, estadísticas, meta diaria y mapa de actividad.
@@ -20,7 +27,7 @@ FOOCUS es una aplicación local de escritorio y navegador para organizar tareas 
 - Desbloquear tareas pendientes con un plan anti-procrastinación de cinco minutos, un primer paso concreto y sugerencias por prioridad y fecha límite.
 - Guardar notas rápidas, cambiar entre modo claro y oscuro y exportar tareas/sesiones a CSV.
 
-Las tareas, las sesiones y la meta diaria se almacenan en SQLite. Las notas rápidas, el tema y el estado del temporizador se almacenan en el navegador utilizado. Esta versión es local y de un solo usuario; no incluye cuentas ni sincronización entre dispositivos.
+Las tareas, espacios de trabajo, tableros Canvas, historial, adjuntos y sesiones se almacenan localmente junto a la base de datos SQLite. Las notas rápidas y el estado del temporizador se almacenan en el navegador utilizado. Canvas y sus archivos locales funcionan sin conexión; abrir enlaces externos requiere Internet. FOOCUS es local y de un solo usuario; no incluye cuentas ni colaboración simultánea.
 
 ## Requisitos
 
