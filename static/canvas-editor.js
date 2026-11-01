@@ -14,6 +14,7 @@
   const freeStage = byId("canvas-free-stage");
   const world = byId("canvas-free-world");
   const freeContent = byId("canvas-free-content");
+  const freePlane = byId("canvas-free-plane");
   const zoomLabel = byId("canvas-zoom-label");
   const svg = byId("canvas-connection-layer");
   const structured = byId("canvas-structured-board");
@@ -151,7 +152,9 @@
     const centerX = preserveCenter ? (freeStage.scrollLeft + freeStage.clientWidth / 2) / oldZoom : 0;
     const centerY = preserveCenter ? (freeStage.scrollTop + freeStage.clientHeight / 2) / oldZoom : 0;
     zoom = next;
-    freeContent.style.transform = "scale(" + zoom + ")";
+    freePlane.style.transform = "scale(" + zoom + ")";
+    freeContent.style.width = (2400 * zoom) + "px";
+    freeContent.style.height = (1600 * zoom) + "px";
     zoomLabel.textContent = Math.round(zoom * 100) + "%";
     if (preserveCenter) {
       freeStage.scrollLeft = Math.max(0, centerX * zoom - freeStage.clientWidth / 2);
@@ -164,7 +167,9 @@
     restoringViewport = true;
     const savedZoom = viewport && typeof viewport.zoom === "number" ? viewport.zoom : 1;
     zoom = 1;
-    freeContent.style.transform = "scale(1)";
+    freePlane.style.transform = "scale(1)";
+    freeContent.style.width = "2400px";
+    freeContent.style.height = "1600px";
     zoomLabel.textContent = "100%";
     applyZoom(savedZoom, false, false);
     window.requestAnimationFrame(() => {
@@ -181,7 +186,7 @@
     applyZoom(zoom + (event.deltaY < 0 ? 0.1 : -0.1));
   }, {passive:false});
   freeStage.addEventListener("pointerdown", event => {
-    const backgroundTarget = event.target === freeStage || event.target === freeContent || event.target === world || event.target === svg;
+    const backgroundTarget = event.target === freeStage || event.target === freeContent || event.target === freePlane || event.target === world || event.target === svg;
     if (!backgroundTarget || event.button !== 0) return;
     const startX = event.clientX, startY = event.clientY;
     const startLeft = freeStage.scrollLeft, startTop = freeStage.scrollTop;
