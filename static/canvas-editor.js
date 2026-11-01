@@ -511,6 +511,47 @@
           changed();
         });
         actions.append(target);
+        if (!card.task_id) {
+          const convert = document.createElement("button");
+          convert.type = "button";
+          convert.className = "focus-reset";
+          convert.textContent = card.task_snapshot_title ? "Crear nueva tarea global" : "Convertir en tarea global";
+          convert.addEventListener("click", async () => {
+            if (dirty) {
+              await save(false);
+              if (dirty) return;
+            }
+            convert.disabled = true;
+            try {
+              const result = await request("/api/canvas/" + board.id + "/elements/" + card.key + "/convert-task", {
+                method:"POST", body:JSON.stringify({})
+              });
+              const task = result.task;
+              card.task_id = task.id;
+              card.task_snapshot_title = task.title;
+              card.linked_task_title = task.title;
+              card.linked_task_priority = task.priority;
+              card.linked_task_due_date = task.due_date || "";
+              card.linked_task_completed = Boolean(task.completed);
+              card.content.title = task.title;
+              card.content.priority = task.priority;
+              card.content.due_date = task.due_date || "";
+              card.content.status = task.completed ? "Completada" : "Pendiente";
+              taskOptions = taskOptions.filter(item => Number(item.id) !== Number(task.id));
+              taskOptions.push(task);
+              changed();
+              renderStructured();
+              await save(true);
+              byId("canvas-status").textContent = result.already_linked
+                ? "Esta tarjeta ya estaba vinculada a una tarea global."
+                : "Tarjeta convertida en tarea global. Ya aparece en Tareas y puede usarse en el calendario y planificador.";
+            } catch (error) {
+              byId("canvas-status").textContent = error.message;
+              byId("canvas-status").classList.add("is-error");
+            } finally { convert.disabled = false; }
+          });
+          actions.append(convert);
+        }
         const duplicate = document.createElement("button");
         duplicate.type = "button";
         duplicate.className = "focus-reset";
