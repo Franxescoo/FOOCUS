@@ -283,6 +283,7 @@
         item.linked_task_title = result.task.title;
         item.linked_task_priority = result.task.priority;
         item.linked_task_due_date = result.task.due_date || "";
+        item.task_snapshot_title = result.task.title;
         item.content[field] = value;
       }
       changed();
@@ -390,6 +391,7 @@
             const task = taskOptions.find(option => Number(option.id) === Number(linkSelect.value));
             if (!task) return;
             card.task_id = task.id;
+            card.task_snapshot_title = task.title;
             card.linked_task_title = task.title;
             card.linked_task_priority = task.priority;
             card.linked_task_due_date = task.due_date || "";
@@ -443,7 +445,13 @@
           remember();
           const copy = clone(card);
           copy.key = key();
-          copy.content.title = (copy.content.title || "Tarjeta") + " (copia)";
+          copy.content.title = (card.task_id ? (card.linked_task_title || copy.content.title) : copy.content.title || "Tarjeta") + " (copia)";
+          copy.task_id = null;
+          copy.task_snapshot_title = "";
+          copy.linked_task_title = "";
+          copy.linked_task_priority = "";
+          copy.linked_task_due_date = "";
+          copy.linked_task_completed = null;
           state.elements.push(copy);
           renderStructured();
           changed();
