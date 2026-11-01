@@ -132,9 +132,9 @@ Los binarios se guardan fuera de SQLite en una carpeta local de datos por tabler
 - Añadir la pantalla Canvas a la navegación principal de `templates/index.html`.
 - La lista de espacios mostrará sus tableros asociados; la biblioteca Canvas mostrará todos los tableros.
 - Separar el código nuevo en archivos propios, por ejemplo `static/canvas.js` y `static/canvas.css`.
-- Usar un motor 2D para el tablero libre. Se evaluará SVG frente a Canvas 2D con un prototipo de rendimiento antes de decidir; el modo estructurado usará HTML/CSS.
+- El Canvas libre usa elementos HTML posicionados sobre una superficie desplazable y una capa SVG para las conexiones; el modo estructurado usa HTML/CSS.
 - El motor debe mantener un modelo de estado independiente del DOM para guardar, deshacer y exportar de forma consistente.
-- Los cambios del puntero/zoom deben usar coordenadas del lienzo; las conexiones se recalculan a partir de las posiciones de los elementos.
+- El arrastre, redimensionado, zoom y desplazamiento trabajan con coordenadas del lienzo; las conexiones se recalculan a partir de las posiciones/dimensiones.
 
 ### Backend
 
@@ -158,7 +158,7 @@ Las tablas principales ya están incorporadas de forma aditiva en la rama de Can
 | `canvas_columns` | `id`, `board_id`, título y posición. |
 | `canvas_attachments` | `id`, elemento/tablero, tipo, nombre, MIME, tamaño, ruta relativa o URL. |
 | `canvas_history` | `id`, `board_id`, número de versión, descripción, snapshot serializado, fecha. |
-| `canvas_preferences` | Preferencias particulares del tablero, si no se mantienen dentro de un JSON validado de `canvas_boards`. |
+Las preferencias y la vista se guardan en `preferences_json` y `viewport_json` de `canvas_boards`; no se creó una tabla `canvas_preferences` adicional.
 
 Los grupos visuales del modo libre se modelan como elementos/contenedores dentro de `canvas_elements`, con referencias validadas a sus miembros; no requieren una tabla adicional. Las operaciones de deshacer/rehacer serán una pila en memoria durante la sesión de edición; el historial persistente se guardará en `canvas_history`. No se necesita una tabla de operaciones persistentes para satisfacer la decisión actual.
 
@@ -166,9 +166,9 @@ Restricciones recomendadas:
 - FK de tablero a espacio con `ON DELETE SET NULL` después de confirmar la operación de eliminación del espacio.
 - FK de elementos a tablero con `ON DELETE CASCADE`.
 - FK de tarea global con `ON DELETE SET NULL`, conservando un snapshot de presentación.
-- FK de conexión a elementos con `ON DELETE CASCADE`.
+- Las conexiones guardan claves textuales de origen/destino y el backend valida que ambos elementos pertenezcan al mismo tablero; no tienen FK SQL directas a esas claves.
 - Índices por tablero, columna, tarea vinculada y fecha de versión.
-- JSON validado con versión de esquema para permitir futuras migraciones de contenido.
+- El contenido JSON se valida en el backend; queda pendiente añadir un campo explícito de versión de esquema para futuras migraciones.
 
 ### API interna propuesta
 
@@ -176,19 +176,39 @@ Restricciones recomendadas:
 |---|---|---|
 | GET | `/api/workspaces` | Listar espacios. |
 | POST | `/api/workspaces` | Crear espacio. |
-| PATCH | `/api/workspaces/{id}` | Editar/archivar espacio. |
+| PATCH | `/api/workspaces/{id}` | Editar espacio. |
+| DELETE | `/api/workspaces/{id}` | Eliminarlo conservando sus tableros como independientes (`preserve_boards=true`). |
 | GET | `/api/canvas` | Listar tableros visibles. |
 | POST | `/api/canvas` | Crear tablero. |
-| GET | `/api/canvas/{id}` | Obtener tablero y contenido. |
+| GET | `/api/canvas/{id}` | Obtener metadatos del tablero. |
+| GET | `/api/canvas/{id}/content` | Obtener columnas, elementos y conexiones. |
 | PUT | `/api/canvas/{id}` | Actualizar metadatos y relación del tablero. |
-| DELETE | `/api/canvas/{id}` | Eliminar con confirmación. |
-| PUT | `/api/canvas/{id}/content` | Guardar contenido del tablero. |
-| GET | `/api/canvas/{id}/attachments` | Listar adjuntos del tablero. |\n| POST | `/api/canvas/{id}/attachments` | Añadir archivo multipart o enlace HTTP/HTTPS. |\n| DELETE | `/api/canvas/{id}/attachments/{attachment_id}` | Quitar un adjunto y limpiar su archivo local cuando ya no se referencia. |\n| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir/descargar un archivo adjunto. |\n| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
+| DELETE | `/api/canvas/{id}` | Eliminar con confirmación (`confirm=true`) y limpiar sus adjuntos locales. |
+| PUT | `/api/canvas/{id}/content` | Guardar contenido; `create_version=true` crea una versión manual. |
+| GET | `/api/canvas/{id}/attachments` | Listar adjuntos del tablero. |
+| POST | `/api/canvas/{id}/attachments` | Añadir archivo multipart o enlace HTTP/HTTPS. |
+| DELETE | `/api/canvas/{id}/attachments/{attachment_id}` | Quitar un adjunto y eliminar su binario cuando ya no se referencia. |
+| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir/descargar un archivo adjunto. |
+| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
+| POST | `/api/canvas/{id}/attachments` | Añadir archivo multipart o enlace HTTP/HTTPS. |
+| DELETE | `/api/canvas/{id}/attachments/{attachment_id}` | Quitar un adjunto y limpiar su archivo local cuando ya no se referencia. |
+| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir/descargar un archivo adjunto. |
+| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
 | GET | `/api/canvas/{id}/history` | Consultar versiones. |
-| POST | `/api/canvas/{id}/history` | Crear versión nombrada/manual. |
-| POST | `/api/canvas/{id}/history/{version_id}/restore` | Restaurar una versión como nueva versión. |\n| GET | `/api/canvas/task-options` | Listar tareas globales disponibles para vincular. |\n| PUT | `/api/tasks/{task_id}/completion` | Actualizar el estado completado de una tarea global. |\n| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global (idempotente). |
+| POST | `/api/canvas/{id}/history/{version_id}/restore` | Restaurar una versión como nueva versión. |
+| GET | `/api/canvas/task-options` | Listar tareas globales disponibles para vincular. |
+| PATCH | `/api/tasks/{task_id}` | Actualizar datos de la tarea global vinculada. |
+| PUT | `/api/tasks/{task_id}/completion` | Actualizar el estado completado de una tarea global. |
+| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global (idempotente). |
+| GET | `/api/canvas/task-options` | Listar tareas globales disponibles para vincular. |
+| PUT | `/api/tasks/{task_id}/completion` | Actualizar el estado completado de una tarea global. |
+| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global (idempotente). |
 
-La integración de tareas reutiliza el CRUD global existente; no se crea un segundo CRUD de tareas. La conversión crea un registro global una sola vez y conserva una única fuente de verdad. El editor libre usa elementos HTML posicionados con una capa SVG para conexiones; el modo estructurado usa tarjetas HTML/CSS.\n\nLos adjuntos binarios se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. En el alcance actual: PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX; tamaño máximo de 7 MB por archivo y 8 MB para la petición. Se valida el contenido según formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar conexión para abrirse.
+La integración de tareas reutiliza el CRUD global existente; no se crea un segundo CRUD de tareas. La conversión crea un registro global una sola vez y conserva una única fuente de verdad. El editor libre usa elementos HTML posicionados con una capa SVG para conexiones; el modo estructurado usa tarjetas HTML/CSS.
+
+Los adjuntos binarios se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. En el alcance actual: PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX; tamaño máximo de 7 MB por archivo y 8 MB para la petición. Se valida el contenido según formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar conexión para abrirse.
+
+Los adjuntos binarios se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. En el alcance actual: PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX; tamaño máximo de 7 MB por archivo y 8 MB para la petición. Se valida el contenido según formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar conexión para abrirse.
 
 ## 5. Guardado e historial
 
@@ -331,19 +351,19 @@ Cada criterio debe verificarse con una prueba automatizada o un escenario manual
 
 ## 8. Estado de implementación en el PR de Canvas
 
-Este estado describe el código incorporado en la rama `feature/foocus-canvas-foundation`; no significa que la funcionalidad esté ya integrada en `main` ni que se haya publicado una versión estable.
+Este estado describe el código incorporado en la rama `feature/foocus-canvas-foundation`; no significa que Canvas esté integrado en `main` ni que haya una versión estable publicada.
 
 | Fase | Estado de código | Validación pendiente |
 |---|---|---|
-| 0. Auditoría y arquitectura | Completada. Se eligió una capa HTML posicionada con SVG para conexiones y HTML/CSS para tarjetas estructuradas. | Pruebas de rendimiento con tableros grandes y pulido visual. |
-| 1. Datos, espacios y catálogo | Implementada. Migraciones aditivas, espacios, tableros independientes/asociados y navegación desde Canvas/espacios. | Revisión visual de Windows. |
-| 2. Canvas libre | Implementada en la rama: notas, texto, grupos con miembros, conexiones, selección múltiple, movimiento, redimensionado, duplicación, zoom, encuadre y viewport persistente. | Validación manual de usabilidad con tableros reales. |
-| 3. Canvas estructurado | Implementada en la rama: columnas reordenables, tarjetas, subtareas, prioridades, fechas, estados y movimiento entre columnas. | Validación manual de los flujos completos. |
+| 0. Auditoría y arquitectura | Completada. HTML posicionado + SVG para conexiones; HTML/CSS para tarjetas estructuradas. | Medición de rendimiento con tableros grandes y pulido visual. |
+| 1. Datos, espacios y catálogo | Implementada: migraciones aditivas, espacios, tableros independientes/asociados y navegación desde Canvas/espacios. | Revisión visual en Windows. |
+| 2. Canvas libre | Implementada en la rama: notas, texto, grupos con miembros, conexiones, selección múltiple, movimiento, redimensionado, duplicación, zoom, encuadre y viewport persistente. | Validación manual con tableros reales. |
+| 3. Canvas estructurado | Implementada en la rama: columnas reordenables, tarjetas, subtareas, prioridades, fechas, estados y movimiento entre columnas. | Validación manual de flujos completos. |
 | 4. Guardado e historial | Implementada en la rama: autosave, guardado manual, undo/redo en sesión, versiones persistentes y restauración. | Prueba manual de recuperación tras cierre inesperado. |
-| 5. Tareas y adjuntos | Implementada en la rama: tareas propias/vinculadas, conversión a tarea global, archivos locales y enlaces externos. | Validación manual de archivos compatibles y sincronización de tareas. |
-| 6. Estabilización e instalador | Pruebas automatizadas y compilación de Windows en validación continua. | La prueba final debe corresponder al último commit y falta instalar/probar manualmente en Windows. |
+| 5. Tareas y adjuntos | Implementada en la rama: tareas propias/vinculadas, conversión idempotente a tarea global, archivos locales y enlaces externos. | Validación manual de formatos y sincronización de tareas. |
+| 6. Estabilización e instalador | Pruebas automatizadas y compilación de Windows se ejecutan en GitHub Actions. | La validación final debe corresponder al último commit; falta instalar/probar manualmente en Windows. |
 
-La rama continúa en PR de borrador. No se debe declarar Canvas listo para distribución hasta que las pruebas de Actions y la instalación manual en Windows pasen sobre el mismo commit final.
+La rama continúa en un PR de borrador. No debe declararse Canvas listo para distribución hasta que las pruebas de Actions y la instalación manual en Windows pasen sobre el mismo commit final.
 
 ## 8. Fases de implementación
 
