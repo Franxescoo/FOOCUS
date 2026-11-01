@@ -554,6 +554,34 @@
           <div class="canvas-card-grid" id="canvas-boards-list"></div>
         </section>
       </section>
+      <section class="panel canvas-editor" id="canvas-editor" hidden aria-labelledby="canvas-editor-title">
+        <div class="canvas-editor-header">
+          <button class="focus-reset" id="canvas-editor-back" type="button">← Volver a Canvas</button>
+          <div><p class="eyebrow" id="canvas-editor-mode-label">EDITOR CANVAS</p><h2 id="canvas-editor-title">Tablero</h2></div>
+          <span class="canvas-save-indicator" id="canvas-save-indicator" role="status" aria-live="polite">Guardado</span>
+        </div>
+        <div class="canvas-editor-toolbar">
+          <div id="canvas-free-tools" hidden>
+            <button class="focus-reset" id="canvas-add-note" type="button">+ Nota</button>
+            <button class="focus-reset" id="canvas-add-text" type="button">+ Texto</button>
+            <button class="focus-reset" id="canvas-add-group" type="button">+ Grupo</button>
+            <button class="focus-reset" id="canvas-connect-elements" type="button">Conectar seleccionados</button>
+            <button class="focus-reset" id="canvas-delete-element" type="button">Eliminar selección</button>
+          </div>
+          <div id="canvas-structured-tools" hidden><button class="focus-reset" id="canvas-add-column" type="button">+ Columna</button></div>
+          <div class="canvas-history-tools">
+            <button class="focus-reset" id="canvas-undo" type="button" disabled>↶ Deshacer</button>
+            <button class="focus-reset" id="canvas-redo" type="button" disabled>↷ Rehacer</button>
+            <button class="primary-button" id="canvas-save-now" type="button">Guardar ahora</button>
+          </div>
+        </div>
+        <p class="canvas-editor-hint" id="canvas-editor-hint"></p>
+        <div class="canvas-free-stage" id="canvas-free-stage" hidden tabindex="0" aria-label="Lienzo libre">
+          <svg class="canvas-connection-layer" id="canvas-connection-layer" viewBox="0 0 2400 1600" aria-hidden="true"></svg>
+          <div class="canvas-free-world" id="canvas-free-world"></div>
+        </div>
+        <div class="canvas-structured-board" id="canvas-structured-board" hidden></div>
+      </section>
       <footer>FOOCUS · Un paso a la vez.</footer>
     </div>
   </div>
