@@ -56,6 +56,73 @@
     return data;
   }
 
+  function refreshAttachmentElementOptions() {
+    if (!board || !attachmentElementSelect) return;
+    const previous = attachmentElementSelect.value;
+    attachmentElementSelect.replaceChildren(new Option("Selecciona un elemento", ""));
+    state.elements.forEach((item, index) => {
+      const label = item.linked_task_title || item.content.title || ("Elemento " + (index + 1));
+      const type = item.kind === "card" ? "Tarjeta" : (item.kind === "group" ? "Grupo" : "Nota");
+      attachmentElementSelect.add(new Option(type + " · " + label, item.key));
+    });
+    if ([...attachmentElementSelect.options].some(option => option.value === previous)) attachmentElementSelect.value = previous;
+    else if (state.elements.length) attachmentElementSelect.value = state.elements[0].key;
+  }
+
+  function renderAttachments(items) {
+    attachmentList.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "canvas-empty";
+      empty.textContent = "Todavía no hay archivos ni enlaces adjuntos.";
+      attachmentList.append(empty);
+      return;
+    }
+    for (const item of items) {
+      const row = document.createElement("article");
+      row.className = "canvas-attachment-row";
+      const info = document.createElement("div");
+      info.className = "canvas-attachment-info";
+      const name = document.createElement("strong");
+      name.textContent = item.original_name;
+      const detail = document.createElement("small");
+      const size = Math.max(1, Math.round(Number(item.size_bytes || 0) / 1024));
+      detail.textContent = (item.element_title || "Elemento eliminado") + " · " + (item.kind === "link" ? "Enlace externo" : size + " KB");
+      info.append(name, detail);
+      const open = document.createElement("a");
+      open.href = item.kind === "link" ? item.url : item.download_url;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      open.textContent = item.kind === "link" ? "Abrir enlace" : "Abrir archivo";
+      open.className = "focus-reset canvas-attachment-open";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "canvas-danger-button";
+      remove.textContent = "Quitar";
+      remove.addEventListener("click", async () => {
+        if (!window.confirm("¿Quitar «" + item.original_name + "» del Canvas?")) return;
+        try {
+          await request("/api/canvas/" + board.id + "/attachments/" + item.id, {method:"DELETE"});
+          await refreshAttachments();
+        } catch (error) {
+          byId("canvas-status").textContent = error.message;
+          byId("canvas-status").classList.add("is-error");
+        }
+      });
+      row.append(info, open, remove);
+      attachmentList.append(row);
+    }
+  }
+
+  async function refreshAttachments() {
+    if (!board) return;
+    try {
+      const result = await request("/api/canvas/" + board.id + "/attachments");
+      renderAttachments(result.items || []);
+      refreshAttachmentElementOptions();
+    } catch (error) { attachmentList.textContent = error.message; }
+  }
+
   function setStatus(message, error = false) {
     status.textContent = message;
     status.classList.toggle("is-error", error);
