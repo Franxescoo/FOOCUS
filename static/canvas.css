@@ -473,3 +473,8 @@ html[data-theme="dark"] .canvas-attachment-row { background: #202235; }
   opacity: .6;
 }
 .canvas-element-resize:hover { opacity: 1; }
+
+
+.canvas-free-stage { cursor: grab; }
+.canvas-free-stage.is-panning { cursor: grabbing; user-select: none; }
+.canvas-free-stage.is-panning .canvas-free-element { pointer-events: none; }
