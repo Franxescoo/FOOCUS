@@ -1341,7 +1341,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status_code, 400)
 
-    def test_canvas_free_content_is_saved_and_validated_as_one_snapshot(self):        created = self.client.post("/api/canvas", json={"title":"Ideas", "mode":"free"}, headers=self.csrf_headers())
+    def test_canvas_free_content_is_saved_and_validated_as_one_snapshot(self):
+        created = self.client.post("/api/canvas", json={"title":"Ideas", "mode":"free"}, headers=self.csrf_headers())
         self.assertEqual(created.status_code, 201)
         board_id = created.json["item"]["id"]
         payload = {
