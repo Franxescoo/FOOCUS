@@ -554,7 +554,7 @@
           <div class="canvas-card-grid" id="canvas-boards-list"></div>
         </section>
       </section>
-      <section class="panel canvas-editor" id="canvas-editor" hidden aria-labelledby="canvas-editor-title">
+      <section class="panel canvas-editor" id="canvas-editor" data-app-screen="canvas" hidden aria-labelledby="canvas-editor-title">
         <div class="canvas-editor-header">
           <button class="focus-reset" id="canvas-editor-back" type="button">← Volver a Canvas</button>
           <div><p class="eyebrow" id="canvas-editor-mode-label">EDITOR CANVAS</p><h2 id="canvas-editor-title">Tablero</h2></div>
@@ -604,6 +604,7 @@
         });
         document.body.dataset.currentScreen = screen;
         if (screen === "calendar") window.FOOCUSCalendar?.activate();
+        window.FOOCUSCanvasSyncScreen?.(screen);
         window.scrollTo({top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
       }
 
