@@ -364,8 +364,8 @@
         selectFree(item, event);
         node.classList.add("is-dragging");
         function move(moveEvent) {
-          item.x = Math.max(-100000, Math.min(100000, ix + moveEvent.clientX - sx));
-          item.y = Math.max(-100000, Math.min(100000, iy + moveEvent.clientY - sy));
+          item.x = Math.max(0, Math.min(100000, ix + (moveEvent.clientX - sx) / zoom));
+          item.y = Math.max(0, Math.min(100000, iy + (moveEvent.clientY - sy) / zoom));
           node.style.left = item.x + "px";
           node.style.top = item.y + "px";
           renderConnections();
