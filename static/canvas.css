@@ -1,0 +1,140 @@
+.canvas-library { margin: 22px 0 26px; }
+.canvas-stage-note {
+  margin: -5px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.canvas-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.canvas-management-card {
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--bg);
+}
+.canvas-management-card h3,
+.canvas-list-heading h3 {
+  margin: 0;
+  font: 700 15px 'Manrope', sans-serif;
+}
+.canvas-form { display: grid; gap: 12px; margin-top: 14px; }
+.canvas-form textarea { resize: vertical; min-height: 68px; }
+.canvas-form .primary-button { justify-self: start; }
+.canvas-status {
+  min-height: 20px;
+  margin: 15px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.canvas-status.is-error { color: #b23a52; }
+.canvas-list-section { margin-top: 24px; }
+.canvas-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.canvas-list-heading > span,
+.canvas-item-count {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--soft-purple);
+  color: var(--purple-dark);
+  font-size: 10px;
+  font-weight: 700;
+}
+.canvas-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.canvas-item-card,
+.canvas-empty {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.canvas-item-card { border-left: 3px solid var(--purple); }
+.canvas-item-card[data-color="blue"] { border-left-color: #3b73d9; }
+.canvas-item-card[data-color="green"] { border-left-color: #25856b; }
+.canvas-item-card[data-color="rose"] { border-left-color: #c05283; }
+.canvas-item-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 9px;
+}
+.canvas-item-heading h4 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 700 13px 'Manrope', sans-serif;
+}
+.canvas-item-description {
+  margin: 8px 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.canvas-item-actions {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.canvas-item-actions button { min-height: 34px; font-size: 10px; }
+.canvas-danger-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e9c7ce;
+  border-radius: 8px;
+  background: #fff8f9;
+  color: #a23d52;
+  font-size: 10px;
+  font-weight: 700;
+}
+.canvas-danger-button:hover { background: #fcecef; }
+.canvas-move-label {
+  display: grid;
+  min-width: 125px;
+  flex: 1 1 125px;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+.canvas-move-label select { height: 34px; font-size: 10px; }
+.canvas-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+html[data-theme="dark"] .canvas-stage-note,
+html[data-theme="dark"] .canvas-management-card { background: #191b2b; }
+html[data-theme="dark"] .canvas-danger-button {
+  border-color: #67404a;
+  background: #35242d;
+  color: #ffb4c0;
+}
+html[data-theme="dark"] .canvas-danger-button:hover { background: #49303a; }
+@media(max-width: 760px) {
+  .canvas-management-grid,
+  .canvas-card-grid { grid-template-columns: 1fr; }
+}
