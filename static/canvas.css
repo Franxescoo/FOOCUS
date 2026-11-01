@@ -335,3 +335,19 @@ html[data-theme="dark"] .canvas-column-remove { border-color: var(--line); backg
   .canvas-history-tools { margin-left: 0; }
   .canvas-column { flex-basis: 260px; }
 }
+
+
+.canvas-task-link {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+.canvas-task-link select { height: 32px; font-size: 10px; }
+.canvas-orphan-task-note {
+  color: #a35c25;
+  font-size: 9px;
+  line-height: 1.45;
+}
+html[data-theme="dark"] .canvas-orphan-task-note { color: #e8b17f; }
