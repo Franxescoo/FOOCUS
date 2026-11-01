@@ -514,4 +514,16 @@
   });
   saveButton.addEventListener("click", () => save(true));
   window.FOOCUSCanvasOpenEditor = openBoard;
+  window.FOOCUSCanvasSyncScreen = screen => {
+    if (screen !== "canvas") {
+      editor.hidden = true;
+      catalog.hidden = true;
+    } else if (board) {
+      editor.hidden = false;
+      catalog.hidden = true;
+    } else {
+      editor.hidden = true;
+      catalog.hidden = false;
+    }
+  };
 })();
