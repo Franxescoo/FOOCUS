@@ -254,6 +254,54 @@ def init_db():
             )
         """)
         db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_boards_workspace ON canvas_boards(workspace_id, updated_at DESC)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_columns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                column_key TEXT NOT NULL,
+                title TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(board_id, column_key),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_elements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                element_key TEXT NOT NULL,
+                column_key TEXT,
+                kind TEXT NOT NULL CHECK (kind IN ('note','text','group','card')),
+                x REAL NOT NULL DEFAULT 80,
+                y REAL NOT NULL DEFAULT 80,
+                width REAL NOT NULL DEFAULT 240,
+                height REAL NOT NULL DEFAULT 150,
+                content_json TEXT NOT NULL DEFAULT '{}',
+                task_id INTEGER,
+                task_snapshot_title TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(board_id, element_key),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_connections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                connection_key TEXT NOT NULL,
+                source_key TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                UNIQUE(board_id, connection_key),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_columns_board ON canvas_columns(board_id, position)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_elements_board ON canvas_elements(board_id, kind)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_elements_task ON canvas_elements(task_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_connections_board ON canvas_connections(board_id)")
 
 
 def csrf_token():
