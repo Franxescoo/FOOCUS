@@ -1279,6 +1279,10 @@ def edit_task(task_id):
                subject_id = ?, estimated_minutes = ? WHERE id = ?""",
             (title, priority, due_date, planned_date, subject_id, estimated_minutes, task_id),
         )
+        db.execute(
+            "UPDATE canvas_elements SET task_snapshot_title = ? WHERE task_id = ?",
+            (title, task_id),
+        )
 
         if exists["planned_date"] != planned_date:
             # A deliberate edit to the single-day field replaces the old calendar plan.
@@ -1559,7 +1563,9 @@ def normalize_canvas_content(db, board, payload):
             if due_date and valid_due_date(due_date) is False:
                 return None, "La fecha de una tarjeta no es válida."
         task_id = element.get("task_id")
-        task_snapshot_title = ""
+        task_snapshot_title = element.get("task_snapshot_title", "") if task_id is None else ""
+        if not isinstance(task_snapshot_title, str) or len(task_snapshot_title) > 160:
+            return None, "El título conservado de una tarea vinculada no es válido."
         if task_id is not None:
             if mode != "structured" or kind != "card" or type(task_id) is not int or task_id < 1:
                 return None, "La referencia a tarea global no es válida."
