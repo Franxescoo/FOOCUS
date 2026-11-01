@@ -65,6 +65,7 @@
           <button class="sidebar-link is-active" type="button" title="Inicio" aria-label="Inicio" data-screen-target="home" aria-current="page"><span class="sidebar-link-icon" aria-hidden="true">⌂</span><span class="sidebar-link-label">Inicio</span></button>
           <button class="sidebar-link" type="button" title="Calendario" aria-label="Calendario" data-screen-target="calendar"><span class="sidebar-link-icon" aria-hidden="true">▦</span><span class="sidebar-link-label">Calendario</span></button>
           <button class="sidebar-link" type="button" title="Tareas" aria-label="Tareas" data-screen-target="tasks"><span class="sidebar-link-icon" aria-hidden="true">☷</span><span class="sidebar-link-label">Tareas</span></button>
+          <button class="sidebar-link" type="button" title="Canvas" aria-label="Canvas" data-screen-target="canvas"><span class="sidebar-link-icon" aria-hidden="true">▧</span><span class="sidebar-link-label">Canvas</span></button>
           <button class="sidebar-link" type="button" title="Concentración" aria-label="Concentración" data-screen-target="focus"><span class="sidebar-link-icon" aria-hidden="true">◷</span><span class="sidebar-link-label">Concentración</span></button>
           <button class="sidebar-link" type="button" title="Estadísticas" aria-label="Estadísticas" data-screen-target="stats"><span class="sidebar-link-icon" aria-hidden="true">▥</span><span class="sidebar-link-label">Estadísticas</span></button>
           <button class="sidebar-link" type="button" title="Planificador inteligente" aria-label="Planificador inteligente" data-screen-target="planner"><span class="sidebar-link-icon" aria-hidden="true">✦</span><span class="sidebar-link-label">Planificador</span></button>
@@ -495,6 +496,63 @@
           
         </aside>
       </div>
+      <section class="panel canvas-library" id="canvas-screen" data-app-screen="canvas" hidden aria-labelledby="canvas-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ESPACIOS Y TABLEROS</p>
+            <h2 id="canvas-title">Canvas</h2>
+            <p class="notes-hint">Organiza ideas y proyectos en tableros independientes o asociados a un espacio de trabajo.</p>
+          </div>
+          <span class="section-icon" aria-hidden="true">▧</span>
+        </div>
+        <p class="canvas-stage-note">Esta primera etapa permite administrar espacios y tableros. El editor visual libre y estructurado se incorporará en las siguientes fases.</p>
+        <div class="canvas-management-grid">
+          <section class="canvas-management-card" aria-labelledby="canvas-workspace-heading">
+            <h3 id="canvas-workspace-heading">Crear espacio de trabajo</h3>
+            <form id="canvas-workspace-form" class="canvas-form">
+              <label class="field" for="canvas-workspace-name">Nombre
+                <input id="canvas-workspace-name" name="name" type="text" maxlength="60" required placeholder="Ej. Proyecto Integrado">
+              </label>
+              <label class="field" for="canvas-workspace-description">Descripción (opcional)
+                <textarea id="canvas-workspace-description" name="description" rows="2" maxlength="500" placeholder="¿Qué vas a organizar aquí?"></textarea>
+              </label>
+              <label class="field" for="canvas-workspace-color">Color
+                <select id="canvas-workspace-color" name="color">
+                  <option value="violet">Violeta</option><option value="blue">Azul</option>
+                  <option value="green">Verde</option><option value="rose">Rosa</option>
+                </select>
+              </label>
+              <button class="primary-button" type="submit">Crear espacio</button>
+            </form>
+          </section>
+          <section class="canvas-management-card" aria-labelledby="canvas-board-heading">
+            <h3 id="canvas-board-heading">Crear tablero</h3>
+            <form id="canvas-board-form" class="canvas-form">
+              <label class="field" for="canvas-board-title">Nombre del tablero
+                <input id="canvas-board-title" name="title" type="text" maxlength="100" required placeholder="Ej. Planificación del proyecto">
+              </label>
+              <label class="field" for="canvas-board-mode">Tipo de Canvas
+                <select id="canvas-board-mode" name="mode">
+                  <option value="free">Libre</option><option value="structured">Estructurado</option>
+                </select>
+              </label>
+              <label class="field" for="canvas-board-workspace">Espacio de trabajo
+                <select id="canvas-board-workspace" name="workspace_id"><option value="">Independiente</option></select>
+              </label>
+              <button class="primary-button" type="submit">Crear tablero</button>
+            </form>
+          </section>
+        </div>
+        <p class="canvas-status" id="canvas-status" role="status" aria-live="polite">Cargando tus espacios y tableros…</p>
+        <section class="canvas-list-section" aria-labelledby="canvas-workspaces-list-title">
+          <div class="canvas-list-heading"><h3 id="canvas-workspaces-list-title">Espacios de trabajo</h3><span id="canvas-workspace-count">0</span></div>
+          <div class="canvas-card-grid" id="canvas-workspaces-list"></div>
+        </section>
+        <section class="canvas-list-section" aria-labelledby="canvas-boards-list-title">
+          <div class="canvas-list-heading"><h3 id="canvas-boards-list-title">Tus tableros</h3><span id="canvas-board-count">0</span></div>
+          <div class="canvas-card-grid" id="canvas-boards-list"></div>
+        </section>
+      </section>
       <footer>FOOCUS · Un paso a la vez.</footer>
     </div>
   </div>
@@ -504,7 +562,7 @@
       const navButtons = Array.from(document.querySelectorAll(".sidebar-link[data-screen-target]"));
       const screenButtons = Array.from(document.querySelectorAll("[data-screen-target]"));
       const screenItems = Array.from(document.querySelectorAll("[data-app-screen]"));
-      const validScreens = new Set(["home", "calendar", "tasks", "focus", "stats", "planner", "personalize"]);
+      const validScreens = new Set(["home", "calendar", "tasks", "canvas", "focus", "stats", "planner", "personalize"]);
 
       function showScreen(screen) {
         if (!validScreens.has(screen)) return;
@@ -1860,5 +1918,6 @@
   </script>
 
   <script src="{{ url_for('static', filename='productivity.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='canvas.js') }}" defer></script>
 </body>
 </html>
