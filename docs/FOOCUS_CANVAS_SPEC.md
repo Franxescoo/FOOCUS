@@ -145,70 +145,53 @@ Los binarios se guardan fuera de SQLite en una carpeta local de datos por tabler
 - Aplicar protección CSRF a las operaciones de escritura siguiendo los endpoints actuales.
 - Los errores de archivos deben ser explícitos y no bloquear la lectura del tablero.
 
-### Persistencia propuesta
+### Persistencia implementada en la rama
 
-Las tablas principales ya están incorporadas de forma aditiva en la rama de Canvas. La descripción conserva los nombres del esquema implementado; cualquier cambio posterior deberá pasar por una migración compatible:
+Las tablas siguientes se agregan de forma aditiva mediante `init_db()` y no reemplazan `tasks`, `task_study_days`, `work_sessions`, `planned_sessions` ni `app_settings`.
 
-| Tabla nueva | Campos/propósito principal |
+| Tabla | Campos/propósito principal |
 |---|---|
-| `workspaces` | `id`, nombre, descripción opcional, color, fechas de creación/actualización. |
-| `canvas_boards` | `id`, `workspace_id` nullable, título, modo, viewport y preferencias en JSON validado, fechas. |
-| `canvas_elements` | `id`, `board_id`, tipo, x/y, ancho/alto, contenido JSON (incluye subtareas y miembros de grupos), `task_id` nullable, snapshot del título global, fechas. |
-| `canvas_connections` | `id`, `board_id`, elemento origen/destino y estilo/metadatos. |
-| `canvas_columns` | `id`, `board_id`, título y posición. |
-| `canvas_attachments` | `id`, elemento/tablero, tipo, nombre, MIME, tamaño, ruta relativa o URL. |
-| `canvas_history` | `id`, `board_id`, número de versión, descripción, snapshot serializado, fecha. |
-Las preferencias y la vista se guardan en `preferences_json` y `viewport_json` de `canvas_boards`; no se creó una tabla `canvas_preferences` adicional.
+| `workspaces` | Nombre único sin distinción de mayúsculas, descripción, color y marcas de tiempo. |
+| `canvas_boards` | `workspace_id` nullable, título, modo `free`/`structured`, `viewport_json`, `preferences_json` y marcas de tiempo. |
+| `canvas_columns` | Clave, nombre y posición de cada columna estructurada. |
+| `canvas_elements` | Clave por tablero, tipo, columna opcional, x/y, ancho/alto, `content_json`, `task_id` nullable y snapshot del título global. El JSON puede contener subtareas o miembros de grupos. |
+| `canvas_connections` | Clave, origen/destino y etiqueta de conexiones del modo libre. |
+| `canvas_attachments` | Adjunto local o enlace externo, elemento de referencia, MIME, tamaño, ruta relativa o URL. |
+| `canvas_history` | Número de versión, descripción, snapshot serializado y fecha. |
 
-Los grupos visuales del modo libre se modelan como elementos/contenedores dentro de `canvas_elements`, con referencias validadas a sus miembros; no requieren una tabla adicional. Las operaciones de deshacer/rehacer serán una pila en memoria durante la sesión de edición; el historial persistente se guardará en `canvas_history`. No se necesita una tabla de operaciones persistentes para satisfacer la decisión actual.
+Las preferencias y la vista se guardan en `preferences_json` y `viewport_json` de `canvas_boards`; no existe una tabla adicional `canvas_preferences`. Los grupos se representan como elementos/contenedores con referencias validadas a otros elementos del mismo tablero. Undo/redo permanece en memoria durante la sesión y las versiones persistentes se guardan en `canvas_history`.
 
-Restricciones recomendadas:
-- FK de tablero a espacio con `ON DELETE SET NULL` después de confirmar la operación de eliminación del espacio.
-- FK de elementos a tablero con `ON DELETE CASCADE`.
-- FK de tarea global con `ON DELETE SET NULL`, conservando un snapshot de presentación.
-- Las conexiones guardan claves textuales de origen/destino y el backend valida que ambos elementos pertenezcan al mismo tablero; no tienen FK SQL directas a esas claves.
+Restricciones principales:
+- FK de tablero a espacio con `ON DELETE SET NULL`.
+- FK de elemento a tablero con `ON DELETE CASCADE`.
+- FK de tarea global con `ON DELETE SET NULL`; el último título se conserva como snapshot.
+- Conexiones y miembros de grupos usan claves textuales; el backend comprueba que las referencias existan y correspondan al tablero.
 - Índices por tablero, columna, tarea vinculada y fecha de versión.
-- El contenido JSON se valida en el backend; queda pendiente añadir un campo explícito de versión de esquema para futuras migraciones.
+- El backend valida el contenido JSON; queda pendiente añadir una versión explícita del esquema JSON para migraciones futuras.
 
-### API interna propuesta
+### API interna implementada
 
 | Método | Ruta | Uso |
 |---|---|---|
-| GET | `/api/workspaces` | Listar espacios. |
-| POST | `/api/workspaces` | Crear espacio. |
-| PATCH | `/api/workspaces/{id}` | Editar espacio. |
-| DELETE | `/api/workspaces/{id}` | Eliminarlo conservando sus tableros como independientes (`preserve_boards=true`). |
-| GET | `/api/canvas` | Listar tableros visibles. |
-| POST | `/api/canvas` | Crear tablero. |
-| GET | `/api/canvas/{id}` | Obtener metadatos del tablero. |
-| GET | `/api/canvas/{id}/content` | Obtener columnas, elementos y conexiones. |
-| PUT | `/api/canvas/{id}` | Actualizar metadatos y relación del tablero. |
-| DELETE | `/api/canvas/{id}` | Eliminar con confirmación (`confirm=true`) y limpiar sus adjuntos locales. |
-| PUT | `/api/canvas/{id}/content` | Guardar contenido; `create_version=true` crea una versión manual. |
-| GET | `/api/canvas/{id}/attachments` | Listar adjuntos del tablero. |
-| POST | `/api/canvas/{id}/attachments` | Añadir archivo multipart o enlace HTTP/HTTPS. |
+| GET / POST | `/api/workspaces` | Listar y crear espacios. |
+| PATCH / DELETE | `/api/workspaces/{id}` | Editar o eliminar; la eliminación exige `preserve_boards=true` y conserva tableros independientes. |
+| GET / POST | `/api/canvas` | Listar y crear tableros. |
+| GET / PATCH / DELETE | `/api/canvas/{id}` | Consultar metadatos, modificar título/espacio/modo o eliminar con `confirm=true`. |
+| GET / PUT | `/api/canvas/{id}/content` | Leer y guardar snapshots completos de columnas, elementos y conexiones; `create_version=true` genera versión manual. |
+| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
+| GET / POST | `/api/canvas/{id}/attachments` | Listar y añadir archivos multipart o enlaces HTTP/HTTPS. |
+| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir o descargar un archivo adjunto. |
 | DELETE | `/api/canvas/{id}/attachments/{attachment_id}` | Quitar un adjunto y eliminar su binario cuando ya no se referencia. |
-| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir/descargar un archivo adjunto. |
-| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
-| POST | `/api/canvas/{id}/attachments` | Añadir archivo multipart o enlace HTTP/HTTPS. |
-| DELETE | `/api/canvas/{id}/attachments/{attachment_id}` | Quitar un adjunto y limpiar su archivo local cuando ya no se referencia. |
-| GET | `/api/canvas/{id}/attachments/{attachment_id}/download` | Abrir/descargar un archivo adjunto. |
-| PUT | `/api/canvas/{id}/viewport` | Guardar posición y zoom de la vista libre. |
 | GET | `/api/canvas/{id}/history` | Consultar versiones. |
-| POST | `/api/canvas/{id}/history/{version_id}/restore` | Restaurar una versión como nueva versión. |
+| POST | `/api/canvas/{id}/history/{version_id}/restore` | Restaurar una versión como una nueva versión. |
 | GET | `/api/canvas/task-options` | Listar tareas globales disponibles para vincular. |
-| PATCH | `/api/tasks/{task_id}` | Actualizar datos de la tarea global vinculada. |
+| PATCH | `/api/tasks/{task_id}` | Actualizar los campos globales de una tarea vinculada. |
 | PUT | `/api/tasks/{task_id}/completion` | Actualizar el estado completado de una tarea global. |
-| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global (idempotente). |
-| GET | `/api/canvas/task-options` | Listar tareas globales disponibles para vincular. |
-| PUT | `/api/tasks/{task_id}/completion` | Actualizar el estado completado de una tarea global. |
-| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global (idempotente). |
+| POST | `/api/canvas/{id}/elements/{element_key}/convert-task` | Convertir una tarjeta propia en tarea global; operación idempotente. |
 
-La integración de tareas reutiliza el CRUD global existente; no se crea un segundo CRUD de tareas. La conversión crea un registro global una sola vez y conserva una única fuente de verdad. El editor libre usa elementos HTML posicionados con una capa SVG para conexiones; el modo estructurado usa tarjetas HTML/CSS.
+La integración reutiliza el gestor global de tareas y conserva una única fuente de verdad. El Canvas libre utiliza elementos HTML posicionados y una capa SVG para conexiones; el modo estructurado utiliza HTML/CSS.
 
-Los adjuntos binarios se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. En el alcance actual: PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX; tamaño máximo de 7 MB por archivo y 8 MB para la petición. Se valida el contenido según formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar conexión para abrirse.
-
-Los adjuntos binarios se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. En el alcance actual: PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX; tamaño máximo de 7 MB por archivo y 8 MB para la petición. Se valida el contenido según formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar conexión para abrirse.
+Los adjuntos se guardan junto a la base de datos, en `canvas_attachments`, nunca en `static/`. Los formatos permitidos son PNG, JPG/JPEG, WebP, PDF, TXT, MD, CSV, DOCX, XLSX y PPTX. El límite por archivo es 7 MB y el límite de solicitud es 8 MB. Se valida el contenido según el formato, se generan nombres locales aleatorios y se rechazan ejecutables, scripts y HTML. Los enlaces HTTP/HTTPS son referencias externas y pueden necesitar Internet para abrirse.
 
 ## 5. Guardado e historial
 
@@ -365,7 +348,7 @@ Este estado describe el código incorporado en la rama `feature/foocus-canvas-fo
 
 La rama continúa en un PR de borrador. No debe declararse Canvas listo para distribución hasta que las pruebas de Actions y la instalación manual en Windows pasen sobre el mismo commit final.
 
-## 8. Fases de implementación
+## 9. Fases de implementación
 
 | Fase | Entrega | Salida verificable |
 |---|---|---|
@@ -377,7 +360,7 @@ La rama continúa en un PR de borrador. No debe declararse Canvas listo para dis
 | 5 | Tareas y adjuntos | CAN-035 a CAN-050. |
 | 6 | Estabilización e instalador | CAN-059 a CAN-065 y escenarios end-to-end. |
 
-## 9. Definition of Done
+## 10. Definition of Done
 
 Canvas no se considera terminado hasta que:
 - Los criterios de aceptación correspondientes a la entrega pasan.
