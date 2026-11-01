@@ -809,6 +809,52 @@
     if (!historyPanel.hidden) await refreshHistory();
   });
   byId("canvas-history-close").addEventListener("click", () => { historyPanel.hidden = true; });
+  attachmentFileForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!board || !attachmentElementSelect.value) {
+      byId("canvas-status").textContent = "Crea o selecciona un elemento antes de adjuntar un archivo.";
+      return;
+    }
+    const fileInput = byId("canvas-attachment-file");
+    if (!fileInput.files || !fileInput.files.length) return;
+    const formData = new FormData();
+    formData.append("element_key", attachmentElementSelect.value);
+    formData.append("file", fileInput.files[0]);
+    const submit = attachmentFileForm.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await request("/api/canvas/" + board.id + "/attachments", {method:"POST", body:formData});
+      attachmentFileForm.reset();
+      byId("canvas-status").textContent = "Archivo adjuntado localmente.";
+      await refreshAttachments();
+    } catch (error) {
+      byId("canvas-status").textContent = error.message;
+      byId("canvas-status").classList.add("is-error");
+    } finally { submit.disabled = false; }
+  });
+
+  attachmentLinkForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!board || !attachmentElementSelect.value) {
+      byId("canvas-status").textContent = "Crea o selecciona un elemento antes de agregar un enlace.";
+      return;
+    }
+    const url = byId("canvas-attachment-url").value.trim();
+    const submit = attachmentLinkForm.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await request("/api/canvas/" + board.id + "/attachments", {
+        method:"POST", body:JSON.stringify({element_key:attachmentElementSelect.value, url})
+      });
+      attachmentLinkForm.reset();
+      byId("canvas-status").textContent = "Enlace agregado.";
+      await refreshAttachments();
+    } catch (error) {
+      byId("canvas-status").textContent = error.message;
+      byId("canvas-status").classList.add("is-error");
+    } finally { submit.disabled = false; }
+  });
+
   byId("canvas-editor-back").addEventListener("click", closeEditor);
   byId("canvas-add-note").addEventListener("click", () => addFree("note"));
   byId("canvas-add-text").addEventListener("click", () => addFree("text"));
