@@ -1164,6 +1164,54 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn("workspaces", workspace_tables)
         self.assertIn("canvas_boards", workspace_tables)
 
+    def test_canvas_history_versions_restore_without_erasing_later_versions(self):
+        created = self.client.post("/api/canvas", json={"title":"Historial","mode":"free"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        first = {"columns": [], "elements": [{
+            "key":"note-one","kind":"note","x":80,"y":80,
+            "content":{"title":"Primera idea","body":"Estado inicial"}
+        }], "connections":[]}
+        first_save = self.client.put(
+            f"/api/canvas/{board_id}/content", json=first, headers=self.csrf_headers()
+        )
+        self.assertEqual(first_save.status_code, 200)
+        self.assertEqual(first_save.json["version_number"], 1)
+
+        second = {
+            "columns": [],
+            "elements": [{
+                "key":"note-one","kind":"note","x":180,"y":140,
+                "content":{"title":"Segunda idea","body":"Estado modificado"}
+            }],
+            "connections":[],
+            "create_version":True
+        }
+        second_save = self.client.put(
+            f"/api/canvas/{board_id}/content", json=second, headers=self.csrf_headers()
+        )
+        self.assertEqual(second_save.status_code, 200)
+        self.assertEqual(second_save.json["version_number"], 2)
+
+        history = self.client.get(f"/api/canvas/{board_id}/history")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual([item["version_number"] for item in history.json["items"]], [2, 1])
+        self.assertEqual(history.json["items"][0]["description"], "Guardado manual")
+        version_one_id = history.json["items"][1]["id"]
+
+        restored = self.client.post(
+            f"/api/canvas/{board_id}/history/{version_one_id}/restore",
+            json={}, headers=self.csrf_headers(),
+        )
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json["version_number"], 3)
+        content = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(content.json["elements"][0]["content"]["title"], "Primera idea")
+
+        history_after = self.client.get(f"/api/canvas/{board_id}/history")
+        self.assertEqual([item["version_number"] for item in history_after.json["items"]], [3, 2, 1])
+        self.assertEqual(history_after.json["items"][0]["description"], "Restauración de versión 1")
+
     def test_workspace_and_canvas_catalog_lifecycle(self):
         created_workspace = self.client.post(
             "/api/workspaces",
