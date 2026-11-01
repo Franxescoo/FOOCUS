@@ -1378,6 +1378,209 @@ def update_task_study_days(task_id):
     })
 
 
+def normalize_workspace_payload(payload, current=None):
+    if not isinstance(payload, dict):
+        return None
+    current = current or {}
+    name = payload.get("name", current.get("name", ""))
+    description = payload.get("description", current.get("description", ""))
+    color = payload.get("color", current.get("color", "violet"))
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 60:
+        return None
+    if not isinstance(description, str) or len(description) > 500:
+        return None
+    if color not in {"violet", "blue", "green", "rose"}:
+        return None
+    return {"name": name.strip(), "description": description.strip(), "color": color}
+
+
+def normalize_canvas_board_payload(payload, current=None):
+    if not isinstance(payload, dict):
+        return None
+    current = current or {}
+    title = payload.get("title", current.get("title", ""))
+    mode = payload.get("mode", current.get("mode", "free"))
+    workspace_id = payload.get("workspace_id", current.get("workspace_id"))
+    if not isinstance(title, str) or not title.strip() or len(title.strip()) > 100:
+        return None
+    if mode not in {"free", "structured"}:
+        return None
+    if workspace_id is not None and (type(workspace_id) is not int or workspace_id < 1):
+        return None
+    return {"title": title.strip(), "mode": mode, "workspace_id": workspace_id}
+
+
+@app.route("/api/workspaces", methods=["GET", "POST"])
+def workspaces_api():
+    if request.method == "GET":
+        with get_db() as db:
+            rows = db.execute(
+                """SELECT w.id, w.name, w.description, w.color, w.created_at, w.updated_at,
+                          COUNT(cb.id) AS board_count
+                   FROM workspaces w LEFT JOIN canvas_boards cb ON cb.workspace_id = w.id
+                   GROUP BY w.id ORDER BY w.name COLLATE NOCASE"""
+            ).fetchall()
+        return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+    normalized = normalize_workspace_payload(request.get_json(silent=True))
+    if normalized is None:
+        return jsonify({"ok": False, "message": "Revisa el nombre, la descripción y el color del espacio."}), 400
+    try:
+        with get_db() as db:
+            cursor = db.execute(
+                "INSERT INTO workspaces (name, description, color) VALUES (?, ?, ?)",
+                (normalized["name"], normalized["description"], normalized["color"]),
+            )
+            workspace_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        return jsonify({"ok": False, "message": "Ya existe un espacio de trabajo con ese nombre."}), 409
+    return jsonify({"ok": True, "item": {"id": workspace_id, **normalized, "board_count": 0}}), 201
+
+
+@app.route("/api/workspaces/<int:workspace_id>", methods=["PATCH", "DELETE"])
+def workspace_detail_api(workspace_id):
+    if request.method == "PATCH":
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "message": "Envía los cambios como un objeto JSON."}), 400
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id, name, description, color FROM workspaces WHERE id = ?",
+                (workspace_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "No encontramos ese espacio de trabajo."}), 404
+            normalized = normalize_workspace_payload(payload, dict(row))
+            if normalized is None:
+                return jsonify({"ok": False, "message": "Revisa el nombre, la descripción y el color del espacio."}), 400
+            try:
+                db.execute(
+                    """UPDATE workspaces SET name = ?, description = ?, color = ?,
+                       updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+                    (normalized["name"], normalized["description"], normalized["color"], workspace_id),
+                )
+            except sqlite3.IntegrityError:
+                return jsonify({"ok": False, "message": "Ya existe otro espacio con ese nombre."}), 409
+        return jsonify({"ok": True, "item": {"id": workspace_id, **normalized}})
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get("preserve_boards") is not True:
+        return jsonify({"ok": False, "message": "Confirma preserve_boards=true para conservar los tableros como independientes."}), 400
+    with get_db() as db:
+        row = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese espacio de trabajo."}), 404
+        db.execute(
+            "UPDATE canvas_boards SET workspace_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        db.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
+    return jsonify({"ok": True, "message": "Espacio eliminado; sus tableros se conservaron como independientes."})
+
+
+@app.route("/api/canvas", methods=["GET", "POST"])
+def canvas_boards_api():
+    if request.method == "GET":
+        workspace_filter = request.args.get("workspace_id")
+        query = """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
+                          w.name AS workspace_name
+                   FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id"""
+        params = ()
+        if workspace_filter is not None:
+            try:
+                workspace_id = int(workspace_filter)
+            except (TypeError, ValueError):
+                return jsonify({"ok": False, "message": "El identificador del espacio no es válido."}), 400
+            query += " WHERE cb.workspace_id = ?"
+            params = (workspace_id,)
+        query += " ORDER BY cb.updated_at DESC, cb.id DESC"
+        with get_db() as db:
+            rows = db.execute(query, params).fetchall()
+        return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+    normalized = normalize_canvas_board_payload(request.get_json(silent=True))
+    if normalized is None:
+        return jsonify({"ok": False, "message": "Revisa el título, tipo y espacio asociado del Canvas."}), 400
+    with get_db() as db:
+        workspace_id = normalized["workspace_id"]
+        if workspace_id is not None:
+            workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+            if not workspace:
+                return jsonify({"ok": False, "message": "El espacio seleccionado no existe."}), 404
+        cursor = db.execute(
+            "INSERT INTO canvas_boards (workspace_id, title, mode) VALUES (?, ?, ?)",
+            (workspace_id, normalized["title"], normalized["mode"]),
+        )
+        row = db.execute(
+            """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
+                      w.name AS workspace_name
+               FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id
+               WHERE cb.id = ?""",
+            (cursor.lastrowid,),
+        ).fetchone()
+    return jsonify({"ok": True, "item": dict(row)}), 201
+
+
+@app.route("/api/canvas/<int:board_id>", methods=["GET", "PATCH", "DELETE"])
+def canvas_board_detail_api(board_id):
+    if request.method == "GET":
+        with get_db() as db:
+            row = db.execute(
+                """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.viewport_json,
+                          cb.preferences_json, cb.created_at, cb.updated_at,
+                          w.name AS workspace_name
+                   FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id
+                   WHERE cb.id = ?""",
+                (board_id,),
+            ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        return jsonify({"ok": True, "item": dict(row), "stage": "catalog"})
+
+    if request.method == "PATCH":
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "message": "Envía los cambios como un objeto JSON."}), 400
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id, workspace_id, title, mode FROM canvas_boards WHERE id = ?",
+                (board_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+            normalized = normalize_canvas_board_payload(payload, dict(row))
+            if normalized is None:
+                return jsonify({"ok": False, "message": "Revisa el título, tipo y espacio asociado del Canvas."}), 400
+            workspace_id = normalized["workspace_id"]
+            if workspace_id is not None:
+                workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+                if not workspace:
+                    return jsonify({"ok": False, "message": "El espacio seleccionado no existe."}), 404
+            db.execute(
+                """UPDATE canvas_boards SET workspace_id = ?, title = ?, mode = ?,
+                   updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+                (workspace_id, normalized["title"], normalized["mode"], board_id),
+            )
+            updated = db.execute(
+                """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
+                          w.name AS workspace_name
+                   FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id
+                   WHERE cb.id = ?""",
+                (board_id,),
+            ).fetchone()
+        return jsonify({"ok": True, "item": dict(updated)})
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get("confirm") is not True:
+        return jsonify({"ok": False, "message": "Confirma la eliminación con confirm=true."}), 400
+    with get_db() as db:
+        row = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        db.execute("DELETE FROM canvas_boards WHERE id = ?", (board_id,))
+    return jsonify({"ok": True, "message": "Canvas eliminado."})
+
+
 @app.route("/api/settings/theme", methods=["PUT"])
 def update_theme():
     """Persist the selected appearance in the local settings database."""
