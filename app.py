@@ -1885,8 +1885,12 @@ def canvas_attachments_api(board_id):
             return jsonify({"ok": False, "message": "Selecciona un elemento válido."}), 400
         if not isinstance(url, str) or len(url) > 2048:
             return jsonify({"ok": False, "message": "El enlace no es válido."}), 400
-        parsed = urlsplit(url.strip())
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+        try:
+            parsed = urlsplit(url.strip())
+            valid_url = parsed.scheme in {"http", "https"} and bool(parsed.netloc) and not parsed.username and not parsed.password
+        except ValueError:
+            valid_url = False
+        if not valid_url:
             return jsonify({"ok": False, "message": "Solo se permiten enlaces HTTP o HTTPS válidos."}), 400
         clean_url = url.strip()
         with get_db() as db:
