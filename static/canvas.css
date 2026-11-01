@@ -351,3 +351,37 @@ html[data-theme="dark"] .canvas-column-remove { border-color: var(--line); backg
   line-height: 1.45;
 }
 html[data-theme="dark"] .canvas-orphan-task-note { color: #e8b17f; }
+
+
+.canvas-history-panel {
+  margin: 12px 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.canvas-history-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.canvas-history-header h3 { margin: 0; font: 700 14px 'Manrope',sans-serif; }
+.canvas-history-header p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+.canvas-history-list { display: grid; gap: 8px; }
+.canvas-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.canvas-history-row > div { display: grid; gap: 4px; }
+.canvas-history-row strong { font-size: 10px; }
+.canvas-history-row small { color: var(--muted); font-size: 9px; }
+.canvas-history-row button { flex: 0 0 auto; min-height: 31px; }
+html[data-theme="dark"] .canvas-history-panel { background: #191b2b; }
