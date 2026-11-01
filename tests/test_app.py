@@ -292,7 +292,15 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'class="brand-wordmark"', response.data)
         self.assertIn(b'fill="var(--purple)"', response.data)
+        self.assertIn(b'data-accent="violet"', response.data)
         self.assertIn(b'FOOCUS', response.data)
+
+        saved = self.client.put(
+            "/api/productivity/profile", json={"accent": "blue"}, headers=self.csrf_headers()
+        )
+        self.assertEqual(saved.status_code, 200)
+        personalized = self.client.get("/")
+        self.assertIn(b'data-accent="blue"', personalized.data)
 
         root = Path(__file__).resolve().parents[1]
         style = (root / "static" / "style.css").read_text(encoding="utf-8")
