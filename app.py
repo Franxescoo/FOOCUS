@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import io
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -1456,6 +1457,246 @@ def normalize_canvas_board_payload(payload, current=None):
     if workspace_id is not None and (type(workspace_id) is not int or workspace_id < 1):
         return None
     return {"title": title.strip(), "mode": mode, "workspace_id": workspace_id}
+
+
+def normalize_canvas_content(db, board, payload):
+    """Validate a complete Canvas snapshot before its transaction replaces saved content."""
+    if not isinstance(payload, dict):
+        return None, "Envía el contenido del Canvas como un objeto JSON."
+
+    columns = payload.get("columns", [])
+    elements = payload.get("elements", [])
+    connections = payload.get("connections", [])
+    if not isinstance(columns, list) or not isinstance(elements, list) or not isinstance(connections, list):
+        return None, "Columnas, elementos y conexiones deben ser listas."
+    if len(columns) > 80 or len(elements) > 400 or len(connections) > 600:
+        return None, "El tablero supera el límite de elementos permitido."
+
+    mode = board["mode"]
+    normalized_columns = []
+    column_keys = set()
+    for position, column in enumerate(columns):
+        if not isinstance(column, dict):
+            return None, "Una columna tiene un formato incorrecto."
+        key = column.get("key")
+        title = column.get("title")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            return None, "Una columna tiene un identificador no válido."
+        if key in column_keys:
+            return None, "Hay identificadores de columna repetidos."
+        if not isinstance(title, str) or not title.strip() or len(title.strip()) > 60:
+            return None, "Los nombres de columna deben tener entre 1 y 60 caracteres."
+        column_keys.add(key)
+        normalized_columns.append({"key": key, "title": title.strip(), "position": position})
+
+    if mode == "free" and normalized_columns:
+        return None, "Un Canvas libre no puede contener columnas estructuradas."
+    if mode == "structured" and not normalized_columns:
+        return None, "Un Canvas estructurado debe tener al menos una columna."
+
+    normalized_elements = []
+    element_keys = set()
+    for element in elements:
+        if not isinstance(element, dict):
+            return None, "Un elemento tiene un formato incorrecto."
+        key = element.get("key")
+        kind = element.get("kind")
+        column_key = element.get("column_key")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            return None, "Un elemento tiene un identificador no válido."
+        if key in element_keys:
+            return None, "Hay identificadores de elemento repetidos."
+        if (mode == "free" and kind not in {"note", "text", "group"}) or (
+            mode == "structured" and kind != "card"
+        ):
+            return None, "El tipo de elemento no corresponde al modo de este Canvas."
+        if mode == "structured" and column_key not in column_keys:
+            return None, "Cada tarjeta debe pertenecer a una columna existente."
+        if mode == "free" and column_key is not None:
+            return None, "Los elementos de un Canvas libre no usan columnas."
+
+        coordinates = {}
+        for field, default, minimum, maximum in (
+            ("x", 80, -100000, 100000),
+            ("y", 80, -100000, 100000),
+            ("width", 240, 60, 2400),
+            ("height", 150, 60, 2400),
+        ):
+            value = element.get(field, default)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None, "La posición o tamaño de un elemento no es válido."
+            if not math.isfinite(value) or value < minimum or value > maximum:
+                return None, "La posición o tamaño de un elemento está fuera del límite."
+            coordinates[field] = float(value)
+
+        content = element.get("content", {})
+        if not isinstance(content, dict):
+            return None, "El contenido de un elemento debe ser un objeto."
+        allowed_content_fields = {"title", "body", "description", "priority", "due_date", "status"}
+        if set(content) - allowed_content_fields:
+            return None, "Un elemento contiene campos no permitidos."
+        clean_content = {}
+        for field, maximum in (
+            ("title", 160), ("body", 5000), ("description", 2000),
+            ("priority", 10), ("due_date", 10), ("status", 30),
+        ):
+            value = content.get(field, "")
+            if not isinstance(value, str) or len(value) > maximum:
+                return None, "El contenido de un elemento supera el formato permitido."
+            clean_content[field] = value.strip() if field in {"title", "priority", "status"} else value
+        if mode == "structured":
+            if not clean_content["title"].strip():
+                return None, "Cada tarjeta debe tener un título."
+            if clean_content["priority"] and clean_content["priority"] not in {"Baja", "Media", "Alta"}:
+                return None, "La prioridad de una tarjeta no es válida."
+            if clean_content["status"] and clean_content["status"] not in {"Pendiente", "En curso", "En revisión", "Completada"}:
+                return None, "El estado de una tarjeta no es válido."
+            due_date = clean_content["due_date"]
+            if due_date and valid_due_date(due_date) is False:
+                return None, "La fecha de una tarjeta no es válida."
+        task_id = element.get("task_id")
+        task_snapshot_title = ""
+        if task_id is not None:
+            if mode != "structured" or kind != "card" or type(task_id) is not int or task_id < 1:
+                return None, "La referencia a tarea global no es válida."
+            task = db.execute("SELECT id, title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if not task:
+                return None, "La tarea global vinculada ya no existe."
+            task_snapshot_title = task["title"]
+        element_keys.add(key)
+        normalized_elements.append({
+            "key": key, "kind": kind, "column_key": column_key,
+            **coordinates, "content": clean_content, "task_id": task_id,
+            "task_snapshot_title": task_snapshot_title,
+        })
+
+    normalized_connections = []
+    connection_keys = set()
+    for connection in connections:
+        if mode != "free":
+            return None, "Las conexiones se habilitan en Canvas libre."
+        if not isinstance(connection, dict):
+            return None, "Una conexión tiene un formato incorrecto."
+        key = connection.get("key")
+        source = connection.get("source")
+        target = connection.get("target")
+        label = connection.get("label", "")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            return None, "Una conexión tiene un identificador no válido."
+        if key in connection_keys:
+            return None, "Hay identificadores de conexión repetidos."
+        if source not in element_keys and not isinstance(source, str):
+            return None, "El origen de una conexión no es válido."
+        if not isinstance(source, str) or not isinstance(target, str) or source not in element_keys or target not in element_keys or source == target:
+            return None, "Una conexión debe unir dos elementos distintos del mismo tablero."
+        if not isinstance(label, str) or len(label) > 100:
+            return None, "La etiqueta de una conexión es demasiado larga."
+        connection_keys.add(key)
+        normalized_connections.append({"key": key, "source": source, "target": target, "label": label})
+
+    return {
+        "columns": normalized_columns,
+        "elements": normalized_elements,
+        "connections": normalized_connections,
+    }, None
+
+
+@app.route("/api/canvas/<int:board_id>/content", methods=["GET", "PUT"])
+def canvas_board_content_api(board_id):
+    with get_db() as db:
+        board = db.execute(
+            "SELECT id, mode FROM canvas_boards WHERE id = ?", (board_id,)
+        ).fetchone()
+        if not board:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+
+        if request.method == "GET":
+            columns = db.execute(
+                "SELECT column_key AS key, title, position FROM canvas_columns WHERE board_id = ? ORDER BY position, id",
+                (board_id,),
+            ).fetchall()
+            element_rows = db.execute(
+                """SELECT e.element_key AS key, e.kind, e.column_key, e.x, e.y, e.width, e.height,
+                          e.content_json, e.task_id, COALESCE(t.title, e.task_snapshot_title) AS linked_task_title,
+                          t.completed AS linked_task_completed
+                   FROM canvas_elements e LEFT JOIN tasks t ON t.id = e.task_id
+                   WHERE e.board_id = ? ORDER BY e.id""",
+                (board_id,),
+            ).fetchall()
+            elements = []
+            for row in element_rows:
+                item = dict(row)
+                try:
+                    item["content"] = json.loads(item.pop("content_json"))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    item["content"] = {}
+                item["linked_task_completed"] = (
+                    bool(item["linked_task_completed"]) if item["linked_task_completed"] is not None else None
+                )
+                elements.append(item)
+            connection_rows = db.execute(
+                """SELECT connection_key AS key, source_key AS source, target_key AS target, label
+                   FROM canvas_connections WHERE board_id = ? ORDER BY id""",
+                (board_id,),
+            ).fetchall()
+            return jsonify({
+                "ok": True,
+                "mode": board["mode"],
+                "columns": [dict(row) for row in columns],
+                "elements": elements,
+                "connections": [dict(row) for row in connection_rows],
+            })
+
+        payload = request.get_json(silent=True)
+        normalized, error = normalize_canvas_content(db, board, payload)
+        if error:
+            return jsonify({"ok": False, "message": error}), 400
+
+        # Replace the complete snapshot in one SQLite transaction.
+        db.execute("DELETE FROM canvas_connections WHERE board_id = ?", (board_id,))
+        db.execute("DELETE FROM canvas_elements WHERE board_id = ?", (board_id,))
+        db.execute("DELETE FROM canvas_columns WHERE board_id = ?", (board_id,))
+        db.executemany(
+            "INSERT INTO canvas_columns (board_id, column_key, title, position) VALUES (?, ?, ?, ?)",
+            [(board_id, item["key"], item["title"], item["position"]) for item in normalized["columns"]],
+        )
+        db.executemany(
+            """INSERT INTO canvas_elements
+               (board_id, element_key, column_key, kind, x, y, width, height, content_json, task_id, task_snapshot_title)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                (
+                    board_id, item["key"], item["column_key"], item["kind"],
+                    item["x"], item["y"], item["width"], item["height"],
+                    json.dumps(item["content"], ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+                    item["task_id"], item["task_snapshot_title"],
+                )
+                for item in normalized["elements"]
+            ],
+        )
+        db.executemany(
+            """INSERT INTO canvas_connections
+               (board_id, connection_key, source_key, target_key, label)
+               VALUES (?, ?, ?, ?, ?)""",
+            [
+                (board_id, item["key"], item["source"], item["target"], item["label"])
+                for item in normalized["connections"]
+            ],
+        )
+        db.execute(
+            "UPDATE canvas_boards SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (board_id,),
+        )
+
+    return jsonify({
+        "ok": True,
+        "message": "Canvas guardado.",
+        "counts": {
+            "columns": len(normalized["columns"]),
+            "elements": len(normalized["elements"]),
+            "connections": len(normalized["connections"]),
+        },
+    })
 
 
 @app.route("/api/workspaces", methods=["GET", "POST"])
