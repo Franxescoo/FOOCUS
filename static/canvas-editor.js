@@ -840,6 +840,8 @@
         request("/api/canvas/" + item.id + "/attachments")
       ]);
       taskOptions = result[2].items || [];
+      let savedViewport = {};
+      try { savedViewport = JSON.parse(result[0].item.viewport_json || "{}"); } catch (error) { savedViewport = {}; }
       board = item;
       state = {
         columns:result[1].columns || [],
@@ -880,8 +882,10 @@
         : "Arrastra los bloques para organizarlos. Usa Ctrl/Cmd + clic para seleccionar varios elementos y crear conexiones.";
       catalog.hidden = true;
       editor.hidden = false;
-      if (board.mode === "free") renderFree();
-      else renderStructured();
+      if (board.mode === "free") {
+        renderFree();
+        restoreViewport(savedViewport);
+      } else renderStructured();
       historyPanel.hidden = true;
       renderHistory(result[3].items || []);
       renderAttachments(result[4].items || []);
