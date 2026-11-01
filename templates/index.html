@@ -573,8 +573,13 @@
             <button class="focus-reset" id="canvas-undo" type="button" disabled>↶ Deshacer</button>
             <button class="focus-reset" id="canvas-redo" type="button" disabled>↷ Rehacer</button>
             <button class="primary-button" id="canvas-save-now" type="button">Guardar ahora</button>
+            <button class="focus-reset" id="canvas-history-toggle" type="button">Historial</button>
           </div>
         </div>
+        <section class="canvas-history-panel" id="canvas-history-panel" hidden aria-labelledby="canvas-history-title">
+          <div class="canvas-history-header"><div><h3 id="canvas-history-title">Historial de versiones</h3><p>Las versiones se guardan localmente en este equipo.</p></div><button class="focus-reset" id="canvas-history-close" type="button">Cerrar</button></div>
+          <div class="canvas-history-list" id="canvas-history-list"></div>
+        </section>
         <p class="canvas-editor-hint" id="canvas-editor-hint"></p>
         <div class="canvas-free-stage" id="canvas-free-stage" hidden tabindex="0" aria-label="Lienzo libre">
           <svg class="canvas-connection-layer" id="canvas-connection-layer" viewBox="0 0 2400 1600" aria-hidden="true"></svg>
