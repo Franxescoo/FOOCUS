@@ -1603,12 +1603,26 @@ def normalize_canvas_content(db, board, payload):
     }, None
 
 
+@app.route("/api/tasks/<int:task_id>/completion", methods=["PUT"])
+def update_task_completion_api(task_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get("completed")) is not bool:
+        return jsonify({"ok": False, "message": "Indica si la tarea está completada."}), 400
+    with get_db() as db:
+        cursor = db.execute("UPDATE tasks SET completed = ? WHERE id = ?", (int(payload["completed"]), task_id))
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+    return jsonify({"ok": True, "task_id": task_id, "completed": payload["completed"]})
+
+
 @app.route("/api/canvas/task-options", methods=["GET"])
 def canvas_task_options_api():
     with get_db() as db:
         rows = db.execute(
-            """SELECT id, title, priority, due_date, planned_date, completed, estimated_minutes
-               FROM tasks ORDER BY completed ASC, title COLLATE NOCASE"""
+            """SELECT t.id, t.title, t.priority, t.due_date, t.planned_date, t.completed,
+                      t.estimated_minutes, COALESCE(s.name, '') AS subject
+               FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id
+               ORDER BY t.completed ASC, t.title COLLATE NOCASE"""
         ).fetchall()
     return jsonify({"ok": True, "items": [dict(row) for row in rows]})
 
@@ -1629,9 +1643,13 @@ def canvas_board_content_api(board_id):
             ).fetchall()
             element_rows = db.execute(
                 """SELECT e.element_key AS key, e.kind, e.column_key, e.x, e.y, e.width, e.height,
-                          e.content_json, e.task_id, COALESCE(t.title, e.task_snapshot_title) AS linked_task_title,
-                          t.completed AS linked_task_completed
+                          e.content_json, e.task_id, e.task_snapshot_title,
+                          COALESCE(t.title, e.task_snapshot_title) AS linked_task_title,
+                          t.priority AS linked_task_priority, t.due_date AS linked_task_due_date,
+                          t.planned_date AS linked_task_planned_date, t.estimated_minutes AS linked_task_estimated_minutes,
+                          COALESCE(s.name, '') AS linked_task_subject, t.completed AS linked_task_completed
                    FROM canvas_elements e LEFT JOIN tasks t ON t.id = e.task_id
+                   LEFT JOIN subjects s ON s.id = t.subject_id
                    WHERE e.board_id = ? ORDER BY e.id""",
                 (board_id,),
             ).fetchall()
