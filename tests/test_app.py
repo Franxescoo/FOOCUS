@@ -1398,6 +1398,129 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIsNone(orphaned.json["elements"][0]["task_id"])
         self.assertEqual(orphaned.json["elements"][0]["linked_task_title"], "Informe revisado")
 
+    def test_canvas_attachment_upload_link_download_and_safe_delete(self):
+        board = self.client.post("/api/canvas", json={"title":"Adjuntos"}, headers=self.csrf_headers()).json["item"]
+        board_id = board["id"]
+        saved = self.client.put(
+            f"/api/canvas/{board_id}/content",
+            json={"columns":[],"elements":[{"key":"note-file","kind":"note","content":{"title":"Notas"}}],"connections":[]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200)
+
+        bad_link = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            json={"element_key":"note-file","url":"javascript:alert(1)"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(bad_link.status_code, 400)
+
+        link = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            json={"element_key":"note-file","url":"https://example.com/reference"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(link.status_code, 201)
+        self.assertEqual(link.json["item"]["kind"], "link")
+
+        upload = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"note-file","file":(io.BytesIO(b"FOOCUS project notes\nCanvas attachment"),"notes.txt")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(upload.status_code, 201)
+        attachment_id = upload.json["item"]["id"]
+
+        listing = self.client.get(f"/api/canvas/{board_id}/attachments")
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(len(listing.json["items"]), 2)
+        file_item = next(item for item in listing.json["items"] if item["kind"] == "file")
+        self.assertEqual(file_item["element_title"], "Notas")
+        downloaded = self.client.get(file_item["download_url"])
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertIn(b"FOOCUS project notes", downloaded.data)
+
+        rejected = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"note-file","file":(io.BytesIO(b"not an executable"),"payload.exe")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(rejected.status_code, 400)
+
+        with focusflow.get_db() as db:
+            stored_path = db.execute("SELECT relative_path FROM canvas_attachments WHERE id = ?", (attachment_id,)).fetchone()["relative_path"]
+        stored_file = focusflow.canvas_attachment_path(stored_path)
+        self.assertTrue(stored_file.is_file())
+        deleted = self.client.delete(
+            f"/api/canvas/{board_id}/attachments/{attachment_id}", headers=self.csrf_headers()
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(stored_file.exists())
+
+    def test_canvas_attachment_requires_existing_element_and_board_deletion_cleans_files(self):
+        board = self.client.post("/api/canvas", json={"title":"Archivos"}, headers=self.csrf_headers()).json["item"]
+        board_id = board["id"]
+        missing_element = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"missing","file":(io.BytesIO(b"hello"),"hello.txt")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(missing_element.status_code, 404)
+        self.client.put(
+            f"/api/canvas/{board_id}/content",
+            json={"columns":[],"elements":[{"key":"n1","kind":"note","content":{"title":"Nota"}}],"connections":[]},
+            headers=self.csrf_headers(),
+        )
+        uploaded = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"n1","file":(io.BytesIO(b"hello world"),"hello.txt")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(uploaded.status_code, 201)
+        attachment_id = uploaded.json["item"]["id"]
+        with focusflow.get_db() as db:
+            relative = db.execute("SELECT relative_path FROM canvas_attachments WHERE id = ?", (attachment_id,)).fetchone()["relative_path"]
+        file_path = focusflow.canvas_attachment_path(relative)
+        self.assertTrue(file_path.exists())
+        deleted = self.client.delete(f"/api/canvas/{board_id}", json={"confirm":True}, headers=self.csrf_headers())
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(file_path.exists())
+
+    def test_canvas_card_conversion_creates_one_global_task(self):
+        created = self.client.post(
+            "/api/canvas", json={"title":"Plan","mode":"structured"}, headers=self.csrf_headers()
+        )
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        with focusflow.get_db() as db:
+            task_count_before = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        content = {
+            "columns":[{"key":"todo","title":"Por hacer"},{"key":"doing","title":"En curso"},{"key":"done","title":"Hecho"}],
+            "elements":[{"key":"card-convert","kind":"card","column_key":"todo",
+                        "content":{"title":"Preparar presentación","description":"Diapositivas","priority":"Alta","due_date":"","status":"Pendiente"}}],
+            "connections":[]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=content, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        first = self.client.post(
+            f"/api/canvas/{board_id}/elements/card-convert/convert-task", json={}, headers=self.csrf_headers()
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertFalse(first.json["already_linked"])
+        task_id = first.json["task"]["id"]
+        second = self.client.post(
+            f"/api/canvas/{board_id}/elements/card-convert/convert-task", json={}, headers=self.csrf_headers()
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json["already_linked"])
+        self.assertEqual(second.json["task"]["id"], task_id)
+        with focusflow.get_db() as db:
+            task_count_after = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        self.assertEqual(task_count_after, task_count_before + 1)
+        linked = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(linked.json["elements"][0]["task_id"], task_id)
+        self.assertEqual(linked.json["elements"][0]["linked_task_title"], "Preparar presentación")
+
     def test_canvas_content_rejects_wrong_mode_invalid_dimensions_and_missing_columns(self):
         free_board = self.client.post("/api/canvas", json={"title":"Libre"}, headers=self.csrf_headers()).json["item"]["id"]
         structured_board = self.client.post("/api/canvas", json={"title":"Estructurado","mode":"structured"}, headers=self.csrf_headers()).json["item"]["id"]
