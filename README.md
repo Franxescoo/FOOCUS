@@ -16,7 +16,7 @@ FOOCUS es una aplicación local de escritorio y navegador para organizar tareas 
 - Revisar la carga de trabajo de los próximos siete días.
 - Registrar sesiones de trabajo, cronómetro, avances y siguientes pasos.
 - Consultar historial de sesiones, estadísticas, meta diaria y mapa de actividad.
-- Usar temporizadores de enfoque de 5, 15 o 25 minutos.
+- Configurar el temporizador de enfoque con bloques de 5 a 120 minutos y descansos personalizados.
 - Desbloquear tareas pendientes con un plan anti-procrastinación de cinco minutos, un primer paso concreto y sugerencias por prioridad y fecha límite.
 - Guardar notas rápidas, cambiar entre modo claro y oscuro y exportar tareas/sesiones a CSV.
 

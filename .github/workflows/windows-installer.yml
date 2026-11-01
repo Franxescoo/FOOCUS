@@ -42,18 +42,27 @@ jobs:
           if ($env:GITHUB_EVENT_NAME -eq "push" -and $env:GITHUB_REF -eq "refs/heads/main") {
             git fetch --force --tags
             $latestTag = git tag --list "v[0-9]*" --sort=-v:refname | Select-Object -First 1
+            $baselineVersion = (Get-Content -Path "VERSION" -Raw).Trim()
+            if ($baselineVersion -notmatch '^\d+\.\d+\.\d+$') {
+              throw "VERSION must contain a numeric semantic version such as 1.1.0."
+            }
             if ([string]::IsNullOrWhiteSpace($latestTag)) {
-              $version = "1.0.0"
+              $version = $baselineVersion
             } else {
-              $parts = $latestTag.TrimStart("v").Split(".")
-              if ($parts.Count -ne 3 -or $parts[0] -notmatch '^\d+$' -or $parts[1] -notmatch '^\d+$' -or $parts[2] -notmatch '^\d+$') {
+              $latestVersion = $latestTag.TrimStart("v")
+              if ($latestVersion -notmatch '^\d+\.\d+\.\d+$') {
                 throw "Latest semantic version tag is invalid: $latestTag"
               }
-              $parts[2] = ([int]$parts[2] + 1).ToString()
-              $version = "$($parts[0]).$($parts[1]).$($parts[2])"
+              if ([version]$latestVersion -lt [version]$baselineVersion) {
+                $version = $baselineVersion
+              } else {
+                $parts = $latestVersion.Split(".")
+                $parts[2] = ([int]$parts[2] + 1).ToString()
+                $version = "$($parts[0]).$($parts[1]).$($parts[2])"
+              }
             }
             "release_version=$version" | Add-Content -Path $env:GITHUB_OUTPUT
-            $appVersion = "V$version"
+            $appVersion = "V$version+"
           } else {
             "release_version=" | Add-Content -Path $env:GITHUB_OUTPUT
             $appVersion = "dev-$env:GITHUB_RUN_NUMBER"
@@ -121,9 +130,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.build-installer.outputs.release_version }}
-          name: FOOCUS V${{ needs.build-installer.outputs.release_version }}
+          name: FOOCUS V${{ needs.build-installer.outputs.release_version }}+
           body: |
-            FOOCUS V${{ needs.build-installer.outputs.release_version }}
+            FOOCUS V${{ needs.build-installer.outputs.release_version }}+
 
             Instalador generado automáticamente desde el commit ${{ github.sha }}. Las novedades aparecen en la sección What's Changed.
           files: dist-installer/FOOCUS-Setup.exe
