@@ -9,7 +9,12 @@
   const status = document.getElementById("canvas-status");
   const workspaceCount = document.getElementById("canvas-workspace-count");
   const boardCount = document.getElementById("canvas-board-count");
+  const boardsTitle = document.getElementById("canvas-boards-list-title");
+  const showAllBoardsButton = document.getElementById("canvas-show-all-boards");
   if (!workspaceForm || !boardForm) return;
+  let cachedWorkspaces = [];
+  let cachedBoards = [];
+  let activeWorkspaceFilter = null;
 
   async function api(url, options = {}) {
     const method = options.method || "GET";
@@ -76,6 +81,13 @@
       const actions = document.createElement("div");
       actions.className = "canvas-item-actions";
       actions.append(
+        makeButton("Ver tableros", "focus-reset", () => {
+          activeWorkspaceFilter = workspace.id;
+          boardsTitle.textContent = "Tableros · " + workspace.name;
+          showAllBoardsButton.hidden = false;
+          const associated = cachedBoards.filter(board => Number(board.workspace_id) === Number(workspace.id));
+          renderBoards(associated, cachedWorkspaces);
+        }),
         makeButton("Renombrar", "focus-reset", async () => {
           const nextName = window.prompt("Nuevo nombre del espacio:", workspace.name);
           if (nextName === null || !nextName.trim()) return;
@@ -175,12 +187,31 @@
     setStatus("Cargando espacios y tableros…");
     try {
       const results = await Promise.all([api("/api/workspaces"), api("/api/canvas")]);
-      renderWorkspaceOptions(results[0].items);
-      renderWorkspaces(results[0].items);
-      renderBoards(results[1].items, results[0].items);
+      cachedWorkspaces = results[0].items;
+      cachedBoards = results[1].items;
+      renderWorkspaceOptions(cachedWorkspaces);
+      renderWorkspaces(cachedWorkspaces);
+      const activeWorkspace = cachedWorkspaces.find(item => item.id === activeWorkspaceFilter);
+      if (activeWorkspace) {
+        boardsTitle.textContent = "Tableros · " + activeWorkspace.name;
+        showAllBoardsButton.hidden = false;
+        renderBoards(cachedBoards.filter(board => Number(board.workspace_id) === Number(activeWorkspaceFilter)), cachedWorkspaces);
+      } else {
+        activeWorkspaceFilter = null;
+        boardsTitle.textContent = "Todos los tableros";
+        showAllBoardsButton.hidden = true;
+        renderBoards(cachedBoards, cachedWorkspaces);
+      }
       setStatus("Tus espacios y tableros están guardados localmente en FOOCUS.");
     } catch (error) { setStatus(error.message, true); }
   }
+
+  showAllBoardsButton.addEventListener("click", () => {
+    activeWorkspaceFilter = null;
+    boardsTitle.textContent = "Todos los tableros";
+    showAllBoardsButton.hidden = true;
+    renderBoards(cachedBoards, cachedWorkspaces);
+  });
 
   workspaceForm.addEventListener("submit", async event => {
     event.preventDefault();
