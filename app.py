@@ -2341,7 +2341,20 @@ def canvas_board_detail_api(board_id):
         row = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
         if not row:
             return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        attachment_paths = [
+            item["relative_path"] for item in db.execute(
+                "SELECT relative_path FROM canvas_attachments WHERE board_id = ? AND relative_path IS NOT NULL",
+                (board_id,),
+            ).fetchall()
+        ]
         db.execute("DELETE FROM canvas_boards WHERE id = ?", (board_id,))
+    for relative_path in attachment_paths:
+        path = canvas_attachment_path(relative_path)
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
     return jsonify({"ok": True, "message": "Canvas eliminado."})
 
 
