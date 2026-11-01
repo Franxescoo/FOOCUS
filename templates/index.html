@@ -580,6 +580,27 @@
           <div class="canvas-history-header"><div><h3 id="canvas-history-title">Historial de versiones</h3><p>Las versiones se guardan localmente en este equipo.</p></div><button class="focus-reset" id="canvas-history-close" type="button">Cerrar</button></div>
           <div class="canvas-history-list" id="canvas-history-list"></div>
         </section>
+        <section class="canvas-attachments-panel" aria-labelledby="canvas-attachments-title">
+          <div class="canvas-history-header"><div><h3 id="canvas-attachments-title">Archivos y enlaces</h3><p>Adjunta recursos locales o enlaces a los elementos de este tablero.</p></div></div>
+          <div class="canvas-attachment-controls">
+            <label class="field" for="canvas-attachment-element">Elemento
+              <select id="canvas-attachment-element"><option value="">Selecciona un elemento</option></select>
+            </label>
+            <form id="canvas-attachment-file-form" class="canvas-attachment-file-form">
+              <label class="field" for="canvas-attachment-file">Archivo (máx. 7 MB)
+                <input id="canvas-attachment-file" name="file" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.md,.csv,.docx,.xlsx,.pptx" required>
+              </label>
+              <button class="focus-reset" type="submit">Adjuntar archivo</button>
+            </form>
+            <form id="canvas-attachment-link-form" class="canvas-attachment-link-form">
+              <label class="field" for="canvas-attachment-url">Enlace externo (HTTP/HTTPS)
+                <input id="canvas-attachment-url" name="url" type="url" maxlength="2048" placeholder="https://..." required>
+              </label>
+              <button class="focus-reset" type="submit">Agregar enlace</button>
+            </form>
+          </div>
+          <div class="canvas-attachment-list" id="canvas-attachment-list"><p class="canvas-empty">No hay adjuntos en este tablero.</p></div>
+        </section>
         <p class="canvas-editor-hint" id="canvas-editor-hint"></p>
         <div class="canvas-free-stage" id="canvas-free-stage" hidden tabindex="0" aria-label="Lienzo libre">
           <svg class="canvas-connection-layer" id="canvas-connection-layer" viewBox="0 0 2400 1600" aria-hidden="true"></svg>
