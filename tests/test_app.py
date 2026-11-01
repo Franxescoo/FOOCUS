@@ -1135,6 +1135,127 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(data.json["metrics"]["average_session_minutes"], 45)
         self.assertGreaterEqual(len(data.json["recommendations"]), 1)
 
+    def test_canvas_schema_migrates_additively_and_repeatedly(self):
+        self.create_task(title="Tarea anterior", due_date="")
+        task_id = self.task_id()
+
+        focusflow.init_db()
+        focusflow.init_db()
+
+        with focusflow.get_db() as db:
+            task = db.execute("SELECT id, title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            workspace_tables = {
+                row["name"] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+        self.assertEqual(dict(task), {"id": task_id, "title": "Tarea anterior"})
+        self.assertIn("workspaces", workspace_tables)
+        self.assertIn("canvas_boards", workspace_tables)
+
+    def test_workspace_and_canvas_catalog_lifecycle(self):
+        created_workspace = self.client.post(
+            "/api/workspaces",
+            json={"name": "Proyecto Integrado", "description": "Trabajo del semestre", "color": "blue"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(created_workspace.status_code, 201)
+        workspace = created_workspace.json["item"]
+        self.assertEqual(workspace["name"], "Proyecto Integrado")
+
+        created_board = self.client.post(
+            "/api/canvas",
+            json={"title": "Plan del proyecto", "mode": "structured", "workspace_id": workspace["id"]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(created_board.status_code, 201)
+        board = created_board.json["item"]
+        self.assertEqual(board["workspace_name"], "Proyecto Integrado")
+        self.assertEqual(board["mode"], "structured")
+
+        detail = self.client.get(f"/api/canvas/{board['id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json["stage"], "catalog")
+
+        board_update = self.client.patch(
+            f"/api/canvas/{board['id']}",
+            json={"title": "Plan actualizado", "workspace_id": None},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(board_update.status_code, 200)
+        self.assertIsNone(board_update.json["item"]["workspace_id"])
+        self.assertEqual(board_update.json["item"]["mode"], "structured")
+
+        workspace_update = self.client.patch(
+            f"/api/workspaces/{workspace['id']}",
+            json={"name": "Proyecto Integrado 2026"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(workspace_update.status_code, 200)
+        self.assertEqual(workspace_update.json["item"]["color"], "blue")
+
+        another_board = self.client.post(
+            "/api/canvas",
+            json={"title": "Ideas", "workspace_id": workspace["id"]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(another_board.status_code, 201)
+
+        workspace_delete = self.client.delete(
+            f"/api/workspaces/{workspace['id']}",
+            json={"preserve_boards": True},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(workspace_delete.status_code, 200)
+
+        independent_boards = self.client.get("/api/canvas")
+        self.assertEqual(independent_boards.status_code, 200)
+        self.assertTrue(all(item["workspace_id"] is None for item in independent_boards.json["items"]))
+        self.assertEqual(len(independent_boards.json["items"]), 2)
+
+        deletion = self.client.delete(
+            f"/api/canvas/{board['id']}", json={"confirm": True}, headers=self.csrf_headers()
+        )
+        self.assertEqual(deletion.status_code, 200)
+        self.assertEqual(self.client.get(f"/api/canvas/{board['id']}").status_code, 404)
+
+    def test_workspace_and_canvas_apis_validate_inputs_and_csrf(self):
+        no_csrf = self.client.post("/api/workspaces", json={"name": "Sin token"})
+        self.assertEqual(no_csrf.status_code, 400)
+
+        invalid_workspace = self.client.post(
+            "/api/workspaces", json={"name": "   ", "color": "orange"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(invalid_workspace.status_code, 400)
+
+        duplicate_a = self.client.post(
+            "/api/workspaces", json={"name": "Duplicado"}, headers=self.csrf_headers()
+        )
+        duplicate_b = self.client.post(
+            "/api/workspaces", json={"name": "duplicado"}, headers=self.csrf_headers()
+        )
+        self.assertEqual(duplicate_a.status_code, 201)
+        self.assertEqual(duplicate_b.status_code, 409)
+
+        invalid_board = self.client.post(
+            "/api/canvas", json={"title": "Tablero inválido", "mode": ["free"]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(invalid_board.status_code, 400)
+
+        missing_workspace = self.client.post(
+            "/api/canvas", json={"title": "Sin espacio", "workspace_id": 9999},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(missing_workspace.status_code, 404)
+
+        unconfirmed_delete = self.client.delete(
+            f"/api/workspaces/{duplicate_a.json['item']['id']}",
+            json={}, headers=self.csrf_headers(),
+        )
+        self.assertEqual(unconfirmed_delete.status_code, 400)
+
     def test_json_non_object_payloads_return_400_not_500(self):
         self.create_task(due_date="")
         task_id = self.task_id()
