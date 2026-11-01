@@ -303,6 +303,19 @@ def init_db():
         db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_elements_board ON canvas_elements(board_id, kind)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_elements_task ON canvas_elements(task_id)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_connections_board ON canvas_connections(board_id)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                version_number INTEGER NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                snapshot_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(board_id, version_number),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_history_board_version ON canvas_history(board_id, version_number DESC)")
 
 
 def csrf_token():
@@ -1463,6 +1476,62 @@ def normalize_canvas_board_payload(payload, current=None):
     return {"title": title.strip(), "mode": mode, "workspace_id": workspace_id}
 
 
+def persist_canvas_content(db, board_id, normalized):
+    """Persist a validated full snapshot inside the caller transaction."""
+    db.execute("DELETE FROM canvas_connections WHERE board_id = ?", (board_id,))
+    db.execute("DELETE FROM canvas_elements WHERE board_id = ?", (board_id,))
+    db.execute("DELETE FROM canvas_columns WHERE board_id = ?", (board_id,))
+    db.executemany(
+        "INSERT INTO canvas_columns (board_id, column_key, title, position) VALUES (?, ?, ?, ?)",
+        [(board_id, item["key"], item["title"], item["position"]) for item in normalized["columns"]],
+    )
+    db.executemany(
+        """INSERT INTO canvas_elements
+           (board_id, element_key, column_key, kind, x, y, width, height, content_json, task_id, task_snapshot_title)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [
+            (
+                board_id, item["key"], item["column_key"], item["kind"],
+                item["x"], item["y"], item["width"], item["height"],
+                json.dumps(item["content"], ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+                item["task_id"], item["task_snapshot_title"],
+            )
+            for item in normalized["elements"]
+        ],
+    )
+    db.executemany(
+        """INSERT INTO canvas_connections
+           (board_id, connection_key, source_key, target_key, label)
+           VALUES (?, ?, ?, ?, ?)""",
+        [(board_id, item["key"], item["source"], item["target"], item["label"]) for item in normalized["connections"]],
+    )
+    db.execute("UPDATE canvas_boards SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (board_id,))
+
+
+def create_canvas_history_version(db, board_id, normalized, description):
+    row = db.execute(
+        "SELECT COALESCE(MAX(version_number), 0) AS latest FROM canvas_history WHERE board_id = ?",
+        (board_id,),
+    ).fetchone()
+    version = int(row["latest"]) + 1
+    snapshot = {
+        "columns": normalized["columns"],
+        "elements": normalized["elements"],
+        "connections": normalized["connections"],
+    }
+    db.execute(
+        """INSERT INTO canvas_history (board_id, version_number, description, snapshot_json)
+           VALUES (?, ?, ?, ?)""",
+        (board_id, version, description, json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False)),
+    )
+    db.execute(
+        """DELETE FROM canvas_history WHERE board_id = ? AND id NOT IN
+           (SELECT id FROM canvas_history WHERE board_id = ? ORDER BY version_number DESC LIMIT 50)""",
+        (board_id, board_id),
+    )
+    return version
+
+
 def normalize_canvas_content(db, board, payload):
     """Validate a complete Canvas snapshot before its transaction replaces saved content."""
     if not isinstance(payload, dict):
@@ -1609,6 +1678,59 @@ def normalize_canvas_content(db, board, payload):
     }, None
 
 
+@app.route("/api/canvas/<int:board_id>/history", methods=["GET"])
+def canvas_history_api(board_id):
+    with get_db() as db:
+        exists = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not exists:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        rows = db.execute(
+            """SELECT id, version_number, description, created_at
+               FROM canvas_history WHERE board_id = ? ORDER BY version_number DESC""",
+            (board_id,),
+        ).fetchall()
+    return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+
+@app.route("/api/canvas/<int:board_id>/history/<int:version_id>/restore", methods=["POST"])
+def restore_canvas_history_api(board_id, version_id):
+    with get_db() as db:
+        board = db.execute("SELECT id, mode FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not board:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        version = db.execute(
+            "SELECT version_number, snapshot_json FROM canvas_history WHERE id = ? AND board_id = ?",
+            (version_id, board_id),
+        ).fetchone()
+        if not version:
+            return jsonify({"ok": False, "message": "No encontramos esa versión del historial."}), 404
+        try:
+            snapshot = json.loads(version["snapshot_json"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return jsonify({"ok": False, "message": "La versión guardada no se puede leer."}), 409
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get("elements"), list):
+            return jsonify({"ok": False, "message": "La estructura de esa versión no es válida."}), 409
+        # A deleted global task is restored as an independent card with its last saved content.
+        for element in snapshot["elements"]:
+            if isinstance(element, dict) and type(element.get("task_id")) is int:
+                task = db.execute("SELECT id FROM tasks WHERE id = ?", (element["task_id"],)).fetchone()
+                if not task:
+                    element["task_snapshot_title"] = element.get("task_snapshot_title") or (element.get("content") or {}).get("title", "")
+                    element["task_id"] = None
+        normalized, error = normalize_canvas_content(db, board, snapshot)
+        if error:
+            return jsonify({"ok": False, "message": "No se pudo restaurar esa versión: " + error}), 409
+        persist_canvas_content(db, board_id, normalized)
+        new_version = create_canvas_history_version(
+            db, board_id, normalized, "Restauración de versión " + str(version["version_number"])
+        )
+    return jsonify({
+        "ok": True,
+        "message": "Versión restaurada como una nueva versión.",
+        "version_number": new_version,
+    })
+
+
 @app.route("/api/tasks/<int:task_id>/completion", methods=["PUT"])
 def update_task_completion_api(task_id):
     payload = request.get_json(silent=True)
@@ -1688,45 +1810,28 @@ def canvas_board_content_api(board_id):
         if error:
             return jsonify({"ok": False, "message": error}), 400
 
-        # Replace the complete snapshot in one SQLite transaction.
-        db.execute("DELETE FROM canvas_connections WHERE board_id = ?", (board_id,))
-        db.execute("DELETE FROM canvas_elements WHERE board_id = ?", (board_id,))
-        db.execute("DELETE FROM canvas_columns WHERE board_id = ?", (board_id,))
-        db.executemany(
-            "INSERT INTO canvas_columns (board_id, column_key, title, position) VALUES (?, ?, ?, ?)",
-            [(board_id, item["key"], item["title"], item["position"]) for item in normalized["columns"]],
-        )
-        db.executemany(
-            """INSERT INTO canvas_elements
-               (board_id, element_key, column_key, kind, x, y, width, height, content_json, task_id, task_snapshot_title)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    board_id, item["key"], item["column_key"], item["kind"],
-                    item["x"], item["y"], item["width"], item["height"],
-                    json.dumps(item["content"], ensure_ascii=False, separators=(",", ":"), allow_nan=False),
-                    item["task_id"], item["task_snapshot_title"],
-                )
-                for item in normalized["elements"]
-            ],
-        )
-        db.executemany(
-            """INSERT INTO canvas_connections
-               (board_id, connection_key, source_key, target_key, label)
-               VALUES (?, ?, ?, ?, ?)""",
-            [
-                (board_id, item["key"], item["source"], item["target"], item["label"])
-                for item in normalized["connections"]
-            ],
-        )
-        db.execute(
-            "UPDATE canvas_boards SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        # Replace the full snapshot in one transaction.
+        persist_canvas_content(db, board_id, normalized)
+        latest = db.execute(
+            "SELECT created_at FROM canvas_history WHERE board_id = ? ORDER BY version_number DESC LIMIT 1",
             (board_id,),
-        )
+        ).fetchone()
+        manual_version = payload.get("create_version") is True
+        first_version = latest is None
+        interval_elapsed = False
+        if latest:
+            interval_elapsed = db.execute(
+                "SELECT datetime(?) <= datetime('now', '-30 minutes')", (latest["created_at"],)
+            ).fetchone()[0] == 1
+        version_number = None
+        if manual_version or first_version or interval_elapsed:
+            description = "Guardado manual" if manual_version else ("Primera versión" if first_version else "Versión automática")
+            version_number = create_canvas_history_version(db, board_id, normalized, description)
 
     return jsonify({
         "ok": True,
         "message": "Canvas guardado.",
+        "version_number": version_number,
         "counts": {
             "columns": len(normalized["columns"]),
             "elements": len(normalized["elements"]),
