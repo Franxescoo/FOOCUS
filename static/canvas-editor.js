@@ -309,7 +309,7 @@
     } else {
       control = document.createElement("input");
       control.type = type;
-      control.value = item.content[field] || "";
+      control.value = getFieldValue(item, field);
       if (type === "text") control.maxLength = field === "title" ? 160 : 2000;
     }
     control.setAttribute("aria-label", label);
@@ -416,7 +416,7 @@
         meta.className = "canvas-card-meta";
         meta.append(
           inputField(card, "priority", "Prioridad", "select", ["Media","Baja","Alta"]),
-          inputField(card, "status", "Estado", "select", ["Pendiente","En curso","En revisión","Completada"]),
+          inputField(card, "status", "Estado", "select", card.task_id ? ["Pendiente","Completada"] : ["Pendiente","En curso","En revisión","Completada"]),
           inputField(card, "due_date", "Fecha límite", "date")
         );
         article.append(meta);
