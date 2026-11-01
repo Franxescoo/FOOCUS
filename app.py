@@ -1705,7 +1705,8 @@ def normalize_canvas_content(db, board, payload):
             if member is None or member_key == item["key"] or member["kind"] == "group":
                 return None, "Un grupo debe referenciar elementos existentes que no sean otros grupos."
 
-    normalized_connections = []    connection_keys = set()
+    normalized_connections = []
+    connection_keys = set()
     for connection in connections:
         if mode != "free":
             return None, "Las conexiones se habilitan en Canvas libre."
