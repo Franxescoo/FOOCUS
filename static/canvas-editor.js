@@ -416,6 +416,33 @@
     changed();
   }
 
+  function duplicateSelected() {
+    const originals = state.elements.filter(item => selected.has(item.key));
+    if (!originals.length) {
+      byId("canvas-status").textContent = "Selecciona al menos un elemento para duplicar.";
+      return;
+    }
+    remember();
+    const copies = originals.map((item, index) => {
+      const copy = clone(item);
+      copy.key = key();
+      copy.x = Math.max(0, item.x + 28 + index * 12);
+      copy.y = Math.max(0, item.y + 28 + index * 12);
+      copy.task_id = null;
+      copy.task_snapshot_title = "";
+      copy.linked_task_title = "";
+      copy.linked_task_priority = "";
+      copy.linked_task_due_date = "";
+      copy.linked_task_completed = null;
+      copy.content.title = (copy.content.title || "Elemento") + " (copia)";
+      return copy;
+    });
+    state.elements.push(...copies);
+    selected = new Set(copies.map(item => item.key));
+    renderFree();
+    changed();
+  }
+
   function deleteSelected() {
     if (!selected.size) return;
     remember();
@@ -996,6 +1023,7 @@
     scheduleViewportSave();
   });
   byId("canvas-delete-element").addEventListener("click", deleteSelected);
+  byId("canvas-duplicate-element").addEventListener("click", duplicateSelected);
   byId("canvas-add-column").addEventListener("click", () => {
     const name = window.prompt("Nombre de la nueva columna:", "Nueva columna");
     if (name === null || !name.trim()) return;
