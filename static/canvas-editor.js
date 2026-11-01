@@ -558,6 +558,37 @@
       remove.textContent = "×";
       remove.setAttribute("aria-label", "Eliminar columna " + column.title);
       remove.addEventListener("click", () => removeColumn(column));
+      const columnIndex = state.columns.findIndex(item => item.key === column.key);
+      if (columnIndex > 0) {
+        const up = document.createElement("button");
+        up.type = "button";
+        up.className = "canvas-column-move";
+        up.textContent = "↑";
+        up.setAttribute("aria-label", "Mover columna a la izquierda");
+        up.addEventListener("click", () => {
+          remember();
+          const current = state.columns.findIndex(item => item.key === column.key);
+          [state.columns[current - 1], state.columns[current]] = [state.columns[current], state.columns[current - 1]];
+          renderStructured();
+          changed();
+        });
+        header.append(up);
+      }
+      if (columnIndex < state.columns.length - 1) {
+        const down = document.createElement("button");
+        down.type = "button";
+        down.className = "canvas-column-move";
+        down.textContent = "↓";
+        down.setAttribute("aria-label", "Mover columna a la derecha");
+        down.addEventListener("click", () => {
+          remember();
+          const current = state.columns.findIndex(item => item.key === column.key);
+          [state.columns[current + 1], state.columns[current]] = [state.columns[current], state.columns[current + 1]];
+          renderStructured();
+          changed();
+        });
+        header.append(down);
+      }
       header.append(name, remove);
       section.append(header);
 
