@@ -1632,7 +1632,7 @@ def normalize_canvas_content(db, board, payload):
         content = element.get("content", {})
         if not isinstance(content, dict):
             return None, "El contenido de un elemento debe ser un objeto."
-        allowed_content_fields = {"title", "body", "description", "priority", "due_date", "status"}
+        allowed_content_fields = {"title", "body", "description", "priority", "due_date", "status", "subtasks"}
         if set(content) - allowed_content_fields:
             return None, "Un elemento contiene campos no permitidos."
         clean_content = {}
@@ -1644,6 +1644,18 @@ def normalize_canvas_content(db, board, payload):
             if not isinstance(value, str) or len(value) > maximum:
                 return None, "El contenido de un elemento supera el formato permitido."
             clean_content[field] = value.strip() if field in {"title", "priority", "status"} else value
+        raw_subtasks = content.get("subtasks", [])
+        if not isinstance(raw_subtasks, list) or len(raw_subtasks) > 40:
+            return None, "Una tarjeta puede tener hasta 40 subtareas."
+        if raw_subtasks and (mode != "structured" or kind != "card"):
+            return None, "Las subtareas solo están disponibles en tarjetas estructuradas."
+        clean_subtasks = []
+        for subtask in raw_subtasks:
+            if not isinstance(subtask, str) or len(subtask) > 160:
+                return None, "Cada subtarea debe tener como máximo 160 caracteres."
+            if subtask.strip():
+                clean_subtasks.append(subtask.strip())
+        clean_content["subtasks"] = clean_subtasks
         if mode == "structured":
             if not clean_content["title"].strip():
                 return None, "Cada tarjeta debe tener un título."
