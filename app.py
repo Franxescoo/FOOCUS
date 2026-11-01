@@ -1506,11 +1506,11 @@ def normalize_canvas_content(db, board, payload):
             return None, "Un elemento tiene un identificador no válido."
         if key in element_keys:
             return None, "Hay identificadores de elemento repetidos."
-        if (mode == "free" and kind not in {"note", "text", "group"}) or (
+        if not isinstance(kind, str) or ((mode == "free" and kind not in {"note", "text", "group"}) or (
             mode == "structured" and kind != "card"
-        ):
+        )):
             return None, "El tipo de elemento no corresponde al modo de este Canvas."
-        if mode == "structured" and column_key not in column_keys:
+        if mode == "structured" and (not isinstance(column_key, str) or column_key not in column_keys):
             return None, "Cada tarjeta debe pertenecer a una columna existente."
         if mode == "free" and column_key is not None:
             return None, "Los elementos de un Canvas libre no usan columnas."
@@ -1525,9 +1525,13 @@ def normalize_canvas_content(db, board, payload):
             value = element.get(field, default)
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None, "La posición o tamaño de un elemento no es válido."
-            if not math.isfinite(value) or value < minimum or value > maximum:
+            try:
+                numeric_value = float(value)
+            except (OverflowError, TypeError, ValueError):
+                return None, "La posición o tamaño de un elemento no es válido."
+            if not math.isfinite(numeric_value) or numeric_value < minimum or numeric_value > maximum:
                 return None, "La posición o tamaño de un elemento está fuera del límite."
-            coordinates[field] = float(value)
+            coordinates[field] = numeric_value
 
         content = element.get("content", {})
         if not isinstance(content, dict):
