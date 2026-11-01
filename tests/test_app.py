@@ -1464,7 +1464,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(response.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
-        self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 64 * 1024)
+        self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 8 * 1024 * 1024)
         self.assertNotIn(b"Descargar FocusFlow para Windows", response.data)
         self.assertNotIn(b"download-installer", response.data)
         self.assertNotIn(b"download-focusflow", response.data)
