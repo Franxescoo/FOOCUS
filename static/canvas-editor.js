@@ -294,7 +294,8 @@
 
   function renderFree() {
     world.replaceChildren();
-    for (const item of state.elements) {
+    const orderedElements = [...state.elements].sort((a, b) => (a.kind === "group" ? -1 : 0) - (b.kind === "group" ? -1 : 0));
+    for (const item of orderedElements) {
       const node = document.createElement("article");
       node.className = "canvas-free-element canvas-element-" + item.kind;
       node.dataset.key = item.key;
@@ -360,14 +361,27 @@
       node.addEventListener("pointerdown", event => {
         if (event.button !== 0 || event.target.closest("input,textarea,button")) return;
         const sx = event.clientX, sy = event.clientY, ix = item.x, iy = item.y;
+        const members = item.kind === "group" ? (item.content.members || []).map(memberKey => state.elements.find(candidate => candidate.key === memberKey)).filter(Boolean) : [];
+        const memberStarts = members.map(member => ({key:member.key, x:member.x, y:member.y}));
         remember();
         selectFree(item, event);
         node.classList.add("is-dragging");
         function move(moveEvent) {
-          item.x = Math.max(0, Math.min(100000, ix + (moveEvent.clientX - sx) / zoom));
-          item.y = Math.max(0, Math.min(100000, iy + (moveEvent.clientY - sy) / zoom));
+          const dx = (moveEvent.clientX - sx) / zoom;
+          const dy = (moveEvent.clientY - sy) / zoom;
+          item.x = Math.max(0, Math.min(100000, ix + dx));
+          item.y = Math.max(0, Math.min(100000, iy + dy));
           node.style.left = item.x + "px";
           node.style.top = item.y + "px";
+          memberStarts.forEach(start => {
+            const member = state.elements.find(candidate => candidate.key === start.key);
+            const memberNode = world.querySelector('[data-key="' + start.key + '"]');
+            if (!member || !memberNode) return;
+            member.x = Math.max(0, Math.min(100000, start.x + dx));
+            member.y = Math.max(0, Math.min(100000, start.y + dy));
+            memberNode.style.left = member.x + "px";
+            memberNode.style.top = member.y + "px";
+          });
           renderConnections();
         }
         function end() {
@@ -387,18 +401,41 @@
 
   function addFree(kind) {
     const n = state.elements.length;
+    const memberItems = kind === "group" ? state.elements.filter(item => selected.has(item.key)) : [];
     remember();
-    state.elements.push({
+    let groupX = 100 + (n % 7) * 35;
+    let groupY = 90 + (n % 9) * 30;
+    let groupWidth = 320;
+    let groupHeight = 220;
+    if (memberItems.length) {
+      const minX = Math.min(...memberItems.map(item => item.x));
+      const minY = Math.min(...memberItems.map(item => item.y));
+      const maxX = Math.max(...memberItems.map(item => item.x + item.width));
+      const maxY = Math.max(...memberItems.map(item => item.y + item.height));
+      groupX = Math.max(0, minX - 24);
+      groupY = Math.max(0, minY - 36);
+      groupWidth = Math.min(900, maxX - minX + 48);
+      groupHeight = Math.min(900, maxY - minY + 72);
+    }
+    const item = {
       key:key(), kind, column_key:null,
-      x:100 + (n % 7) * 35, y:90 + (n % 9) * 30,
-      width:kind === "group" ? 320 : 250,
-      height:kind === "group" ? 220 : 165,
+      x:groupX, y:groupY,
+      width:kind === "group" ? groupWidth : 250,
+      height:kind === "group" ? groupHeight : 165,
       task_id:null,
-      content:{title:kind === "group" ? "Nuevo grupo" : (kind === "text" ? "Bloque de texto" : "Nueva nota"), body:""}
-    });
+      content:{
+        title:kind === "group" ? (memberItems.length ? "Grupo" : "Nuevo grupo") : (kind === "text" ? "Bloque de texto" : "Nueva nota"),
+        body:"", members:memberItems.map(member => member.key)
+      }
+    };
+    state.elements.push(item);
     selected.clear();
+    selected.add(item.key);
     renderFree();
     changed();
+    byId("canvas-status").textContent = memberItems.length
+      ? "Grupo creado. Al moverlo, sus elementos se desplazarán juntos."
+      : "Grupo vacío creado. Selecciona elementos y usa + Grupo para agruparlos.";
   }
 
   function connectSelected() {
@@ -448,6 +485,11 @@
     remember();
     const keys = new Set(selected);
     state.elements = state.elements.filter(item => !keys.has(item.key));
+    state.elements.forEach(item => {
+      if (item.kind === "group" && Array.isArray(item.content.members)) {
+        item.content.members = item.content.members.filter(memberKey => !keys.has(memberKey));
+      }
+    });
     state.connections = state.connections.filter(item => !keys.has(item.source) && !keys.has(item.target));
     selected.clear();
     renderFree();
