@@ -272,6 +272,7 @@
       world.append(node);
     }
     renderConnections();
+    refreshAttachmentElementOptions();
   }
 
   function addFree(kind) {
@@ -573,6 +574,7 @@
       });
       structured.append(section);
     }
+    refreshAttachmentElementOptions();
   }
 
   function removeColumn(column) {
@@ -684,7 +686,8 @@
         request("/api/canvas/" + item.id),
         request("/api/canvas/" + item.id + "/content"),
         request("/api/canvas/task-options"),
-        request("/api/canvas/" + item.id + "/history")
+        request("/api/canvas/" + item.id + "/history"),
+        request("/api/canvas/" + item.id + "/attachments")
       ]);
       taskOptions = result[2].items || [];
       board = item;
@@ -731,6 +734,8 @@
       else renderStructured();
       historyPanel.hidden = true;
       renderHistory(result[3].items || []);
+      renderAttachments(result[4].items || []);
+      refreshAttachmentElementOptions();
       updateHistoryButtons();
       setStatus(dirty ? "Cambios pendientes" : "Guardado");
       window.scrollTo({top:0,behavior:"smooth"});
