@@ -276,6 +276,16 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'function clearTaskFilters()', page)
         self.assertIn(b'button.setAttribute("aria-pressed", String(active))', page)
 
+    def test_canvas_library_screen_is_registered_in_navigation(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'data-screen-target="canvas"', response.data)
+        self.assertIn(b'data-app-screen="canvas"', response.data)
+        self.assertIn(b'id="canvas-workspace-form"', response.data)
+        self.assertIn(b'id="canvas-board-form"', response.data)
+        self.assertIn(b"canvas.js", response.data)
+        self.assertIn(b"canvas.css", response.data)
+
     def test_cursor_aura_is_decorative_and_respects_accessibility(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
