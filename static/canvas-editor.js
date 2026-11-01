@@ -455,6 +455,7 @@
   }
 
   function getFieldValue(item, field) {
+    if (field === "subtasks") return Array.isArray(item.content.subtasks) ? item.content.subtasks.join("\n") : "";
     if (!item.task_id) return item.content[field] || "";
     if (field === "title") return item.linked_task_title || item.content.title || "";
     if (field === "priority") return item.linked_task_priority || item.content.priority || "Media";
@@ -528,6 +529,9 @@
     control.addEventListener("change", () => {
       if (item.task_id && ["title","priority","due_date","status"].includes(field)) {
         updateLinkedTask(item, field, control.value);
+      } else if (field === "subtasks") {
+        const subtasks = control.value.split(String.fromCharCode(10)).map(value => value.trim()).filter(Boolean).slice(0, 40);
+        editField(item, field, subtasks);
       } else editField(item, field, control.value);
     });
     return control;
@@ -656,6 +660,7 @@
         }
         article.append(inputField(card, "title", "Título", "text"));
         article.append(inputField(card, "description", "Descripción", "textarea"));
+        article.append(inputField(card, "subtasks", "Subtareas (una por línea)", "textarea"));
         const meta = document.createElement("div");
         meta.className = "canvas-card-meta";
         meta.append(
@@ -765,7 +770,7 @@
         state.elements.push({
           key:key(), kind:"card", column_key:column.key,
           x:0, y:0, width:280, height:190, task_id:null,
-          content:{title:"Nueva tarea", description:"", priority:"Media", due_date:"", status:"Pendiente"}
+          content:{title:"Nueva tarea", description:"", subtasks:[], priority:"Media", due_date:"", status:"Pendiente"}
         });
         renderStructured();
         changed();
