@@ -1603,6 +1603,16 @@ def normalize_canvas_content(db, board, payload):
     }, None
 
 
+@app.route("/api/canvas/task-options", methods=["GET"])
+def canvas_task_options_api():
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT id, title, priority, due_date, planned_date, completed, estimated_minutes
+               FROM tasks ORDER BY completed ASC, title COLLATE NOCASE"""
+        ).fetchall()
+    return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+
 @app.route("/api/canvas/<int:board_id>/content", methods=["GET", "PUT"])
 def canvas_board_content_api(board_id):
     with get_db() as db:
@@ -1802,6 +1812,15 @@ def canvas_boards_api():
             "INSERT INTO canvas_boards (workspace_id, title, mode) VALUES (?, ?, ?)",
             (workspace_id, normalized["title"], normalized["mode"]),
         )
+        if normalized["mode"] == "structured":
+            db.executemany(
+                "INSERT INTO canvas_columns (board_id, column_key, title, position) VALUES (?, ?, ?, ?)",
+                [
+                    (cursor.lastrowid, "todo", "Por hacer", 0),
+                    (cursor.lastrowid, "doing", "En curso", 1),
+                    (cursor.lastrowid, "done", "Hecho", 2),
+                ],
+            )
         row = db.execute(
             """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
                       w.name AS workspace_name
