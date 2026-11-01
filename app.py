@@ -1389,7 +1389,7 @@ def normalize_workspace_payload(payload, current=None):
         return None
     if not isinstance(description, str) or len(description) > 500:
         return None
-    if color not in {"violet", "blue", "green", "rose"}:
+    if not isinstance(color, str) or color not in {"violet", "blue", "green", "rose"}:
         return None
     return {"name": name.strip(), "description": description.strip(), "color": color}
 
@@ -1403,7 +1403,7 @@ def normalize_canvas_board_payload(payload, current=None):
     workspace_id = payload.get("workspace_id", current.get("workspace_id"))
     if not isinstance(title, str) or not title.strip() or len(title.strip()) > 100:
         return None
-    if mode not in {"free", "structured"}:
+    if not isinstance(mode, str) or mode not in {"free", "structured"}:
         return None
     if workspace_id is not None and (type(workspace_id) is not int or workspace_id < 1):
         return None
