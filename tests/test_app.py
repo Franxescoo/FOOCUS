@@ -1085,7 +1085,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         profile = {
             "adaptive_enabled": True, "available_days": list(range(7)),
             "start_time": "16:00", "end_time": "20:00",
-            "session_minutes": 45, "break_minutes": 10,
+            "session_minutes": 25, "break_minutes": 10,
             "daily_capacity_minutes": 120, "planning_horizon_days": 7,
             "accent": "violet", "compact_mode": False,
             "dashboard_widgets": ["welcome", "summary"],
@@ -1100,7 +1100,8 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertGreaterEqual(len(proposal.json["items"]), 1)
         for item in proposal.json["items"]:
             self.assertLessEqual(item["planned_date"], deadline)
-            self.assertLessEqual(item["duration_minutes"], 45)
+            self.assertLessEqual(item["duration_minutes"], 25)
+        self.assertEqual(proposal.json["items"][0]["duration_minutes"], 25)
         applied = self.client.post(
             "/api/productivity/plan/apply", json={"horizon_days": 7}, headers=self.csrf_headers()
         )

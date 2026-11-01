@@ -460,7 +460,7 @@ def build_productivity_plan(db, profile, horizon_days):
         if remaining:
             pending.append({"task_id":row["id"],"title":row["title"],"priority":row["priority"],
                             "due_date":deadline or None,"subject":row["subject_name"] or "",
-                            "remaining_minutes":((remaining+14)//15)*15})
+                            "remaining_minutes":remaining})
     start_min, end_min = clock_minutes(profile["start_time"]), clock_minutes(profile["end_time"])
     items = []
     for offset in range(horizon_days):
@@ -468,14 +468,13 @@ def build_productivity_plan(db, profile, horizon_days):
         if day.weekday() not in set(profile["available_days"]):
             continue
         cursor, used = start_min, 0
-        while cursor+15 <= end_min and used+15 <= profile["daily_capacity_minutes"]:
+        while cursor < end_min and used < profile["daily_capacity_minutes"]:
             task = next((x for x in pending if x["remaining_minutes"]>0 and (not x["due_date"] or x["due_date"]>=day.isoformat())),None)
             if task is None:
                 break
             chunk = min(profile["session_minutes"],task["remaining_minutes"],end_min-cursor,
                         profile["daily_capacity_minutes"]-used)
-            chunk = (chunk//15)*15
-            if chunk < 15:
+            if chunk < 1:
                 break
             finish = cursor+chunk
             items.append({"task_id":task["task_id"],"task_title":task["title"],"subject":task["subject"],
