@@ -276,6 +276,34 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertIn(b'function clearTaskFilters()', page)
         self.assertIn(b'button.setAttribute("aria-pressed", String(active))', page)
 
+    def test_canvas_linked_cards_use_existing_focus_session_and_timer_flow(self):
+        page = self.client.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"window.focusFlowStartTask = async taskId", page.data)
+        self.assertIn(b"window.focusFlowSetWorking", page.data)
+        root = Path(__file__).resolve().parents[1]
+        editor_script = (root / "static" / "canvas-editor.js").read_text(encoding="utf-8")
+        self.assertIn('textContent = "Iniciar concentración"', editor_script)
+        self.assertIn("window.FOOCUSShowScreen?.(\"focus\")", editor_script)
+        self.assertIn("window.focusFlowStartTask(card.task_id)", editor_script)
+        self.assertIn('document.querySelector(\'[data-minutes="\' + preferredMinutes + \'"]\')', editor_script)
+
+    def test_canvas_library_screen_is_registered_in_navigation(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'data-screen-target="canvas"', response.data)
+        self.assertIn(b'data-app-screen="canvas"', response.data)
+        self.assertIn(b'id="canvas-workspace-form"', response.data)
+        self.assertIn(b'id="canvas-board-form"', response.data)
+        self.assertIn(b"canvas.js", response.data)
+        self.assertIn(b"canvas.css", response.data)
+        self.assertIn(b"canvas-editor.js", response.data)
+        self.assertIn(b"id=\"canvas-zoom-in\"", response.data)
+        self.assertIn(b"id=\"canvas-zoom-out\"", response.data)
+        self.assertIn(b"id=\"canvas-zoom-fit\"", response.data)
+        self.assertIn(b"id=\"canvas-attachment-file-form\"", response.data)
+        self.assertIn(b"id=\"canvas-attachment-link-form\"", response.data)
+
     def test_cursor_aura_is_decorative_and_respects_accessibility(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -1160,6 +1188,470 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(data.json["metrics"]["average_session_minutes"], 45)
         self.assertGreaterEqual(len(data.json["recommendations"]), 1)
 
+    def test_canvas_schema_migrates_additively_and_repeatedly(self):
+        self.create_task(title="Tarea anterior", due_date="")
+        task_id = self.task_id()
+
+        focusflow.init_db()
+        focusflow.init_db()
+
+        with focusflow.get_db() as db:
+            task = db.execute("SELECT id, title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            workspace_tables = {
+                row["name"] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+        self.assertEqual(dict(task), {"id": task_id, "title": "Tarea anterior"})
+        self.assertIn("workspaces", workspace_tables)
+        self.assertIn("canvas_boards", workspace_tables)
+
+    def test_canvas_history_versions_restore_without_erasing_later_versions(self):
+        created = self.client.post("/api/canvas", json={"title":"Historial","mode":"free"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        first = {"columns": [], "elements": [{
+            "key":"note-one","kind":"note","x":80,"y":80,
+            "content":{"title":"Primera idea","body":"Estado inicial"}
+        }], "connections":[]}
+        first_save = self.client.put(
+            f"/api/canvas/{board_id}/content", json=first, headers=self.csrf_headers()
+        )
+        self.assertEqual(first_save.status_code, 200)
+        self.assertEqual(first_save.json["version_number"], 1)
+
+        second = {
+            "columns": [],
+            "elements": [{
+                "key":"note-one","kind":"note","x":180,"y":140,
+                "content":{"title":"Segunda idea","body":"Estado modificado"}
+            }],
+            "connections":[],
+            "create_version":True
+        }
+        second_save = self.client.put(
+            f"/api/canvas/{board_id}/content", json=second, headers=self.csrf_headers()
+        )
+        self.assertEqual(second_save.status_code, 200)
+        self.assertEqual(second_save.json["version_number"], 2)
+
+        history = self.client.get(f"/api/canvas/{board_id}/history")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual([item["version_number"] for item in history.json["items"]], [2, 1])
+        self.assertEqual(history.json["items"][0]["description"], "Guardado manual")
+        version_one_id = history.json["items"][1]["id"]
+
+        restored = self.client.post(
+            f"/api/canvas/{board_id}/history/{version_one_id}/restore",
+            json={}, headers=self.csrf_headers(),
+        )
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json["version_number"], 3)
+        content = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(content.json["elements"][0]["content"]["title"], "Primera idea")
+
+        history_after = self.client.get(f"/api/canvas/{board_id}/history")
+        self.assertEqual([item["version_number"] for item in history_after.json["items"]], [3, 2, 1])
+        self.assertEqual(history_after.json["items"][0]["description"], "Restauración de versión 1")
+
+    def test_workspace_and_canvas_catalog_lifecycle(self):
+        created_workspace = self.client.post(
+            "/api/workspaces",
+            json={"name": "Proyecto Integrado", "description": "Trabajo del semestre", "color": "blue"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(created_workspace.status_code, 201)
+        workspace = created_workspace.json["item"]
+        self.assertEqual(workspace["name"], "Proyecto Integrado")
+
+        created_board = self.client.post(
+            "/api/canvas",
+            json={"title": "Plan del proyecto", "mode": "structured", "workspace_id": workspace["id"]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(created_board.status_code, 201)
+        board = created_board.json["item"]
+        self.assertEqual(board["workspace_name"], "Proyecto Integrado")
+        self.assertEqual(board["mode"], "structured")
+
+        detail = self.client.get(f"/api/canvas/{board['id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json["stage"], "catalog")
+
+        board_update = self.client.patch(
+            f"/api/canvas/{board['id']}",
+            json={"title": "Plan actualizado", "workspace_id": None},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(board_update.status_code, 200)
+        self.assertIsNone(board_update.json["item"]["workspace_id"])
+        self.assertEqual(board_update.json["item"]["mode"], "structured")
+
+        workspace_update = self.client.patch(
+            f"/api/workspaces/{workspace['id']}",
+            json={"name": "Proyecto Integrado 2026"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(workspace_update.status_code, 200)
+        self.assertEqual(workspace_update.json["item"]["color"], "blue")
+
+        another_board = self.client.post(
+            "/api/canvas",
+            json={"title": "Ideas", "workspace_id": workspace["id"]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(another_board.status_code, 201)
+
+        workspace_delete = self.client.delete(
+            f"/api/workspaces/{workspace['id']}",
+            json={"preserve_boards": True},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(workspace_delete.status_code, 200)
+
+        independent_boards = self.client.get("/api/canvas")
+        self.assertEqual(independent_boards.status_code, 200)
+        self.assertTrue(all(item["workspace_id"] is None for item in independent_boards.json["items"]))
+        self.assertEqual(len(independent_boards.json["items"]), 2)
+
+        deletion = self.client.delete(
+            f"/api/canvas/{board['id']}", json={"confirm": True}, headers=self.csrf_headers()
+        )
+        self.assertEqual(deletion.status_code, 200)
+        self.assertEqual(self.client.get(f"/api/canvas/{board['id']}").status_code, 404)
+
+    def test_workspace_and_canvas_apis_validate_inputs_and_csrf(self):
+        no_csrf = self.client.post("/api/workspaces", json={"name": "Sin token"})
+        self.assertEqual(no_csrf.status_code, 400)
+
+        invalid_workspace = self.client.post(
+            "/api/workspaces", json={"name": "   ", "color": "orange"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(invalid_workspace.status_code, 400)
+
+        duplicate_a = self.client.post(
+            "/api/workspaces", json={"name": "Duplicado"}, headers=self.csrf_headers()
+        )
+        duplicate_b = self.client.post(
+            "/api/workspaces", json={"name": "duplicado"}, headers=self.csrf_headers()
+        )
+        self.assertEqual(duplicate_a.status_code, 201)
+        self.assertEqual(duplicate_b.status_code, 409)
+
+        invalid_board = self.client.post(
+            "/api/canvas", json={"title": "Tablero inválido", "mode": ["free"]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(invalid_board.status_code, 400)
+
+        missing_workspace = self.client.post(
+            "/api/canvas", json={"title": "Sin espacio", "workspace_id": 9999},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(missing_workspace.status_code, 404)
+
+        unconfirmed_delete = self.client.delete(
+            f"/api/workspaces/{duplicate_a.json['item']['id']}",
+            json={}, headers=self.csrf_headers(),
+        )
+        self.assertEqual(unconfirmed_delete.status_code, 400)
+
+    def test_canvas_viewport_persists_scroll_position_and_validated_zoom(self):
+        created = self.client.post("/api/canvas", json={"title":"Vista","mode":"free"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        saved = self.client.put(
+            f"/api/canvas/{board_id}/viewport",
+            json={"x":120,"y":240,"zoom":1.35},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json["viewport"], {"x":120,"y":240,"zoom":1.35})
+        detail = self.client.get(f"/api/canvas/{board_id}")
+        self.assertEqual(json.loads(detail.json["item"]["viewport_json"]), {"x":120,"y":240,"zoom":1.35})
+
+        invalid = self.client.put(
+            f"/api/canvas/{board_id}/viewport",
+            json={"x":-1,"y":240,"zoom":3},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_canvas_free_content_is_saved_and_validated_as_one_snapshot(self):
+        created = self.client.post("/api/canvas", json={"title":"Ideas", "mode":"free"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        payload = {
+            "columns": [],
+            "elements": [
+                {"key":"note-a","kind":"note","x":120,"y":90,"width":250,"height":160,
+                 "content":{"title":"Idea principal","body":"Investigar alternativas"}},
+                {"key":"text-b","kind":"text","x":420,"y":110,"width":250,"height":160,
+                 "content":{"title":"Referencias","body":"Anotar fuentes"}}
+            ],
+            "connections": [{"key":"edge-a","source":"note-a","target":"text-b","label":"relacionado"}]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json["counts"], {"columns":0,"elements":2,"connections":1})
+        loaded = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(len(loaded.json["elements"]), 2)
+        self.assertEqual(loaded.json["elements"][0]["content"]["title"], "Idea principal")
+        self.assertEqual(loaded.json["connections"][0]["label"], "relacionado")
+
+        invalid = dict(payload)
+        invalid["connections"] = [{"key":"bad-edge","source":"note-a","target":"missing","label":""}]
+        rejected = self.client.put(f"/api/canvas/{board_id}/content", json=invalid, headers=self.csrf_headers())
+        self.assertEqual(rejected.status_code, 400)
+        still_saved = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(len(still_saved.json["elements"]), 2)
+        self.assertEqual(len(still_saved.json["connections"]), 1)
+
+    def test_canvas_structured_content_roundtrip_and_task_reference_snapshot(self):
+        self.create_task(title="Preparar informe", due_date="")
+        task_id = self.task_id()
+        created = self.client.post("/api/canvas", json={"title":"Plan de trabajo","mode":"structured"}, headers=self.csrf_headers())
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        payload = {
+            "columns":[{"key":"todo","title":"Por hacer"}],
+            "elements":[{
+                "key":"card-a","kind":"card","column_key":"todo","x":0,"y":0,"width":280,"height":190,
+                "task_id":task_id,
+                "content":{"title":"Preparar informe","description":"Revisar resultados","subtasks":["Definir contenido","Revisar formato"],"priority":"Alta",
+                           "due_date":"","status":"En curso"}
+            }],
+            "connections":[]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        loaded = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(loaded.json["columns"][0]["title"], "Por hacer")
+        self.assertEqual(loaded.json["elements"][0]["task_id"], task_id)
+        self.assertEqual(loaded.json["elements"][0]["linked_task_title"], "Preparar informe")
+        self.assertEqual(loaded.json["elements"][0]["linked_task_priority"], "Alta")
+        self.assertEqual(loaded.json["elements"][0]["content"]["subtasks"], ["Definir contenido", "Revisar formato"])
+        invalid_subtasks = {
+            "columns": payload["columns"],
+            "elements": [{
+                **payload["elements"][0],
+                "content": {**payload["elements"][0]["content"], "subtasks": [str(i) for i in range(41)]},
+            }],
+            "connections": [],
+        }
+        rejected_subtasks = self.client.put(
+            f"/api/canvas/{board_id}/content", json=invalid_subtasks, headers=self.csrf_headers()
+        )
+        self.assertEqual(rejected_subtasks.status_code, 400)
+
+        options = self.client.get("/api/canvas/task-options")
+        self.assertEqual(options.status_code, 200)
+        self.assertEqual(options.json["items"][0]["id"], task_id)
+
+        updated_task = self.client.patch(
+            f"/api/tasks/{task_id}",
+            json={"title":"Informe revisado","priority":"Media","due_date":"","planned_date":"","subject":"","estimated_minutes":45},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(updated_task.status_code, 200)
+        completed = self.client.put(
+            f"/api/tasks/{task_id}/completion", json={"completed":True}, headers=self.csrf_headers()
+        )
+        self.assertEqual(completed.status_code, 200)
+        self.assertTrue(completed.json["completed"])
+
+        refreshed = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(refreshed.json["elements"][0]["linked_task_title"], "Informe revisado")
+        self.assertEqual(refreshed.json["elements"][0]["linked_task_priority"], "Media")
+        self.assertTrue(refreshed.json["elements"][0]["linked_task_completed"])
+
+        with focusflow.get_db() as db:
+            db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        orphaned = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertIsNone(orphaned.json["elements"][0]["task_id"])
+        self.assertEqual(orphaned.json["elements"][0]["linked_task_title"], "Informe revisado")
+
+    def test_canvas_attachment_upload_link_download_and_safe_delete(self):
+        board = self.client.post("/api/canvas", json={"title":"Adjuntos"}, headers=self.csrf_headers()).json["item"]
+        board_id = board["id"]
+        saved = self.client.put(
+            f"/api/canvas/{board_id}/content",
+            json={"columns":[],"elements":[{"key":"note-file","kind":"note","content":{"title":"Notas"}}],"connections":[]},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200)
+
+        bad_link = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            json={"element_key":"note-file","url":"javascript:alert(1)"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(bad_link.status_code, 400)
+
+        link = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            json={"element_key":"note-file","url":"https://example.com/reference"},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(link.status_code, 201)
+        self.assertEqual(link.json["item"]["kind"], "link")
+
+        upload = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"note-file","file":(io.BytesIO(b"FOOCUS project notes\nCanvas attachment"),"notes.txt")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(upload.status_code, 201)
+        attachment_id = upload.json["item"]["id"]
+
+        listing = self.client.get(f"/api/canvas/{board_id}/attachments")
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(len(listing.json["items"]), 2)
+        file_item = next(item for item in listing.json["items"] if item["kind"] == "file")
+        self.assertEqual(file_item["element_title"], "Notas")
+        downloaded = self.client.get(file_item["download_url"])
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertIn(b"FOOCUS project notes", downloaded.data)
+        downloaded.close()
+
+        rejected = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"note-file","file":(io.BytesIO(b"not an executable"),"payload.exe")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(rejected.status_code, 400)
+
+        with focusflow.get_db() as db:
+            stored_path = db.execute("SELECT relative_path FROM canvas_attachments WHERE id = ?", (attachment_id,)).fetchone()["relative_path"]
+        stored_file = focusflow.canvas_attachment_path(stored_path)
+        self.assertTrue(stored_file.is_file())
+        deleted = self.client.delete(
+            f"/api/canvas/{board_id}/attachments/{attachment_id}", headers=self.csrf_headers()
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(stored_file.exists())
+
+    def test_canvas_attachment_requires_existing_element_and_board_deletion_cleans_files(self):
+        board = self.client.post("/api/canvas", json={"title":"Archivos"}, headers=self.csrf_headers()).json["item"]
+        board_id = board["id"]
+        missing_element = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"missing","file":(io.BytesIO(b"hello"),"hello.txt")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(missing_element.status_code, 404)
+        self.client.put(
+            f"/api/canvas/{board_id}/content",
+            json={"columns":[],"elements":[{"key":"n1","kind":"note","content":{"title":"Nota"}}],"connections":[]},
+            headers=self.csrf_headers(),
+        )
+        uploaded = self.client.post(
+            f"/api/canvas/{board_id}/attachments",
+            data={"element_key":"n1","file":(io.BytesIO(b"hello world"),"hello.txt")},
+            headers=self.csrf_headers(),
+        )
+        self.assertEqual(uploaded.status_code, 201)
+        attachment_id = uploaded.json["item"]["id"]
+        with focusflow.get_db() as db:
+            relative = db.execute("SELECT relative_path FROM canvas_attachments WHERE id = ?", (attachment_id,)).fetchone()["relative_path"]
+        file_path = focusflow.canvas_attachment_path(relative)
+        self.assertTrue(file_path.exists())
+        deleted = self.client.delete(f"/api/canvas/{board_id}", json={"confirm":True}, headers=self.csrf_headers())
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(file_path.exists())
+
+    def test_canvas_card_conversion_creates_one_global_task(self):
+        created = self.client.post(
+            "/api/canvas", json={"title":"Plan","mode":"structured"}, headers=self.csrf_headers()
+        )
+        self.assertEqual(created.status_code, 201)
+        board_id = created.json["item"]["id"]
+        with focusflow.get_db() as db:
+            task_count_before = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        content = {
+            "columns":[{"key":"todo","title":"Por hacer"},{"key":"doing","title":"En curso"},{"key":"done","title":"Hecho"}],
+            "elements":[{"key":"card-convert","kind":"card","column_key":"todo",
+                        "content":{"title":"Preparar presentación","description":"Diapositivas","priority":"Alta","due_date":"","status":"Pendiente"}}],
+            "connections":[]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=content, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        first = self.client.post(
+            f"/api/canvas/{board_id}/elements/card-convert/convert-task", json={}, headers=self.csrf_headers()
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertFalse(first.json["already_linked"])
+        task_id = first.json["task"]["id"]
+        second = self.client.post(
+            f"/api/canvas/{board_id}/elements/card-convert/convert-task", json={}, headers=self.csrf_headers()
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json["already_linked"])
+        self.assertEqual(second.json["task"]["id"], task_id)
+        with focusflow.get_db() as db:
+            task_count_after = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        self.assertEqual(task_count_after, task_count_before + 1)
+        linked = self.client.get(f"/api/canvas/{board_id}/content")
+        self.assertEqual(linked.json["elements"][0]["task_id"], task_id)
+        self.assertEqual(linked.json["elements"][0]["linked_task_title"], "Preparar presentación")
+
+    def test_canvas_free_groups_keep_validated_member_relationships(self):
+        board = self.client.post("/api/canvas", json={"title":"Mapa mental"}, headers=self.csrf_headers()).json["item"]
+        board_id = board["id"]
+        payload = {
+            "columns": [],
+            "elements": [
+                {"key":"group-a","kind":"group","x":60,"y":60,"width":500,"height":360,
+                 "content":{"title":"Plan de proyecto","body":"","members":["note-a","note-b"]}},
+                {"key":"note-a","kind":"note","x":100,"y":120,"content":{"title":"Investigación"}},
+                {"key":"note-b","kind":"note","x":300,"y":140,"content":{"title":"Implementación"}}
+            ],
+            "connections":[]
+        }
+        saved = self.client.put(f"/api/canvas/{board_id}/content", json=payload, headers=self.csrf_headers())
+        self.assertEqual(saved.status_code, 200)
+        loaded = self.client.get(f"/api/canvas/{board_id}/content")
+        group = next(item for item in loaded.json["elements"] if item["key"] == "group-a")
+        self.assertEqual(group["content"]["members"], ["note-a","note-b"])
+
+        broken = {
+            "columns": [],
+            "elements": [{
+                "key":"group-a","kind":"group","x":60,"y":60,"width":500,"height":360,
+                "content":{"title":"Grupo inválido","members":["missing-element"]}
+            }],
+            "connections":[]
+        }
+        rejected = self.client.put(f"/api/canvas/{board_id}/content", json=broken, headers=self.csrf_headers())
+        self.assertEqual(rejected.status_code, 400)
+
+    def test_canvas_content_rejects_wrong_mode_invalid_dimensions_and_missing_columns(self):
+        free_board = self.client.post("/api/canvas", json={"title":"Libre"}, headers=self.csrf_headers()).json["item"]["id"]
+        structured_board = self.client.post("/api/canvas", json={"title":"Estructurado","mode":"structured"}, headers=self.csrf_headers()).json["item"]["id"]
+
+        wrong_mode = self.client.put(f"/api/canvas/{free_board}/content", json={
+            "columns":[{"key":"col","title":"Columna"}], "elements":[], "connections":[]
+        }, headers=self.csrf_headers())
+        self.assertEqual(wrong_mode.status_code, 400)
+
+        missing_column = self.client.put(f"/api/canvas/{structured_board}/content", json={
+            "columns":[{"key":"one","title":"Una"}],
+            "elements":[{"key":"card","kind":"card","column_key":"missing","content":{"title":"Sin columna"}}],
+            "connections":[]
+        }, headers=self.csrf_headers())
+        self.assertEqual(missing_column.status_code, 400)
+
+        bad_size = self.client.put(f"/api/canvas/{free_board}/content", json={
+            "columns":[], "elements":[{"key":"huge","kind":"note","width":99999,"content":{}}], "connections":[]
+        }, headers=self.csrf_headers())
+        self.assertEqual(bad_size.status_code, 400)
+
+        no_csrf = self.client.put(f"/api/canvas/{free_board}/content", json={"columns":[],"elements":[],"connections":[]})
+        self.assertEqual(no_csrf.status_code, 400)
+
     def test_json_non_object_payloads_return_400_not_500(self):
         self.create_task(due_date="")
         task_id = self.task_id()
@@ -1202,7 +1694,7 @@ class FocusFlowTaskTests(unittest.TestCase):
         self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(response.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
-        self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 64 * 1024)
+        self.assertEqual(focusflow.app.config["MAX_CONTENT_LENGTH"], 8 * 1024 * 1024)
         self.assertNotIn(b"Descargar FocusFlow para Windows", response.data)
         self.assertNotIn(b"download-installer", response.data)
         self.assertNotIn(b"download-focusflow", response.data)

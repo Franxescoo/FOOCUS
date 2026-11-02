@@ -9,6 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='foocus-app-icon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='productivity.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='canvas.css') }}">
 </head>
 <body data-session-minutes="{{ productivity_profile.session_minutes }}" data-break-minutes="{{ productivity_profile.break_minutes }}">
   <div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
@@ -82,6 +83,7 @@
           <button class="sidebar-link is-active" type="button" title="Inicio" aria-label="Inicio" data-screen-target="home" aria-current="page"><span class="sidebar-link-icon" aria-hidden="true">⌂</span><span class="sidebar-link-label">Inicio</span></button>
           <button class="sidebar-link" type="button" title="Calendario" aria-label="Calendario" data-screen-target="calendar"><span class="sidebar-link-icon" aria-hidden="true">▦</span><span class="sidebar-link-label">Calendario</span></button>
           <button class="sidebar-link" type="button" title="Tareas" aria-label="Tareas" data-screen-target="tasks"><span class="sidebar-link-icon" aria-hidden="true">☷</span><span class="sidebar-link-label">Tareas</span></button>
+          <button class="sidebar-link" type="button" title="Canvas" aria-label="Canvas" data-screen-target="canvas"><span class="sidebar-link-icon" aria-hidden="true">▧</span><span class="sidebar-link-label">Canvas</span></button>
           <button class="sidebar-link" type="button" title="Concentración" aria-label="Concentración" data-screen-target="focus"><span class="sidebar-link-icon" aria-hidden="true">◷</span><span class="sidebar-link-label">Concentración</span></button>
           <button class="sidebar-link" type="button" title="Estadísticas" aria-label="Estadísticas" data-screen-target="stats"><span class="sidebar-link-icon" aria-hidden="true">▥</span><span class="sidebar-link-label">Estadísticas</span></button>
           <button class="sidebar-link" type="button" title="Planificador inteligente" aria-label="Planificador inteligente" data-screen-target="planner"><span class="sidebar-link-icon" aria-hidden="true">✦</span><span class="sidebar-link-label">Planificador</span></button>
@@ -512,6 +514,128 @@
           
         </aside>
       </div>
+      <section class="panel canvas-library" id="canvas-screen" data-app-screen="canvas" hidden aria-labelledby="canvas-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ESPACIOS Y TABLEROS</p>
+            <h2 id="canvas-title">Canvas</h2>
+            <p class="notes-hint">Organiza ideas y proyectos en tableros independientes o asociados a un espacio de trabajo.</p>
+          </div>
+          <span class="section-icon" aria-hidden="true">▧</span>
+        </div>
+        <p class="canvas-stage-note">Esta primera etapa permite administrar espacios y tableros. El editor visual libre y estructurado se incorporará en las siguientes fases.</p>
+        <div class="canvas-management-grid">
+          <section class="canvas-management-card" aria-labelledby="canvas-workspace-heading">
+            <h3 id="canvas-workspace-heading">Crear espacio de trabajo</h3>
+            <form id="canvas-workspace-form" class="canvas-form">
+              <label class="field" for="canvas-workspace-name">Nombre
+                <input id="canvas-workspace-name" name="name" type="text" maxlength="60" required placeholder="Ej. Proyecto Integrado">
+              </label>
+              <label class="field" for="canvas-workspace-description">Descripción (opcional)
+                <textarea id="canvas-workspace-description" name="description" rows="2" maxlength="500" placeholder="¿Qué vas a organizar aquí?"></textarea>
+              </label>
+              <label class="field" for="canvas-workspace-color">Color
+                <select id="canvas-workspace-color" name="color">
+                  <option value="violet">Violeta</option><option value="blue">Azul</option>
+                  <option value="green">Verde</option><option value="rose">Rosa</option>
+                </select>
+              </label>
+              <button class="primary-button" type="submit">Crear espacio</button>
+            </form>
+          </section>
+          <section class="canvas-management-card" aria-labelledby="canvas-board-heading">
+            <h3 id="canvas-board-heading">Crear tablero</h3>
+            <form id="canvas-board-form" class="canvas-form">
+              <label class="field" for="canvas-board-title">Nombre del tablero
+                <input id="canvas-board-title" name="title" type="text" maxlength="100" required placeholder="Ej. Planificación del proyecto">
+              </label>
+              <label class="field" for="canvas-board-mode">Tipo de Canvas
+                <select id="canvas-board-mode" name="mode">
+                  <option value="free">Libre</option><option value="structured">Estructurado</option>
+                </select>
+              </label>
+              <label class="field" for="canvas-board-workspace">Espacio de trabajo
+                <select id="canvas-board-workspace" name="workspace_id"><option value="">Independiente</option></select>
+              </label>
+              <button class="primary-button" type="submit">Crear tablero</button>
+            </form>
+          </section>
+        </div>
+        <p class="canvas-status" id="canvas-status" role="status" aria-live="polite">Cargando tus espacios y tableros…</p>
+        <section class="canvas-list-section" aria-labelledby="canvas-workspaces-list-title">
+          <div class="canvas-list-heading"><h3 id="canvas-workspaces-list-title">Espacios de trabajo</h3><span id="canvas-workspace-count">0</span></div>
+          <div class="canvas-card-grid" id="canvas-workspaces-list"></div>
+        </section>
+        <section class="canvas-list-section" aria-labelledby="canvas-boards-list-title">
+          <div class="canvas-list-heading"><h3 id="canvas-boards-list-title">Todos los tableros</h3><span id="canvas-board-count">0</span><button class="focus-reset" id="canvas-show-all-boards" type="button" hidden>Mostrar todos</button></div>
+          <div class="canvas-card-grid" id="canvas-boards-list"></div>
+        </section>
+      </section>
+      <section class="panel canvas-editor" id="canvas-editor" data-app-screen="canvas" hidden aria-labelledby="canvas-editor-title">
+        <div class="canvas-editor-header">
+          <button class="focus-reset" id="canvas-editor-back" type="button">← Volver a Canvas</button>
+          <div><p class="eyebrow" id="canvas-editor-mode-label">EDITOR CANVAS</p><h2 id="canvas-editor-title">Tablero</h2></div>
+          <span class="canvas-save-indicator" id="canvas-save-indicator" role="status" aria-live="polite">Guardado</span>
+        </div>
+        <div class="canvas-editor-toolbar">
+          <div id="canvas-free-tools" hidden>
+            <button class="focus-reset" id="canvas-add-note" type="button">+ Nota</button>
+            <button class="focus-reset" id="canvas-add-text" type="button">+ Texto</button>
+            <button class="focus-reset" id="canvas-add-group" type="button">+ Grupo</button>
+            <button class="focus-reset" id="canvas-connect-elements" type="button">Conectar seleccionados</button>
+            <button class="focus-reset" id="canvas-delete-element" type="button">Eliminar selección</button>
+            <button class="focus-reset" id="canvas-duplicate-element" type="button">Duplicar selección</button>
+            <span class="canvas-zoom-controls">
+              <button class="focus-reset" id="canvas-zoom-out" type="button" aria-label="Alejar">−</button>
+              <span id="canvas-zoom-label">100%</span>
+              <button class="focus-reset" id="canvas-zoom-in" type="button" aria-label="Acercar">+</button>
+              <button class="focus-reset" id="canvas-zoom-fit" type="button">Encajar</button>
+            </span>
+          </div>
+          <div id="canvas-structured-tools" hidden><button class="focus-reset" id="canvas-add-column" type="button">+ Columna</button></div>
+          <div class="canvas-history-tools">
+            <button class="focus-reset" id="canvas-undo" type="button" disabled>↶ Deshacer</button>
+            <button class="focus-reset" id="canvas-redo" type="button" disabled>↷ Rehacer</button>
+            <button class="primary-button" id="canvas-save-now" type="button">Guardar ahora</button>
+            <button class="focus-reset" id="canvas-history-toggle" type="button">Historial</button>
+          </div>
+        </div>
+        <section class="canvas-history-panel" id="canvas-history-panel" hidden aria-labelledby="canvas-history-title">
+          <div class="canvas-history-header"><div><h3 id="canvas-history-title">Historial de versiones</h3><p>Las versiones se guardan localmente en este equipo.</p></div><button class="focus-reset" id="canvas-history-close" type="button">Cerrar</button></div>
+          <div class="canvas-history-list" id="canvas-history-list"></div>
+        </section>
+        <section class="canvas-attachments-panel" aria-labelledby="canvas-attachments-title">
+          <div class="canvas-history-header"><div><h3 id="canvas-attachments-title">Archivos y enlaces</h3><p>Adjunta recursos locales o enlaces a los elementos de este tablero.</p></div></div>
+          <div class="canvas-attachment-controls">
+            <label class="field" for="canvas-attachment-element">Elemento
+              <select id="canvas-attachment-element"><option value="">Selecciona un elemento</option></select>
+            </label>
+            <form id="canvas-attachment-file-form" class="canvas-attachment-file-form">
+              <label class="field" for="canvas-attachment-file">Archivo (máx. 7 MB)
+                <input id="canvas-attachment-file" name="file" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.md,.csv,.docx,.xlsx,.pptx" required>
+              </label>
+              <button class="focus-reset" type="submit">Adjuntar archivo</button>
+            </form>
+            <form id="canvas-attachment-link-form" class="canvas-attachment-link-form">
+              <label class="field" for="canvas-attachment-url">Enlace externo (HTTP/HTTPS)
+                <input id="canvas-attachment-url" name="url" type="url" maxlength="2048" placeholder="https://..." required>
+              </label>
+              <button class="focus-reset" type="submit">Agregar enlace</button>
+            </form>
+          </div>
+          <div class="canvas-attachment-list" id="canvas-attachment-list"><p class="canvas-empty">No hay adjuntos en este tablero.</p></div>
+        </section>
+        <p class="canvas-editor-hint" id="canvas-editor-hint"></p>
+        <div class="canvas-free-stage" id="canvas-free-stage" hidden tabindex="0" aria-label="Lienzo libre">
+          <div class="canvas-free-content" id="canvas-free-content">
+            <div class="canvas-free-plane" id="canvas-free-plane">
+              <svg class="canvas-connection-layer" id="canvas-connection-layer" viewBox="0 0 2400 1600" aria-hidden="true"></svg>
+              <div class="canvas-free-world" id="canvas-free-world"></div>
+            </div>
+          </div>
+        </div>
+        <div class="canvas-structured-board" id="canvas-structured-board" hidden></div>
+      </section>
       <footer>FOOCUS · Un paso a la vez.</footer>
     </div>
   </div>
@@ -521,7 +645,7 @@
       const navButtons = Array.from(document.querySelectorAll(".sidebar-link[data-screen-target]"));
       const screenButtons = Array.from(document.querySelectorAll("[data-screen-target]"));
       const screenItems = Array.from(document.querySelectorAll("[data-app-screen]"));
-      const validScreens = new Set(["home", "calendar", "tasks", "focus", "stats", "planner", "personalize"]);
+      const validScreens = new Set(["home", "calendar", "tasks", "canvas", "focus", "stats", "planner", "personalize"]);
 
       function showScreen(screen) {
         if (!validScreens.has(screen)) return;
@@ -534,6 +658,7 @@
         });
         document.body.dataset.currentScreen = screen;
         if (screen === "calendar") window.FOOCUSCalendar?.activate();
+        window.FOOCUSCanvasSyncScreen?.(screen);
         window.scrollTo({top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
       }
 
@@ -1488,16 +1613,25 @@
       window.focusFlowSetWorking = (taskId, title, start) => {
         setWorking(taskId, title, start);
       };
+      window.focusFlowStartTask = async taskId => {
+        const numericTaskId = Number(taskId);
+        if (!Number.isInteger(numericTaskId) || numericTaskId < 1) throw new Error("Selecciona una tarea válida.");
+        const response = await fetch("/api/work/start", {
+          method:"POST",
+          headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},
+          body:JSON.stringify({task_id:numericTaskId})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar la sesión.");
+        setWorking(data.task_id, data.task_title, data.started_at);
+        return data;
+      };
       if (activeTaskId && startedAt) setWorking(activeTaskId, activeTitle.textContent, startedAt);
       document.querySelectorAll("[data-start-task]").forEach(button => button.addEventListener("click", async () => {
         button.disabled = true;
-        const original = button.textContent;
         button.textContent = "Iniciando...";
         try {
-          const response = await fetch("/api/work/start", {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},body:JSON.stringify({task_id:Number(button.dataset.startTask)})});
-          const data = await response.json();
-          if (!response.ok || !data.ok) throw new Error(data.message || "No se pudo iniciar la sesión.");
-          setWorking(data.task_id, data.task_title, data.started_at);
+          await window.focusFlowStartTask(button.dataset.startTask);
         } catch(error) {
           button.disabled = false;
           button.textContent = "Reintentar";
@@ -1505,7 +1639,7 @@
           button.setAttribute("aria-label", "Reintentar inicio de sesión: " + (error.message || "Error desconocido"));
         }
       }));
-      stopButton.addEventListener("click", async () => {
+            stopButton.addEventListener("click", async () => {
         stopButton.disabled = true;
         sessionStatus.textContent = "Guardando tiempo y comentario...";
         try {
@@ -1877,5 +2011,7 @@
   </script>
 
   <script src="{{ url_for('static', filename='productivity.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='canvas.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='canvas-editor.js') }}" defer></script>
 </body>
 </html>

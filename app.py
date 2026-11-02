@@ -5,6 +5,8 @@ import hashlib
 import hmac
 import io
 import json
+import math
+import mimetypes
 import os
 import re
 from pathlib import Path
@@ -13,6 +15,7 @@ import sqlite3
 import threading
 import urllib.error
 import urllib.request
+import zipfile
 
 from flask import (
     Flask,
@@ -23,9 +26,13 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     session,
     url_for,
 )
+
+from urllib.parse import urlsplit
+from werkzeug.utils import secure_filename
 
 try:
     from focusflow_build import APP_VERSION
@@ -40,7 +47,7 @@ app.config.update(
     TEMPLATES_AUTO_RELOAD=True,
     SEND_FILE_MAX_AGE_DEFAULT=0,
     SESSION_COOKIE_HTTPONLY=True,
-    MAX_CONTENT_LENGTH=64 * 1024,
+    MAX_CONTENT_LENGTH=8 * 1024 * 1024,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("FOCUSFLOW_SECURE_COOKIE", "").lower()
     in {"1", "true", "yes"},
@@ -229,6 +236,109 @@ def init_db():
             )"""
         )
         db.execute("CREATE INDEX IF NOT EXISTS idx_planned_sessions_date ON planned_sessions(planned_date, start_time)")
+        # Canvas foundation: additive tables; existing tasks and work history stay untouched.
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                description TEXT NOT NULL DEFAULT '',
+                color TEXT NOT NULL DEFAULT 'violet' CHECK (color IN ('violet','blue','green','rose')),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_boards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workspace_id INTEGER,
+                title TEXT NOT NULL,
+                mode TEXT NOT NULL DEFAULT 'free' CHECK (mode IN ('free','structured')),
+                viewport_json TEXT NOT NULL DEFAULT '{"x":0,"y":0,"zoom":1}',
+                preferences_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_boards_workspace ON canvas_boards(workspace_id, updated_at DESC)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_columns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                column_key TEXT NOT NULL,
+                title TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(board_id, column_key),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_elements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                element_key TEXT NOT NULL,
+                column_key TEXT,
+                kind TEXT NOT NULL CHECK (kind IN ('note','text','group','card')),
+                x REAL NOT NULL DEFAULT 80,
+                y REAL NOT NULL DEFAULT 80,
+                width REAL NOT NULL DEFAULT 240,
+                height REAL NOT NULL DEFAULT 150,
+                content_json TEXT NOT NULL DEFAULT '{}',
+                task_id INTEGER,
+                task_snapshot_title TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(board_id, element_key),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_connections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                connection_key TEXT NOT NULL,
+                source_key TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                UNIQUE(board_id, connection_key),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_columns_board ON canvas_columns(board_id, position)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_elements_board ON canvas_elements(board_id, kind)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_elements_task ON canvas_elements(task_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_connections_board ON canvas_connections(board_id)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                version_number INTEGER NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                snapshot_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(board_id, version_number),
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_history_board_version ON canvas_history(board_id, version_number DESC)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS canvas_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                element_key TEXT NOT NULL,
+                attachment_key TEXT NOT NULL UNIQUE,
+                kind TEXT NOT NULL CHECK (kind IN ('file','link')),
+                original_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                relative_path TEXT,
+                url TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (board_id) REFERENCES canvas_boards(id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_canvas_attachments_board_element ON canvas_attachments(board_id, element_key)")
 
 
 def csrf_token():
@@ -1205,6 +1315,10 @@ def edit_task(task_id):
                subject_id = ?, estimated_minutes = ? WHERE id = ?""",
             (title, priority, due_date, planned_date, subject_id, estimated_minutes, task_id),
         )
+        db.execute(
+            "UPDATE canvas_elements SET task_snapshot_title = ? WHERE task_id = ?",
+            (title, task_id),
+        )
 
         if exists["planned_date"] != planned_date:
             # A deliberate edit to the single-day field replaces the old calendar plan.
@@ -1351,6 +1465,959 @@ def update_task_study_days(task_id):
         "count": len(normalized_days),
         "message": "Plan de estudio guardado.",
     })
+
+
+def normalize_workspace_payload(payload, current=None):
+    if not isinstance(payload, dict):
+        return None
+    current = current or {}
+    name = payload.get("name", current.get("name", ""))
+    description = payload.get("description", current.get("description", ""))
+    color = payload.get("color", current.get("color", "violet"))
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 60:
+        return None
+    if not isinstance(description, str) or len(description) > 500:
+        return None
+    if not isinstance(color, str) or color not in {"violet", "blue", "green", "rose"}:
+        return None
+    return {"name": name.strip(), "description": description.strip(), "color": color}
+
+
+def normalize_canvas_board_payload(payload, current=None):
+    if not isinstance(payload, dict):
+        return None
+    current = current or {}
+    title = payload.get("title", current.get("title", ""))
+    mode = payload.get("mode", current.get("mode", "free"))
+    workspace_id = payload.get("workspace_id", current.get("workspace_id"))
+    if not isinstance(title, str) or not title.strip() or len(title.strip()) > 100:
+        return None
+    if not isinstance(mode, str) or mode not in {"free", "structured"}:
+        return None
+    if workspace_id is not None and (type(workspace_id) is not int or workspace_id < 1):
+        return None
+    return {"title": title.strip(), "mode": mode, "workspace_id": workspace_id}
+
+
+def persist_canvas_content(db, board_id, normalized):
+    """Persist a validated full snapshot inside the caller transaction."""
+    db.execute("DELETE FROM canvas_connections WHERE board_id = ?", (board_id,))
+    db.execute("DELETE FROM canvas_elements WHERE board_id = ?", (board_id,))
+    db.execute("DELETE FROM canvas_columns WHERE board_id = ?", (board_id,))
+    db.executemany(
+        "INSERT INTO canvas_columns (board_id, column_key, title, position) VALUES (?, ?, ?, ?)",
+        [(board_id, item["key"], item["title"], item["position"]) for item in normalized["columns"]],
+    )
+    db.executemany(
+        """INSERT INTO canvas_elements
+           (board_id, element_key, column_key, kind, x, y, width, height, content_json, task_id, task_snapshot_title)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [
+            (
+                board_id, item["key"], item["column_key"], item["kind"],
+                item["x"], item["y"], item["width"], item["height"],
+                json.dumps(item["content"], ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+                item["task_id"], item["task_snapshot_title"],
+            )
+            for item in normalized["elements"]
+        ],
+    )
+    db.executemany(
+        """INSERT INTO canvas_connections
+           (board_id, connection_key, source_key, target_key, label)
+           VALUES (?, ?, ?, ?, ?)""",
+        [(board_id, item["key"], item["source"], item["target"], item["label"]) for item in normalized["connections"]],
+    )
+    db.execute("UPDATE canvas_boards SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (board_id,))
+
+
+def create_canvas_history_version(db, board_id, normalized, description):
+    row = db.execute(
+        "SELECT COALESCE(MAX(version_number), 0) AS latest FROM canvas_history WHERE board_id = ?",
+        (board_id,),
+    ).fetchone()
+    version = int(row["latest"]) + 1
+    snapshot = {
+        "columns": normalized["columns"],
+        "elements": normalized["elements"],
+        "connections": normalized["connections"],
+    }
+    db.execute(
+        """INSERT INTO canvas_history (board_id, version_number, description, snapshot_json)
+           VALUES (?, ?, ?, ?)""",
+        (board_id, version, description, json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), allow_nan=False)),
+    )
+    db.execute(
+        """DELETE FROM canvas_history WHERE board_id = ? AND id NOT IN
+           (SELECT id FROM canvas_history WHERE board_id = ? ORDER BY version_number DESC LIMIT 50)""",
+        (board_id, board_id),
+    )
+    return version
+
+
+def normalize_canvas_content(db, board, payload):
+    """Validate a complete Canvas snapshot before its transaction replaces saved content."""
+    if not isinstance(payload, dict):
+        return None, "Envía el contenido del Canvas como un objeto JSON."
+
+    columns = payload.get("columns", [])
+    elements = payload.get("elements", [])
+    connections = payload.get("connections", [])
+    if not isinstance(columns, list) or not isinstance(elements, list) or not isinstance(connections, list):
+        return None, "Columnas, elementos y conexiones deben ser listas."
+    if len(columns) > 80 or len(elements) > 400 or len(connections) > 600:
+        return None, "El tablero supera el límite de elementos permitido."
+
+    mode = board["mode"]
+    normalized_columns = []
+    column_keys = set()
+    for position, column in enumerate(columns):
+        if not isinstance(column, dict):
+            return None, "Una columna tiene un formato incorrecto."
+        key = column.get("key")
+        title = column.get("title")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            return None, "Una columna tiene un identificador no válido."
+        if key in column_keys:
+            return None, "Hay identificadores de columna repetidos."
+        if not isinstance(title, str) or not title.strip() or len(title.strip()) > 60:
+            return None, "Los nombres de columna deben tener entre 1 y 60 caracteres."
+        column_keys.add(key)
+        normalized_columns.append({"key": key, "title": title.strip(), "position": position})
+
+    if mode == "free" and normalized_columns:
+        return None, "Un Canvas libre no puede contener columnas estructuradas."
+    if mode == "structured" and not normalized_columns:
+        return None, "Un Canvas estructurado debe tener al menos una columna."
+
+    normalized_elements = []
+    element_keys = set()
+    for element in elements:
+        if not isinstance(element, dict):
+            return None, "Un elemento tiene un formato incorrecto."
+        key = element.get("key")
+        kind = element.get("kind")
+        column_key = element.get("column_key")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            return None, "Un elemento tiene un identificador no válido."
+        if key in element_keys:
+            return None, "Hay identificadores de elemento repetidos."
+        if not isinstance(kind, str) or ((mode == "free" and kind not in {"note", "text", "group"}) or (
+            mode == "structured" and kind != "card"
+        )):
+            return None, "El tipo de elemento no corresponde al modo de este Canvas."
+        if mode == "structured" and (not isinstance(column_key, str) or column_key not in column_keys):
+            return None, "Cada tarjeta debe pertenecer a una columna existente."
+        if mode == "free" and column_key is not None:
+            return None, "Los elementos de un Canvas libre no usan columnas."
+
+        coordinates = {}
+        for field, default, minimum, maximum in (
+            ("x", 80, -100000, 100000),
+            ("y", 80, -100000, 100000),
+            ("width", 240, 60, 2400),
+            ("height", 150, 60, 2400),
+        ):
+            value = element.get(field, default)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None, "La posición o tamaño de un elemento no es válido."
+            try:
+                numeric_value = float(value)
+            except (OverflowError, TypeError, ValueError):
+                return None, "La posición o tamaño de un elemento no es válido."
+            if not math.isfinite(numeric_value) or numeric_value < minimum or numeric_value > maximum:
+                return None, "La posición o tamaño de un elemento está fuera del límite."
+            coordinates[field] = numeric_value
+
+        content = element.get("content", {})
+        if not isinstance(content, dict):
+            return None, "El contenido de un elemento debe ser un objeto."
+        allowed_content_fields = {"title", "body", "description", "priority", "due_date", "status", "subtasks", "members"}
+        if set(content) - allowed_content_fields:
+            return None, "Un elemento contiene campos no permitidos."
+        clean_content = {}
+        for field, maximum in (
+            ("title", 160), ("body", 5000), ("description", 2000),
+            ("priority", 10), ("due_date", 10), ("status", 30),
+        ):
+            value = content.get(field, "")
+            if not isinstance(value, str) or len(value) > maximum:
+                return None, "El contenido de un elemento supera el formato permitido."
+            clean_content[field] = value.strip() if field in {"title", "priority", "status"} else value
+        raw_subtasks = content.get("subtasks", [])
+        if not isinstance(raw_subtasks, list) or len(raw_subtasks) > 40:
+            return None, "Una tarjeta puede tener hasta 40 subtareas."
+        if raw_subtasks and (mode != "structured" or kind != "card"):
+            return None, "Las subtareas solo están disponibles en tarjetas estructuradas."
+        clean_subtasks = []
+        for subtask in raw_subtasks:
+            if not isinstance(subtask, str) or len(subtask) > 160:
+                return None, "Cada subtarea debe tener como máximo 160 caracteres."
+            if subtask.strip():
+                clean_subtasks.append(subtask.strip())
+        clean_content["subtasks"] = clean_subtasks
+        raw_members = content.get("members", [])
+        if not isinstance(raw_members, list) or len(raw_members) > 100:
+            return None, "Un grupo puede contener hasta 100 elementos."
+        if raw_members and kind != "group":
+            return None, "Solo los grupos pueden contener referencias a otros elementos."
+        clean_members = []
+        for member_key in raw_members:
+            if not isinstance(member_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", member_key):
+                return None, "Una referencia de grupo no es válida."
+            if member_key not in clean_members:
+                clean_members.append(member_key)
+        clean_content["members"] = clean_members
+        if mode == "structured":
+            if not clean_content["title"].strip():
+                return None, "Cada tarjeta debe tener un título."
+            if clean_content["priority"] and clean_content["priority"] not in {"Baja", "Media", "Alta"}:
+                return None, "La prioridad de una tarjeta no es válida."
+            if clean_content["status"] and clean_content["status"] not in {"Pendiente", "En curso", "En revisión", "Completada"}:
+                return None, "El estado de una tarjeta no es válido."
+            due_date = clean_content["due_date"]
+            if due_date and valid_due_date(due_date) is False:
+                return None, "La fecha de una tarjeta no es válida."
+        task_id = element.get("task_id")
+        task_snapshot_title = element.get("task_snapshot_title", "") if task_id is None else ""
+        if not isinstance(task_snapshot_title, str) or len(task_snapshot_title) > 160:
+            return None, "El título conservado de una tarea vinculada no es válido."
+        if task_id is not None:
+            if mode != "structured" or kind != "card" or type(task_id) is not int or task_id < 1:
+                return None, "La referencia a tarea global no es válida."
+            task = db.execute("SELECT id, title FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            if not task:
+                return None, "La tarea global vinculada ya no existe."
+            task_snapshot_title = task["title"]
+        element_keys.add(key)
+        normalized_elements.append({
+            "key": key, "kind": kind, "column_key": column_key,
+            **coordinates, "content": clean_content, "task_id": task_id,
+            "task_snapshot_title": task_snapshot_title,
+        })
+
+    elements_by_key = {item["key"]: item for item in normalized_elements}
+    for item in normalized_elements:
+        if item["kind"] != "group":
+            continue
+        for member_key in item["content"].get("members", []):
+            member = elements_by_key.get(member_key)
+            if member is None or member_key == item["key"] or member["kind"] == "group":
+                return None, "Un grupo debe referenciar elementos existentes que no sean otros grupos."
+
+    normalized_connections = []
+    connection_keys = set()
+    for connection in connections:
+        if mode != "free":
+            return None, "Las conexiones se habilitan en Canvas libre."
+        if not isinstance(connection, dict):
+            return None, "Una conexión tiene un formato incorrecto."
+        key = connection.get("key")
+        source = connection.get("source")
+        target = connection.get("target")
+        label = connection.get("label", "")
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            return None, "Una conexión tiene un identificador no válido."
+        if key in connection_keys:
+            return None, "Hay identificadores de conexión repetidos."
+        if not isinstance(source, str) or not isinstance(target, str) or source not in element_keys or target not in element_keys or source == target:
+            return None, "Una conexión debe unir dos elementos distintos del mismo tablero."
+        if not isinstance(label, str) or len(label) > 100:
+            return None, "La etiqueta de una conexión es demasiado larga."
+        connection_keys.add(key)
+        normalized_connections.append({"key": key, "source": source, "target": target, "label": label})
+
+    return {
+        "columns": normalized_columns,
+        "elements": normalized_elements,
+        "connections": normalized_connections,
+    }, None
+
+
+@app.route("/api/canvas/<int:board_id>/history", methods=["GET"])
+def canvas_history_api(board_id):
+    with get_db() as db:
+        exists = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not exists:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        rows = db.execute(
+            """SELECT id, version_number, description, created_at
+               FROM canvas_history WHERE board_id = ? ORDER BY version_number DESC""",
+            (board_id,),
+        ).fetchall()
+    return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+
+@app.route("/api/canvas/<int:board_id>/history/<int:version_id>/restore", methods=["POST"])
+def restore_canvas_history_api(board_id, version_id):
+    with get_db() as db:
+        board = db.execute("SELECT id, mode FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not board:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        version = db.execute(
+            "SELECT version_number, snapshot_json FROM canvas_history WHERE id = ? AND board_id = ?",
+            (version_id, board_id),
+        ).fetchone()
+        if not version:
+            return jsonify({"ok": False, "message": "No encontramos esa versión del historial."}), 404
+        try:
+            snapshot = json.loads(version["snapshot_json"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return jsonify({"ok": False, "message": "La versión guardada no se puede leer."}), 409
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get("elements"), list):
+            return jsonify({"ok": False, "message": "La estructura de esa versión no es válida."}), 409
+        # A deleted global task is restored as an independent card with its last saved content.
+        for element in snapshot["elements"]:
+            if isinstance(element, dict) and type(element.get("task_id")) is int:
+                task = db.execute("SELECT id FROM tasks WHERE id = ?", (element["task_id"],)).fetchone()
+                if not task:
+                    element["task_snapshot_title"] = element.get("task_snapshot_title") or (element.get("content") or {}).get("title", "")
+                    element["task_id"] = None
+        normalized, error = normalize_canvas_content(db, board, snapshot)
+        if error:
+            return jsonify({"ok": False, "message": "No se pudo restaurar esa versión: " + error}), 409
+        persist_canvas_content(db, board_id, normalized)
+        new_version = create_canvas_history_version(
+            db, board_id, normalized, "Restauración de versión " + str(version["version_number"])
+        )
+    return jsonify({
+        "ok": True,
+        "message": "Versión restaurada como una nueva versión.",
+        "version_number": new_version,
+    })
+
+
+@app.route("/api/tasks/<int:task_id>/completion", methods=["PUT"])
+def update_task_completion_api(task_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get("completed")) is not bool:
+        return jsonify({"ok": False, "message": "Indica si la tarea está completada."}), 400
+    with get_db() as db:
+        cursor = db.execute("UPDATE tasks SET completed = ? WHERE id = ?", (int(payload["completed"]), task_id))
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "message": "No se encontró esa tarea."}), 404
+    return jsonify({"ok": True, "task_id": task_id, "completed": payload["completed"]})
+
+
+CANVAS_ATTACHMENT_MAX_BYTES = 7 * 1024 * 1024
+CANVAS_ATTACHMENT_EXTENSIONS = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp", ".pdf": "application/pdf",
+    ".txt": "text/plain", ".md": "text/markdown", ".csv": "text/csv",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def canvas_attachment_root():
+    return (DATABASE.parent / "canvas_attachments").resolve()
+
+
+def canvas_attachment_path(relative_path):
+    if not isinstance(relative_path, str) or not relative_path:
+        return None
+    root = canvas_attachment_root()
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def validate_canvas_file(filename, content):
+    safe_name = secure_filename(filename or "")
+    extension = Path(safe_name).suffix.lower()
+    if not safe_name or extension not in CANVAS_ATTACHMENT_EXTENSIONS:
+        return None, "Tipo de archivo no permitido. Usa imágenes, PDF, TXT, MD, CSV, DOCX, XLSX o PPTX."
+    if not content or len(content) > CANVAS_ATTACHMENT_MAX_BYTES:
+        return None, "El archivo está vacío o supera el límite de 7 MB."
+
+    valid = False
+    mime_type = CANVAS_ATTACHMENT_EXTENSIONS[extension]
+    if extension == ".png":
+        valid = content.startswith(b"\x89PNG\r\n\x1a\n")
+    elif extension in {".jpg", ".jpeg"}:
+        valid = content.startswith(b"\xff\xd8\xff")
+    elif extension == ".webp":
+        valid = len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+    elif extension == ".pdf":
+        valid = content.startswith(b"%PDF-")
+    elif extension in {".txt", ".md", ".csv"}:
+        try:
+            decoded = content.decode("utf-8-sig")
+            valid = "\x00" not in decoded
+        except UnicodeDecodeError:
+            valid = False
+    elif extension in {".docx", ".xlsx", ".pptx"}:
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                names = set(archive.namelist())
+            required = {
+                ".docx": "word/document.xml",
+                ".xlsx": "xl/workbook.xml",
+                ".pptx": "ppt/presentation.xml",
+            }[extension]
+            valid = "[Content_Types].xml" in names and required in names
+        except (zipfile.BadZipFile, OSError):
+            valid = False
+    if not valid:
+        return None, "El contenido del archivo no coincide con su extensión."
+    return {"name": safe_name[:180], "mime_type": mime_type, "extension": extension}, None
+
+
+@app.route("/api/canvas/<int:board_id>/attachments", methods=["GET", "POST"])
+def canvas_attachments_api(board_id):
+    if request.method == "GET":
+        with get_db() as db:
+            board = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+            if not board:
+                return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+            rows = db.execute(
+                """SELECT id, element_key, attachment_key, kind, original_name, mime_type,
+                          size_bytes, url, created_at
+                   FROM canvas_attachments WHERE board_id = ? ORDER BY created_at DESC, id DESC""",
+                (board_id,),
+            ).fetchall()
+            element_rows = db.execute(
+                "SELECT element_key, content_json FROM canvas_elements WHERE board_id = ?",
+                (board_id,),
+            ).fetchall()
+        element_titles = {}
+        for element in element_rows:
+            try:
+                data = json.loads(element["content_json"])
+            except (TypeError, ValueError, json.JSONDecodeError):
+                data = {}
+            element_titles[element["element_key"]] = data.get("title", "") if isinstance(data, dict) else ""
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["element_title"] = element_titles.get(item["element_key"], "Elemento eliminado")
+            item["download_url"] = (
+                url_for("canvas_attachment_download_api", board_id=board_id, attachment_id=item["id"])
+                if item["kind"] == "file" else None
+            )
+            items.append(item)
+        return jsonify({"ok": True, "items": items})
+
+    board_id_exists = None
+    with get_db() as db:
+        board_id_exists = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not board_id_exists:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+
+    if request.is_json:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "message": "Envía un enlace y un elemento válidos."}), 400
+        element_key = payload.get("element_key")
+        url = payload.get("url")
+        if not isinstance(element_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", element_key):
+            return jsonify({"ok": False, "message": "Selecciona un elemento válido."}), 400
+        if not isinstance(url, str) or len(url) > 2048:
+            return jsonify({"ok": False, "message": "El enlace no es válido."}), 400
+        try:
+            parsed = urlsplit(url.strip())
+            valid_url = parsed.scheme in {"http", "https"} and bool(parsed.netloc) and not parsed.username and not parsed.password
+        except ValueError:
+            valid_url = False
+        if not valid_url:
+            return jsonify({"ok": False, "message": "Solo se permiten enlaces HTTP o HTTPS válidos."}), 400
+        clean_url = url.strip()
+        with get_db() as db:
+            element = db.execute(
+                "SELECT element_key FROM canvas_elements WHERE board_id = ? AND element_key = ?",
+                (board_id, element_key),
+            ).fetchone()
+            if not element:
+                return jsonify({"ok": False, "message": "El elemento seleccionado ya no existe."}), 404
+            cursor = db.execute(
+                """INSERT INTO canvas_attachments
+                   (board_id, element_key, attachment_key, kind, original_name, mime_type, size_bytes, url)
+                   VALUES (?, ?, ?, 'link', ?, 'text/uri-list', 0, ?)""",
+                (board_id, element_key, secrets.token_hex(16), clean_url[:180], clean_url),
+            )
+            attachment_id = cursor.lastrowid
+        return jsonify({
+            "ok": True, "item": {
+                "id": attachment_id, "element_key": element_key, "kind": "link",
+                "original_name": clean_url[:180], "url": clean_url,
+            },
+        }), 201
+
+    element_key = request.form.get("element_key", "")
+    uploaded = request.files.get("file")
+    if not isinstance(element_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", element_key):
+        return jsonify({"ok": False, "message": "Selecciona un elemento válido."}), 400
+    if uploaded is None or not uploaded.filename:
+        return jsonify({"ok": False, "message": "Selecciona un archivo para adjuntar."}), 400
+    content = uploaded.read(CANVAS_ATTACHMENT_MAX_BYTES + 1)
+    normalized, error = validate_canvas_file(uploaded.filename, content)
+    if error:
+        return jsonify({"ok": False, "message": error}), 400
+
+    with get_db() as db:
+        element = db.execute(
+            "SELECT element_key FROM canvas_elements WHERE board_id = ? AND element_key = ?",
+            (board_id, element_key),
+        ).fetchone()
+        if not element:
+            return jsonify({"ok": False, "message": "El elemento seleccionado ya no existe."}), 404
+
+    attachment_key = secrets.token_hex(16)
+    relative_path = "board-" + str(board_id) + "/" + attachment_key + normalized["extension"]
+    destination = canvas_attachment_path(relative_path)
+    if destination is None:
+        return jsonify({"ok": False, "message": "No se pudo preparar el almacenamiento local."}), 500
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        destination.write_bytes(content)
+        with get_db() as db:
+            cursor = db.execute(
+                """INSERT INTO canvas_attachments
+                   (board_id, element_key, attachment_key, kind, original_name, mime_type, size_bytes, relative_path)
+                   VALUES (?, ?, ?, 'file', ?, ?, ?, ?)""",
+                (board_id, element_key, attachment_key, normalized["name"],
+                 normalized["mime_type"], len(content), relative_path),
+            )
+            attachment_id = cursor.lastrowid
+    except Exception:
+        try:
+            destination.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    return jsonify({
+        "ok": True, "item": {
+            "id": attachment_id, "element_key": element_key, "kind": "file",
+            "original_name": normalized["name"], "mime_type": normalized["mime_type"],
+            "size_bytes": len(content),
+        },
+    }), 201
+
+
+@app.route("/api/canvas/<int:board_id>/attachments/<int:attachment_id>/download", methods=["GET"])
+def canvas_attachment_download_api(board_id, attachment_id):
+    with get_db() as db:
+        row = db.execute(
+            """SELECT original_name, mime_type, relative_path, kind
+               FROM canvas_attachments WHERE id = ? AND board_id = ?""",
+            (attachment_id, board_id),
+        ).fetchone()
+    if not row or row["kind"] != "file":
+        return jsonify({"ok": False, "message": "No encontramos ese archivo."}), 404
+    path = canvas_attachment_path(row["relative_path"])
+    if path is None or not path.is_file():
+        return jsonify({"ok": False, "message": "El archivo ya no está disponible en este equipo."}), 404
+    inline = row["mime_type"].startswith("image/")
+    response = send_file(
+        path, mimetype=row["mime_type"], as_attachment=not inline,
+        download_name=row["original_name"], conditional=False,
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@app.route("/api/canvas/<int:board_id>/attachments/<int:attachment_id>", methods=["DELETE"])
+def delete_canvas_attachment_api(board_id, attachment_id):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT relative_path FROM canvas_attachments WHERE id = ? AND board_id = ?",
+            (attachment_id, board_id),
+        ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese adjunto."}), 404
+        relative_path = row["relative_path"]
+        db.execute("DELETE FROM canvas_attachments WHERE id = ?", (attachment_id,))
+        still_referenced = False
+        if relative_path:
+            still_referenced = db.execute(
+                "SELECT 1 FROM canvas_attachments WHERE relative_path = ? LIMIT 1",
+                (relative_path,),
+            ).fetchone() is not None
+    if relative_path and not still_referenced:
+        path = canvas_attachment_path(relative_path)
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return jsonify({"ok": True, "message": "Adjunto eliminado."})
+
+
+@app.route("/api/canvas/<int:board_id>/elements/<element_key>/convert-task", methods=["POST"])
+def convert_canvas_element_to_task_api(board_id, element_key):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", element_key):
+        return jsonify({"ok": False, "message": "El identificador del elemento no es válido."}), 400
+    with get_db() as db:
+        board = db.execute("SELECT id, mode FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not board:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        if board["mode"] != "structured":
+            return jsonify({"ok": False, "message": "Solo las tarjetas de Canvas estructurado pueden convertirse en tareas globales."}), 400
+        element = db.execute(
+            """SELECT element_key, kind, task_id, task_snapshot_title, content_json
+               FROM canvas_elements WHERE board_id = ? AND element_key = ?""",
+            (board_id, element_key),
+        ).fetchone()
+        if not element or element["kind"] != "card":
+            return jsonify({"ok": False, "message": "No encontramos esa tarjeta."}), 404
+        if element["task_id"] is not None:
+            task = db.execute(
+                "SELECT id, title, priority, due_date, planned_date, completed, estimated_minutes FROM tasks WHERE id = ?",
+                (element["task_id"],),
+            ).fetchone()
+            if task:
+                return jsonify({"ok": True, "already_linked": True, "task": dict(task)})
+        try:
+            data = json.loads(element["content_json"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            data = {}
+        title = str(data.get("title", "")).strip()[:160] if isinstance(data, dict) else ""
+        if not title:
+            return jsonify({"ok": False, "message": "Agrega un título antes de convertir esta tarjeta."}), 400
+        priority = data.get("priority", "Media")
+        if priority not in VALID_PRIORITIES:
+            priority = "Media"
+        due_date = data.get("due_date", "")
+        if due_date and valid_due_date(due_date) is False:
+            return jsonify({"ok": False, "message": "La fecha de la tarjeta no es válida."}), 400
+        subject_id = None
+        cursor = db.execute(
+            """INSERT INTO tasks (title, priority, due_date, planned_date, subject_id, estimated_minutes)
+               VALUES (?, ?, ?, NULL, ?, 30)""",
+            (title, priority, due_date or None, subject_id),
+        )
+        task_id = cursor.lastrowid
+        db.execute(
+            "UPDATE canvas_elements SET task_id = ?, task_snapshot_title = ?, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND element_key = ?",
+            (task_id, title, board_id, element_key),
+        )
+    return jsonify({
+        "ok": True, "already_linked": False,
+        "task": {
+            "id": task_id, "title": title, "priority": priority, "due_date": due_date or None,
+            "planned_date": None, "completed": 0, "estimated_minutes": 30,
+        },
+    }), 201
+
+
+@app.route("/api/canvas/task-options", methods=["GET"])
+def canvas_task_options_api():
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT t.id, t.title, t.priority, t.due_date, t.planned_date, t.completed,
+                      t.estimated_minutes, COALESCE(s.name, '') AS subject
+               FROM tasks t LEFT JOIN subjects s ON s.id = t.subject_id
+               ORDER BY t.completed ASC, t.title COLLATE NOCASE"""
+        ).fetchall()
+    return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+
+@app.route("/api/canvas/<int:board_id>/viewport", methods=["PUT"])
+def canvas_board_viewport_api(board_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "message": "Envía la posición y el zoom del lienzo."}), 400
+    values = {}
+    for field in ("x", "y"):
+        value = payload.get(field, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0 or value > 1000000:
+            return jsonify({"ok": False, "message": "La posición del lienzo no es válida."}), 400
+        values[field] = int(value)
+    zoom = payload.get("zoom", 1)
+    if isinstance(zoom, bool) or not isinstance(zoom, (int, float)) or not math.isfinite(zoom) or zoom < 0.25 or zoom > 2:
+        return jsonify({"ok": False, "message": "El nivel de zoom debe estar entre 25% y 200%."}), 400
+    values["zoom"] = round(float(zoom), 2)
+    with get_db() as db:
+        cursor = db.execute(
+            "UPDATE canvas_boards SET viewport_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(values, separators=(",", ":"), allow_nan=False), board_id),
+        )
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+    return jsonify({"ok": True, "viewport": values})
+
+
+@app.route("/api/canvas/<int:board_id>/content", methods=["GET", "PUT"])
+def canvas_board_content_api(board_id):
+    with get_db() as db:
+        board = db.execute(
+            "SELECT id, mode FROM canvas_boards WHERE id = ?", (board_id,)
+        ).fetchone()
+        if not board:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+
+        if request.method == "GET":
+            columns = db.execute(
+                "SELECT column_key AS key, title, position FROM canvas_columns WHERE board_id = ? ORDER BY position, id",
+                (board_id,),
+            ).fetchall()
+            element_rows = db.execute(
+                """SELECT e.element_key AS key, e.kind, e.column_key, e.x, e.y, e.width, e.height,
+                          e.content_json, e.task_id, e.task_snapshot_title,
+                          COALESCE(t.title, e.task_snapshot_title) AS linked_task_title,
+                          t.priority AS linked_task_priority, t.due_date AS linked_task_due_date,
+                          t.planned_date AS linked_task_planned_date, t.estimated_minutes AS linked_task_estimated_minutes,
+                          COALESCE(s.name, '') AS linked_task_subject, t.completed AS linked_task_completed
+                   FROM canvas_elements e LEFT JOIN tasks t ON t.id = e.task_id
+                   LEFT JOIN subjects s ON s.id = t.subject_id
+                   WHERE e.board_id = ? ORDER BY e.id""",
+                (board_id,),
+            ).fetchall()
+            elements = []
+            for row in element_rows:
+                item = dict(row)
+                try:
+                    item["content"] = json.loads(item.pop("content_json"))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    item["content"] = {}
+                item["linked_task_completed"] = (
+                    bool(item["linked_task_completed"]) if item["linked_task_completed"] is not None else None
+                )
+                elements.append(item)
+            connection_rows = db.execute(
+                """SELECT connection_key AS key, source_key AS source, target_key AS target, label
+                   FROM canvas_connections WHERE board_id = ? ORDER BY id""",
+                (board_id,),
+            ).fetchall()
+            return jsonify({
+                "ok": True,
+                "mode": board["mode"],
+                "columns": [dict(row) for row in columns],
+                "elements": elements,
+                "connections": [dict(row) for row in connection_rows],
+            })
+
+        payload = request.get_json(silent=True)
+        normalized, error = normalize_canvas_content(db, board, payload)
+        if error:
+            return jsonify({"ok": False, "message": error}), 400
+
+        # Replace the full snapshot in one transaction.
+        persist_canvas_content(db, board_id, normalized)
+        latest = db.execute(
+            "SELECT created_at FROM canvas_history WHERE board_id = ? ORDER BY version_number DESC LIMIT 1",
+            (board_id,),
+        ).fetchone()
+        manual_version = payload.get("create_version") is True
+        first_version = latest is None
+        interval_elapsed = False
+        if latest:
+            interval_elapsed = db.execute(
+                "SELECT datetime(?) <= datetime('now', '-30 minutes')", (latest["created_at"],)
+            ).fetchone()[0] == 1
+        version_number = None
+        if manual_version or first_version or interval_elapsed:
+            description = "Guardado manual" if manual_version else ("Primera versión" if first_version else "Versión automática")
+            version_number = create_canvas_history_version(db, board_id, normalized, description)
+
+    return jsonify({
+        "ok": True,
+        "message": "Canvas guardado.",
+        "version_number": version_number,
+        "counts": {
+            "columns": len(normalized["columns"]),
+            "elements": len(normalized["elements"]),
+            "connections": len(normalized["connections"]),
+        },
+    })
+
+
+@app.route("/api/workspaces", methods=["GET", "POST"])
+def workspaces_api():
+    if request.method == "GET":
+        with get_db() as db:
+            rows = db.execute(
+                """SELECT w.id, w.name, w.description, w.color, w.created_at, w.updated_at,
+                          COUNT(cb.id) AS board_count
+                   FROM workspaces w LEFT JOIN canvas_boards cb ON cb.workspace_id = w.id
+                   GROUP BY w.id ORDER BY w.name COLLATE NOCASE"""
+            ).fetchall()
+        return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+    normalized = normalize_workspace_payload(request.get_json(silent=True))
+    if normalized is None:
+        return jsonify({"ok": False, "message": "Revisa el nombre, la descripción y el color del espacio."}), 400
+    try:
+        with get_db() as db:
+            cursor = db.execute(
+                "INSERT INTO workspaces (name, description, color) VALUES (?, ?, ?)",
+                (normalized["name"], normalized["description"], normalized["color"]),
+            )
+            workspace_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        return jsonify({"ok": False, "message": "Ya existe un espacio de trabajo con ese nombre."}), 409
+    return jsonify({"ok": True, "item": {"id": workspace_id, **normalized, "board_count": 0}}), 201
+
+
+@app.route("/api/workspaces/<int:workspace_id>", methods=["PATCH", "DELETE"])
+def workspace_detail_api(workspace_id):
+    if request.method == "PATCH":
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "message": "Envía los cambios como un objeto JSON."}), 400
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id, name, description, color FROM workspaces WHERE id = ?",
+                (workspace_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "No encontramos ese espacio de trabajo."}), 404
+            normalized = normalize_workspace_payload(payload, dict(row))
+            if normalized is None:
+                return jsonify({"ok": False, "message": "Revisa el nombre, la descripción y el color del espacio."}), 400
+            try:
+                db.execute(
+                    """UPDATE workspaces SET name = ?, description = ?, color = ?,
+                       updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+                    (normalized["name"], normalized["description"], normalized["color"], workspace_id),
+                )
+            except sqlite3.IntegrityError:
+                return jsonify({"ok": False, "message": "Ya existe otro espacio con ese nombre."}), 409
+        return jsonify({"ok": True, "item": {"id": workspace_id, **normalized}})
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get("preserve_boards") is not True:
+        return jsonify({"ok": False, "message": "Confirma preserve_boards=true para conservar los tableros como independientes."}), 400
+    with get_db() as db:
+        row = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese espacio de trabajo."}), 404
+        db.execute(
+            "UPDATE canvas_boards SET workspace_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        db.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
+    return jsonify({"ok": True, "message": "Espacio eliminado; sus tableros se conservaron como independientes."})
+
+
+@app.route("/api/canvas", methods=["GET", "POST"])
+def canvas_boards_api():
+    if request.method == "GET":
+        workspace_filter = request.args.get("workspace_id")
+        query = """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
+                          w.name AS workspace_name
+                   FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id"""
+        params = ()
+        if workspace_filter is not None:
+            try:
+                workspace_id = int(workspace_filter)
+            except (TypeError, ValueError):
+                return jsonify({"ok": False, "message": "El identificador del espacio no es válido."}), 400
+            query += " WHERE cb.workspace_id = ?"
+            params = (workspace_id,)
+        query += " ORDER BY cb.updated_at DESC, cb.id DESC"
+        with get_db() as db:
+            rows = db.execute(query, params).fetchall()
+        return jsonify({"ok": True, "items": [dict(row) for row in rows]})
+
+    normalized = normalize_canvas_board_payload(request.get_json(silent=True))
+    if normalized is None:
+        return jsonify({"ok": False, "message": "Revisa el título, tipo y espacio asociado del Canvas."}), 400
+    with get_db() as db:
+        workspace_id = normalized["workspace_id"]
+        if workspace_id is not None:
+            workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+            if not workspace:
+                return jsonify({"ok": False, "message": "El espacio seleccionado no existe."}), 404
+        cursor = db.execute(
+            "INSERT INTO canvas_boards (workspace_id, title, mode) VALUES (?, ?, ?)",
+            (workspace_id, normalized["title"], normalized["mode"]),
+        )
+        if normalized["mode"] == "structured":
+            db.executemany(
+                "INSERT INTO canvas_columns (board_id, column_key, title, position) VALUES (?, ?, ?, ?)",
+                [
+                    (cursor.lastrowid, "todo", "Por hacer", 0),
+                    (cursor.lastrowid, "doing", "En curso", 1),
+                    (cursor.lastrowid, "done", "Hecho", 2),
+                ],
+            )
+        row = db.execute(
+            """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
+                      w.name AS workspace_name
+               FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id
+               WHERE cb.id = ?""",
+            (cursor.lastrowid,),
+        ).fetchone()
+    return jsonify({"ok": True, "item": dict(row)}), 201
+
+
+@app.route("/api/canvas/<int:board_id>", methods=["GET", "PATCH", "DELETE"])
+def canvas_board_detail_api(board_id):
+    if request.method == "GET":
+        with get_db() as db:
+            row = db.execute(
+                """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.viewport_json,
+                          cb.preferences_json, cb.created_at, cb.updated_at,
+                          w.name AS workspace_name
+                   FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id
+                   WHERE cb.id = ?""",
+                (board_id,),
+            ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        return jsonify({"ok": True, "item": dict(row), "stage": "catalog"})
+
+    if request.method == "PATCH":
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "message": "Envía los cambios como un objeto JSON."}), 400
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id, workspace_id, title, mode FROM canvas_boards WHERE id = ?",
+                (board_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+            normalized = normalize_canvas_board_payload(payload, dict(row))
+            if normalized is None:
+                return jsonify({"ok": False, "message": "Revisa el título, tipo y espacio asociado del Canvas."}), 400
+            workspace_id = normalized["workspace_id"]
+            if workspace_id is not None:
+                workspace = db.execute("SELECT id FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+                if not workspace:
+                    return jsonify({"ok": False, "message": "El espacio seleccionado no existe."}), 404
+            db.execute(
+                """UPDATE canvas_boards SET workspace_id = ?, title = ?, mode = ?,
+                   updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+                (workspace_id, normalized["title"], normalized["mode"], board_id),
+            )
+            updated = db.execute(
+                """SELECT cb.id, cb.workspace_id, cb.title, cb.mode, cb.created_at, cb.updated_at,
+                          w.name AS workspace_name
+                   FROM canvas_boards cb LEFT JOIN workspaces w ON w.id = cb.workspace_id
+                   WHERE cb.id = ?""",
+                (board_id,),
+            ).fetchone()
+        return jsonify({"ok": True, "item": dict(updated)})
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get("confirm") is not True:
+        return jsonify({"ok": False, "message": "Confirma la eliminación con confirm=true."}), 400
+    with get_db() as db:
+        row = db.execute("SELECT id FROM canvas_boards WHERE id = ?", (board_id,)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "message": "No encontramos ese tablero."}), 404
+        attachment_paths = [
+            item["relative_path"] for item in db.execute(
+                "SELECT relative_path FROM canvas_attachments WHERE board_id = ? AND relative_path IS NOT NULL",
+                (board_id,),
+            ).fetchall()
+        ]
+        db.execute("DELETE FROM canvas_boards WHERE id = ?", (board_id,))
+    for relative_path in attachment_paths:
+        path = canvas_attachment_path(relative_path)
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return jsonify({"ok": True, "message": "Canvas eliminado."})
 
 
 @app.route("/api/settings/theme", methods=["PUT"])
